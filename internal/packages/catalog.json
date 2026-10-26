@@ -1,0 +1,82 @@
+{
+  "generated": "2026-10-26T11:55:25Z",
+  "entries": [
+    {
+      "kind": "php",
+      "version": "8.1.34",
+      "url": "https://downloads.php.net/~windows/releases/archives/php-8.1.34-nts-Win32-vs16-x64.zip",
+      "sha256": "9cfe246cb144076c16f5913a3ef88a474c3dd7e60f0f0c8bb95faf68674016cc",
+      "size": 30822368
+    },
+    {
+      "kind": "php",
+      "version": "8.2.35",
+      "url": "https://downloads.php.net/~windows/releases/archives/php-8.2.35-nts-Win32-vs16-x64.zip",
+      "sha256": "798ffa4b9ce22a820d57048e9695df7245bf917ed067917f256942a10918a8cc",
+      "size": 33702163
+    },
+    {
+      "kind": "php",
+      "version": "8.3.36",
+      "url": "https://downloads.php.net/~windows/releases/archives/php-8.3.36-nts-Win32-vs16-x64.zip",
+      "sha256": "3c9242622c7402b47c38d2ec2ed779cef3a290fd6f2bde6c35f9c482699e7900",
+      "size": 34101685
+    },
+    {
+      "kind": "php",
+      "version": "8.4.27",
+      "url": "https://downloads.php.net/~windows/releases/archives/php-8.4.27-nts-Win32-vs17-x64.zip",
+      "sha256": "93bd8a815a52156606fb906d0573437908c61f96e2cc52c03a51e36a41bf5236",
+      "size": 35290559
+    },
+    {
+      "kind": "php",
+      "version": "8.5.12",
+      "url": "https://downloads.php.net/~windows/releases/archives/php-8.5.12-nts-Win32-vs17-x64.zip",
+      "sha256": "2ab242af38d76bdf417cde5ec048b1bcd76a5a40f39a3d15d5f046f38571c477",
+      "size": 36306925
+    },
+    {
+      "kind": "nginx",
+      "version": "1.31.8",
+      "url": "https://nginx.org/download/nginx-1.31.8.zip",
+      "sha256": "fbb1501009be34655cc238d460714cf20391b639013f4c73859813d7938783fd",
+      "size": 2794487,
+      "strip": "nginx-1.31.8/",
+      "label": "mainline"
+    },
+    {
+      "kind": "nginx",
+      "version": "1.30.6",
+      "url": "https://nginx.org/download/nginx-1.30.6.zip",
+      "sha256": "c6ee35edb0a861063323f709192ae50d1eefaf2ea7d00678bd2b22d8542dc61e",
+      "size": 2773293,
+      "strip": "nginx-1.30.6/",
+      "label": "stable"
+    },
+    {
+      "kind": "mysql",
+      "version": "8.4.13",
+      "url": "https://cdn.mysql.com/Downloads/MySQL-8.4/mysql-8.4.13-winx64.zip",
+      "mirrors": [
+        "https://cdn.mysql.com/archives/mysql-8.4/mysql-8.4.13-winx64.zip"
+      ],
+      "sha256": "e9cd98b1d23f122987b1afca26ad942efec5891481103d48ae3cde237fa3ea54",
+      "size": 281154912,
+      "strip": "mysql-8.4.13-winx64/",
+      "label": "lts"
+    },
+    {
+      "kind": "mysql",
+      "version": "9.7.2",
+      "url": "https://cdn.mysql.com/Downloads/MySQL-9.7/mysql-9.7.2-winx64.zip",
+      "mirrors": [
+        "https://cdn.mysql.com/archives/mysql-9.7/mysql-9.7.2-winx64.zip"
+      ],
+      "sha256": "5592ea38e53edd67f5baa68303e7fcf2f0a40fc08978fdb4a7b0c38d12baea17",
+      "size": 342737674,
+      "strip": "mysql-9.7.2-winx64/",
+      "label": "lts"
+    }
+  ]
+}

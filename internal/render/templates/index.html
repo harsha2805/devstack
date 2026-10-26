@@ -1,0 +1,42 @@
+{{define "index.html"}}<!doctype html>
+<!-- {{header ""}} -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>devstack sites</title>
+<style>
+  :root { --bg: #f7f7f5; --fg: #1d1d1b; --muted: #6b6b66; --line: #e2e2dd; --link: #0b5cad; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #161615; --fg: #ecece8; --muted: #9a9a93; --line: #2c2c2a; --link: #6fb0f0; }
+  }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 40px 16px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p { color: var(--muted); margin: 0 0 24px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+  td.dir { color: var(--muted); font-family: ui-monospace, monospace; font-size: 13px; word-break: break-all; }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<main>
+<h1>devstack</h1>
+<p>{{len .Sites}} site{{if ne (len .Sites) 1}}s{{end}} in {{path .WWW}}</p>
+<table>
+<thead><tr><th>Site</th><th>PHP</th><th>Docroot</th></tr></thead>
+<tbody>
+{{- range .Sites}}
+<tr><td><a href="{{$.URL .}}/">{{.Slug}}</a></td><td>{{if .PHP}}{{.PHP.Build.Version}}{{end}}</td><td class="dir">{{path .Docroot}}</td></tr>
+{{- else}}
+<tr><td colspan="3">No sites yet. Create a folder in {{path .WWW}} and run <code>devstack reload</code>.</td></tr>
+{{- end}}
+</tbody>
+</table>
+</main>
+</body>
+</html>
+{{end}}

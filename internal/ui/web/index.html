@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>devstack</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<div id="dash" class="page" hidden>
+  <header class="strip" id="strip">
+    <span class="dot-ring"><span class="dot"></span></span>
+    <div class="strip-text">
+      <div class="state-word" id="state-word">STOPPED</div>
+      <div class="state-line" id="state-line"></div>
+    </div>
+    <div class="pills" id="pills"></div>
+    <div class="strip-divider"></div>
+    <button class="btn primary" id="power"></button>
+  </header>
+
+  <nav class="bar">
+    <div class="segmented" role="tablist" id="tabs">
+      <button role="tab" data-tab="sites">Sites</button>
+      <button role="tab" data-tab="servers">Servers</button>
+      <button role="tab" data-tab="logs">Logs</button>
+      <button role="tab" data-tab="settings">Settings</button>
+    </div>
+    <div class="bar-actions" id="bar-actions"></div>
+  </nav>
+
+  <main>
+    <section class="view" data-view="sites">
+      <div class="card fill">
+        <div id="sites"></div>
+      </div>
+    </section>
+
+    <section class="view grid-servers" data-view="servers">
+      <div class="card">
+        <h2>Services</h2>
+        <div id="services"></div>
+      </div>
+      <div class="card">
+        <h2>Database</h2>
+        <div id="db"></div>
+      </div>
+      <div class="card span-2">
+        <h2>Versions <span class="h-note">Downloaded from each project's official site and checked against a pinned SHA-256.</span></h2>
+        <div id="packages"></div>
+      </div>
+    </section>
+
+    <section class="view logs-view" data-view="logs">
+      <div class="card fill logs-card">
+        <div class="logs-head">
+          <select id="log-name" aria-label="Log file"></select>
+          <label class="check"><input type="checkbox" id="log-follow" checked> Follow</label>
+        </div>
+        <pre id="log-text" tabindex="0"></pre>
+      </div>
+    </section>
+
+    <section class="view" data-view="settings">
+      <div class="settings" id="settings"></div>
+    </section>
+  </main>
+</div>
+
+<div id="setup" class="page setup" hidden>
+  <div class="card setup-card" id="setup-card"></div>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
