@@ -1,55 +1,32 @@
 <#
 .SYNOPSIS
-  Builds a devstack release into dist\release: the installer, a portable zip,
-  SHA256SUMS.txt, and latest.json (the signed in-app update feed).
+  Builds a devstack release locally into dist\release: the installer, a
+  portable zip and SHA256SUMS.txt, to try out before tagging.
 
 .DESCRIPTION
-  Then publish: .\publish-release.ps1 puts the installer, zip and checksums on
-  GitHub Releases, and website\deploy.ps1 packages the site with latest.json
-  (only once its download URL is live, so the feed never points at a missing
-  installer). Previous release files are moved to dist\release\old\<version>.
+  This build is unsigned and is never published. Released files come from the
+  GitHub workflow (.github/workflows/release.yml), which builds the same way on
+  GitHub's runners and has them code-signed through SignPath; publish-release.ps1
+  starts it and then publishes its draft. See docs/RELEASING.md.
 
-  latest.json is signed with the offline release key (tools/release; see
-  docs/RELEASING.md). The script checks the key before building and fails
-  without it, because released apps ignore unsigned or wrongly signed feeds.
+  Previous release files are moved to dist\release\old\<version>.
 
 .EXAMPLE
   .\build-release.ps1 -Version 0.2.0
-  Notes come from the "## [0.2.0]" section of CHANGELOG.md, which must exist.
+  Needs a "## [0.2.0]" section in CHANGELOG.md.
 #>
-param(
-    [Parameter(Mandatory)][string]$Version,
-    [string]$Notes = "",
-    [string]$Site = "https://devstack.holostack.in",
-    # Installers are served from GitHub Releases; the tag is v<version>.
-    [string]$Repo = "https://github.com/harsha2805/devstack"
-)
+param([Parameter(Mandatory)][string]$Version)
 
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
+. .\release-lib.ps1
 
 if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw "Version must look like 1.2.3" }
 Write-Host "Building devstack $Version" -ForegroundColor Cyan
 
-# Every release is written up in CHANGELOG.md first. Its bold lead-ins become
-# the notes shown in Settings > Updates, unless -Notes is given.
-$changelog = Get-Content CHANGELOG.md -Raw
-$section = [regex]::Match($changelog, "(?ms)^## \[$([regex]::Escape($Version))\][^\r\n]*\r?\n(.*?)(?=^## \[|\z)")
-if (-not $section.Success) { throw "CHANGELOG.md has no '## [$Version]' section. Write up this release's changes first." }
-if (-not $Notes) {
-    $Notes = ([regex]::Matches($section.Groups[1].Value, '(?m)^- \*\*(.+?)\*\*') | ForEach-Object { $_.Groups[1].Value }) -join "`n"
-    $Notes = $Notes.Replace([string][char]96, '')   # the app shows plain text, not Markdown code spans
-    if (-not $Notes) { throw "The CHANGELOG.md section for $Version has no '- **Lead-in.**' items to use as update notes; pass -Notes." }
-}
-
-# Fail fast if the release signing key is missing or not trusted by this build.
-go run ./tools/release check
-if ($LASTEXITCODE) { throw "Update signing key check failed (see docs/RELEASING.md)" }
-
-$iscc = @("$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe",
-          "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
-          "$env:ProgramFiles\Inno Setup 6\ISCC.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
-if (-not $iscc) { throw "Inno Setup 6 not found. Install: winget install -e --id JRSoftware.InnoSetup --scope user" }
+# Every release is written up in CHANGELOG.md first; fail now rather than at publish time.
+$null = Get-UpdateNotes $Version
+$null = Find-Iscc
 
 go test ./...
 if ($LASTEXITCODE) { throw "Tests failed" }
@@ -60,38 +37,9 @@ New-Item -ItemType Directory -Force $out | Out-Null
 $bin = "$out\bin"
 if (Test-Path $bin) { Remove-Item $bin -Recurse -Force }
 & .\build.ps1 -Version $Version -OutDir $bin
-$previous = Get-ChildItem $out -File | Where-Object { $_.Name -match '^devstack_(setup_)?(\d+\.\d+\.\d+)' -and $Matches[2] -ne $Version }
-foreach ($file in $previous) {
-    $null = $file.Name -match '(\d+\.\d+\.\d+)'
-    $archive = Join-Path $out "old\$($Matches[1])"
-    New-Item -ItemType Directory -Force $archive | Out-Null
-    Move-Item $file.FullName $archive -Force
-    foreach ($meta in "SHA256SUMS.txt", "latest.json") {
-        if (Test-Path "$out\$meta") { Move-Item "$out\$meta" (Join-Path $archive $meta) -Force }
-    }
-}
-
-& $iscc /Q "/DAppVersion=$Version" "/DBin=..\$bin" installer\devstack.iss
-if ($LASTEXITCODE) { throw "Inno Setup failed" }
-
-$setup = "devstack_setup_$Version.exe"
-$zip = "devstack_${Version}_portable.zip"
-Compress-Archive -Path "$bin\devstack-app.exe", "$bin\devstack.exe" -DestinationPath "$out\$zip" -CompressionLevel Optimal -Force
-
-$hashes = [ordered]@{}
-foreach ($name in $setup, $zip) { $hashes[$name] = (Get-FileHash "$out\$name" -Algorithm SHA256).Hash.ToLower() }
-($hashes.GetEnumerator() | ForEach-Object { "{0}  {1}" -f $_.Value, $_.Key }) -join "`n" |
-    Set-Content "$out\SHA256SUMS.txt" -Encoding ascii -NoNewline
-
-[ordered]@{
-    version = $Version
-    url     = "$Repo/releases/download/v$Version/$setup"
-    sha256  = $hashes[$setup]
-    notes   = $Notes
-    page    = $Site
-} | ConvertTo-Json | Set-Content "$out\latest.json" -Encoding utf8
-go run ./tools/release sign "$out\latest.json"
-if ($LASTEXITCODE) { throw "Signing latest.json failed" }
+Move-OldReleaseFiles $out $Version
+New-Installer $Version $bin
+New-ReleaseFiles $Version $bin $out
 
 Get-ChildItem $out -File | Select-Object Name, @{ n = 'MB'; e = { [math]::Round($_.Length / 1MB, 2) } } | Format-Table -AutoSize
-Write-Host "Next: .\publish-release.ps1 -Version $Version (GitHub release), then website\deploy.ps1 (site + latest.json)." -ForegroundColor Green
+Write-Host "To release it: commit, push, then .\publish-release.ps1 -Version $Version" -ForegroundColor Green

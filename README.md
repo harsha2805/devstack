@@ -132,6 +132,28 @@ The **AI guide** switch on each site (or `devstack guide add`) fixes that:
 | `data\` | MySQL data, daemon state, `secrets.toml` |
 | `logs\` | `devstack.log`, `nginx-error.log`, `php-8.3-error.log`, `mysql.log`, `sites\*.access.log` |
 
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://signpath.io), certificate by
+[SignPath Foundation](https://signpath.org).
+
+- **What is signed:** each release's installer and the two programs in it (`devstack-app.exe`, `devstack.exe`),
+  built and tested by GitHub Actions from a tagged commit of this repository
+  ([release.yml](.github/workflows/release.yml)). nginx, PHP and MySQL are never signed by devstack.
+- **Committers and reviewers:** [harsha2805](https://github.com/harsha2805). Changes from anyone else arrive as
+  pull requests and are reviewed before they are merged.
+- **Approvers:** [harsha2805](https://github.com/harsha2805) approves every signing request by hand.
+
+How releases are built and signed: [docs/SIGNING.md](docs/SIGNING.md). The same policy is on
+[devstack.holostack.in/code-signing](https://devstack.holostack.in/code-signing).
+
+## Privacy
+
+devstack has no telemetry. It connects to the internet only to check for updates once a day
+(`https://devstack.holostack.in/latest.json`, sending just its version; turn it off in Settings → Updates), to
+download an update from GitHub when you click Update now, and to download nginx, PHP and MySQL from their
+publishers when you install them. Details: [devstack.holostack.in/privacy](https://devstack.holostack.in/privacy).
+
 ## License
 
 [MIT](LICENSE). devstack downloads nginx (BSD), PHP (PHP License) and MySQL (GPLv2) from their publishers at run

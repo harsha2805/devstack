@@ -5,37 +5,45 @@ the feed goes on `https://devstack.holostack.in/latest.json`.
 
 ## Once per machine
 
-- Inno Setup 6: `winget install -e --id JRSoftware.InnoSetup --scope user`
+- Inno Setup 6, for local builds: `winget install -e --id JRSoftware.InnoSetup --scope user`
+- The GitHub CLI, signed in: `gh auth login`
 - The release signing key (below) at `%APPDATA%\devstack-release\update-signing-key.pem`, restored from backup.
 
-## Build
+## Try it locally
 
-Every feature or fix gets its line in `CHANGELOG.md` when it lands, under the version it will ship in. Then:
+Every feature or fix gets its line in `CHANGELOG.md` when it lands, under the version it will ship in. To try the
+installer before releasing:
 
 ```powershell
 .\build-release.ps1 -Version 0.2.0
 ```
 
-It refuses to build a version without a `## [0.2.0]` section in `CHANGELOG.md`, and turns that section's bold
-lead-ins (`- **Folder picker.** ...`) into the update notes shown in Settings → Updates (`-Notes` overrides them).
-It checks the signing key, runs the tests, builds both exes with the version stamped in, and writes to
-`dist\release\`:
-
-| File | What |
-|---|---|
-| `devstack_setup_<version>.exe` | per-user installer (no admin), adds devstack to the user PATH |
-| `devstack_<version>_portable.zip` | both exes, for people who don't want an installer |
-| `SHA256SUMS.txt` | hashes of the two files above |
-| `latest.json` | the update feed, signed |
-
-Older release files move to `dist\release\old\<version>\`.
+It refuses a version without a `## [0.2.0]` section in `CHANGELOG.md`, runs the tests, builds both exes with the
+version stamped in, and writes an unsigned installer, portable zip and `SHA256SUMS.txt` to `dist\release\`. Older
+release files move to `dist\release\old\<version>\`. These local files are never published.
 
 ## Publish
 
-1. `.\publish-release.ps1 -Version 0.2.0` creates the GitHub release `v0.2.0` on the pushed commit, with the
-   installer, the zip and `SHA256SUMS.txt` attached and the changelog section as its notes. It refuses if the files
-   don't match the signed feed, or if there are uncommitted or unpushed changes.
-2. `website\deploy.ps1` packages the website with the new `latest.json` and changelog; upload it as described in
+Released files are built by GitHub Actions and code-signed through SignPath ([SIGNING.md](SIGNING.md)), so anyone
+can trace them back to this repository. Commit and push, then:
+
+1. `.\publish-release.ps1 -Version 0.2.0` tags the pushed commit `v0.2.0` and pushes the tag. GitHub builds the
+   release ([release.yml](../.github/workflows/release.yml)); approve its two signing requests on signpath.io. The
+   build ends as a draft release.
+2. `.\publish-release.ps1 -Version 0.2.0` again, once the draft is there. It downloads the files into
+   `dist\release\`, checks them against `SHA256SUMS.txt` and checks their signatures, writes and signs
+   `latest.json`, and publishes the release:
+
+   | File | What |
+   |---|---|
+   | `devstack_setup_<version>.exe` | per-user installer (no admin), adds devstack to the user PATH |
+   | `devstack_<version>_portable.zip` | both exes, for people who don't want an installer |
+   | `SHA256SUMS.txt` | hashes of the two files above |
+   | `latest.json` | the update feed, signed (goes on the website, not the release) |
+
+   The update notes in Settings → Updates are the changelog section's bold lead-ins (`- **Folder picker.** ...`);
+   `-Notes` overrides them. Until SignPath is set up, `-AllowUnsigned` publishes an unsigned build.
+3. `website\deploy.ps1` packages the website with the new `latest.json` and changelog; upload it as described in
    [WEBSITE.md](WEBSITE.md). It only includes `latest.json` once the installer's GitHub URL is live, so installed
    apps never see an update before its file exists.
 
@@ -76,7 +84,7 @@ signing**. Re-run `go run ./tools/release sign dist\release\latest.json` instead
 - The private key lives outside the repo at `%APPDATA%\devstack-release\update-signing-key.pem` (or the path
   in `DEVSTACK_UPDATE_KEY`). **Back it up offline**, for example in a password manager or on an encrypted USB
   drive. Never commit it.
-- `go run ./tools/release check` confirms the key matches the app; `build-release.ps1` runs it first.
+- `go run ./tools/release check` confirms the key matches the app; `publish-release.ps1` signs with it.
 - **Rotating:** generate a new key (`keygen` with a fresh `DEVSTACK_UPDATE_KEY` path), add its public key to
   `update.TrustedKeys` next to the old one, and ship a release signed with the old key. Sign with the new key
   from the release after that.

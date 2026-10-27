@@ -18,15 +18,15 @@ php artisan serve          # http://localhost:8000
 php artisan test
 ```
 
-Or let devstack serve it: link the folder into your stack's `www` (`mklink /J C:\devstack\www\devstack-web D:\devstack\website`)
+Or let devstack serve it: link the folder into your stack's `www` (`mklink /J D:\devstack\www\devstack-web D:\devstack-development\website`)
 and open `https://devstack-web.test`.
 
 ## Release order
 
-1. `.\build-release.ps1 -Version x.y.z` (needs the `## [x.y.z]` section in `CHANGELOG.md`).
-2. `.\publish-release.ps1 -Version x.y.z`: the GitHub release with the installer, zip and checksums.
-3. `website\deploy.ps1`: builds `dist\website.zip`, including `latest.json` only once step 2's installer URL is live.
-4. Upload and extract the zip (below). Installed copies of devstack see the update within a day.
+1. `.\publish-release.ps1 -Version x.y.z`, twice: the first run starts the signed GitHub build, the second
+   publishes it and writes `dist\release\latest.json` ([RELEASING.md](RELEASING.md)).
+2. `website\deploy.ps1`: builds `dist\website.zip`, including `latest.json` only once step 1's installer URL is live.
+3. Upload and extract the zip (below). Installed copies of devstack see the update within a day.
 
 ## Hosting layout
 

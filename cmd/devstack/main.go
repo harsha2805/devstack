@@ -1,6 +1,8 @@
 // Command devstack runs a local web dev stack (nginx, PHP, MySQL) from one config file.
 package main
 
+//go:generate go run github.com/tc-hib/go-winres@v0.3.3 make --in winres/winres.json --out rsrc
+
 import (
 	"context"
 	"errors"

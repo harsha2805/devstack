@@ -35,6 +35,7 @@
     <p>devstack is free and open source under the <a href="{{ \App\Http\Controllers\SiteController::REPO }}/blob/main/LICENSE">MIT license</a>.
       It downloads unmodified nginx, PHP and MySQL from their publishers.</p>
     <p><a href="{{ \App\Http\Controllers\SiteController::REPO }}">Source</a> · <a href="{{ route('changelog') }}">Changelog</a> ·
+      <a href="{{ route('code-signing') }}">Code signing policy</a> · <a href="{{ route('privacy') }}">Privacy</a> ·
       <a href="{{ route('sponsor') }}">Sponsor</a> · <a href="https://holostack.in">HoloStack</a></p>
   </div>
 </footer>

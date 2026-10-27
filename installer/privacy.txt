@@ -1,0 +1,13 @@
+devstack and your privacy
+
+devstack has no telemetry, no account and no ads. It connects to the internet only for these:
+
+- Update check. Once a day, and 30 seconds after it starts, devstack reads https://devstack.holostack.in/latest.json to see whether a newer version exists. The request carries only devstack's version (as "devstack/0.1.0"), and the server sees your IP address, like any download. Turn it off in Settings > Updates: "Check for updates automatically".
+
+- Updates. When you click Update now, devstack downloads the new installer from github.com.
+
+- Servers. When you set up devstack or install a version, it downloads nginx from nginx.org, PHP from downloads.php.net and MySQL from cdn.mysql.com. (If Windows lacks the Microsoft Visual C++ runtime, devstack shows Microsoft's download link; it doesn't fetch it.)
+
+Links in the app, such as Sponsor or the source code, open in your browser only when you click them.
+
+Your sites, databases and settings stay on this computer. The full statement: https://devstack.holostack.in/privacy

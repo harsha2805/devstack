@@ -38,12 +38,14 @@
         },
         "info": {
           "0409": {
-            "FileDescription": "devstack",
+            "FileDescription": "devstack (tray app and dashboard)",
             "FileVersion": "0.1.0",
             "InternalName": "devstack-app",
             "OriginalFilename": "devstack-app.exe",
             "ProductName": "devstack",
-            "ProductVersion": "0.1.0"
+            "ProductVersion": "0.1.0",
+            "CompanyName": "HoloStack",
+            "LegalCopyright": "Copyright (c) 2026 Harsha (HoloStack). MIT license."
           }
         }
       }

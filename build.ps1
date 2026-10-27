@@ -13,17 +13,18 @@ Set-Location $PSScriptRoot
 
 $ldflags = "-s -w -X main.version=$Version"
 
-# Icon, manifest (per-monitor DPI) and version info for the app exe. A release
-# version also goes into the exe's version info, which Setup and Windows show.
-if ($Version -match '^\d+\.\d+\.\d+$') {
-    Push-Location cmd\devstack-app
-    go run github.com/tc-hib/go-winres@v0.3.3 make --in winres/winres.json --out rsrc --product-version "$Version.0" --file-version "$Version.0"
+# Icon, manifest and version info (publisher, copyright) for both exes. A
+# release version also goes into it, which Setup and Windows show.
+foreach ($cmd in "devstack-app", "devstack") {
+    Push-Location "cmd\$cmd"
+    if ($Version -match '^\d+\.\d+\.\d+$') {
+        go run github.com/tc-hib/go-winres@v0.3.3 make --in winres/winres.json --out rsrc --product-version "$Version" --file-version "$Version"
+    } else {
+        go run github.com/tc-hib/go-winres@v0.3.3 make --in winres/winres.json --out rsrc
+    }
     $code = $LASTEXITCODE
     Pop-Location
-    if ($code) { throw "go-winres failed" }
-} else {
-    go generate ./cmd/devstack-app
-    if ($LASTEXITCODE) { throw "go generate failed" }
+    if ($code) { throw "go-winres failed for $cmd" }
 }
 
 go build -trimpath -ldflags $ldflags -o $OutDir\devstack.exe .\cmd\devstack

@@ -2,8 +2,20 @@
 
 All notable changes to devstack are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions use SemVer.
-`build-release.ps1` needs a section for the version it builds and takes the in-app update notes from the
+The release scripts need a section for the version they build and take the in-app update notes from the
 bold lead-ins under it, so write each feature up here when it lands.
+
+## [0.1.1] — unreleased
+
+### Changed
+- **Signed releases.** Releases are now built by GitHub Actions from the tagged source and, once SignPath Foundation
+  accepts the project, code-signed, so Windows can name the publisher instead of warning about an unknown app.
+  The [code signing policy](https://devstack.holostack.in/code-signing) says how.
+- **Publisher details.** `devstack.exe`, `devstack-app.exe` and the installer now carry the product name, version,
+  publisher (HoloStack) and copyright in their file properties.
+- **Privacy statement.** Setup now says, before installing, exactly what devstack connects to: the daily update
+  check (which can be turned off) and the downloads you ask for. Also at
+  [devstack.holostack.in/privacy](https://devstack.holostack.in/privacy).
 
 ## [0.1.0] — 2026-10-27
 

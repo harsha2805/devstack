@@ -30,6 +30,17 @@ AppPublisherURL=https://devstack.holostack.in
 AppSupportURL=https://github.com/harsha2805/devstack
 AppUpdatesURL=https://devstack.holostack.in
 VersionInfoVersion={#AppVersion}
+; Publisher details Windows shows in the file's Properties and next to its
+; signature, so the installer isn't an anonymous download.
+VersionInfoCompany=HoloStack
+VersionInfoDescription=devstack Setup
+VersionInfoProductName=devstack
+; Exactly the version build.ps1 writes into the exes: SignPath checks that
+; every file it signs carries the same product name and version.
+VersionInfoTextVersion={#AppVersion}
+VersionInfoProductTextVersion={#AppVersion}
+VersionInfoCopyright=Copyright (c) 2026 Harsha (HoloStack). MIT license.
+AppCopyright=Copyright (c) 2026 Harsha (HoloStack)
 ; With PrivilegesRequired=lowest, {autopf} is %LOCALAPPDATA%\Programs.
 DefaultDirName={autopf}\devstack
 DefaultGroupName=devstack
@@ -39,6 +50,9 @@ UninstallDisplayName=devstack
 OutputDir=..\dist\release
 OutputBaseFilename=devstack_setup_{#AppVersion}
 SetupIconFile=devstack.ico
+; What devstack sends over the network, shown before installing (silent
+; updates skip it). The same text is on devstack.holostack.in/privacy.
+InfoBeforeFile=privacy.txt
 Compression=lzma2/ultra64
 SolidCompression=yes
 ArchitecturesAllowed=x64compatible
