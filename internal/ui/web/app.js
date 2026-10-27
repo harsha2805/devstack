@@ -177,7 +177,7 @@ function renderTabs() {
     const a = $("#bar-actions");
     if (tab === "sites") {
       a.innerHTML = `<button class="btn" id="open-www">${icon("folder")}Open www folder</button>
-        <button class="btn" id="reload" ${S.running ? "" : "disabled"} title="Pick up new folders and config changes">${icon("reload")}Reload</button>`;
+        <button class="btn" id="reload" ${S.running ? "" : "disabled"} title="Apply changes to stack.toml (sites in www are picked up on their own)">${icon("reload")}Reload</button>`;
       $("#open-www").onclick = () => open("folder", S.www);
       $("#reload").onclick = () => act("/api/reload", {}, "Reloaded").catch(() => {});
     } else {
@@ -212,7 +212,7 @@ function renderSites() {
             <button class="btn small ghost" data-folder="${i}" title="${esc(s.dir)}">${icon("folder")}Folder</button></td>
         </tr>`).join("")}
       </tbody></table>
-      <p class="muted" style="margin:12px 0 0;font-size:12px">New folders in <span class="mono">${esc(S.www)}</span> show up after Reload.</p>
+      <p class="muted" style="margin:12px 0 0;font-size:12px">New folders in <span class="mono">${esc(S.www)}</span> are served within a few seconds while the servers run.</p>
       <p class="muted" style="margin:6px 0 0;font-size:12px">AI guide: tells coding agents (Claude Code, Codex, Cursor, Copilot) this site's URL, PHP, database and logs.
         It writes <span class="mono">.devstack/ai-guide.md</span> (kept out of git) and a short pointer in <span class="mono">AGENTS.md</span> and <span class="mono">CLAUDE.md</span>. Your own text in those files is left alone.</p>`;
     el.querySelectorAll("[data-url]").forEach((b) => (b.onclick = () => open("url", S.sites[b.dataset.url].url)));

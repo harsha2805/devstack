@@ -17,6 +17,8 @@ import (
 type Loaded struct {
 	Config config.Stack
 	Found  discover.Result
+	WWW    string       // absolute www folder
+	Sites  []sites.Site // the raw scan the model was built from (the daemon's watcher compares against it)
 	Stack  *model.Stack
 }
 
@@ -37,10 +39,12 @@ func Load(ctx context.Context, root string) (*Loaded, error) {
 	} else {
 		www = filepath.Join(cfg.Root, www)
 	}
+	l.WWW = www
 	list, warns, err := sites.Scan(www)
 	if err != nil {
 		return l, err
 	}
+	l.Sites = list
 	l.Stack, err = model.Resolve(cfg, l.Found, list, append(l.Found.Problems, warns...))
 	return l, err
 }

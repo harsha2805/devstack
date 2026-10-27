@@ -50,7 +50,7 @@ devstack pkg install php 8.3
 devstack up          # renders etc\ and starts everything in the background
 devstack status
 devstack sites       # URLs, e.g. http://hello.localhost:8080
-devstack reload      # after adding a folder to www\ or editing stack.toml
+devstack reload      # after editing stack.toml (folders in www\ are picked up on their own)
 devstack logs nginx -f
 devstack db creds    # generated MySQL root password
 devstack guide add   # AI guide for coding agents in the current site's folder (also: remove, show)

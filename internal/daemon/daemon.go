@@ -51,6 +51,8 @@ type Daemon struct {
 	errs     []string
 	warnings []string
 	st       *model.Stack
+	www      string // watched folder and the fingerprint of its scan in st (see watch.go)
+	scan     string
 
 	opMu     sync.Mutex // one reload/restart at a time
 	shutdown chan struct{}
@@ -113,6 +115,7 @@ func Run(ctx context.Context, opts Options) error {
 		d.stopAll()
 		return err
 	}
+	go d.watchSites(ctx)
 
 	select {
 	case <-ctx.Done():
@@ -143,6 +146,7 @@ func (d *Daemon) startAll(ctx context.Context) error {
 	}
 	d.mu.Lock()
 	d.st, d.warnings = st, st.Warnings
+	d.www, d.scan = l.WWW, fingerprint(l.Sites)
 	d.mu.Unlock()
 
 	var errs []string
@@ -239,6 +243,7 @@ func (d *Daemon) reload(ctx context.Context) ([]string, error) {
 
 	d.mu.Lock()
 	d.st, d.warnings, d.errs = st, st.Warnings, errs
+	d.www, d.scan = l.WWW, fingerprint(l.Sites)
 	d.mu.Unlock()
 	if len(errs) > 0 {
 		return actions, errors.New(strings.Join(errs, "\n"))

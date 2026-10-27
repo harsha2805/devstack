@@ -253,7 +253,14 @@ found via `GetExtendedTcpTable`. `init` picks free fallbacks (80→8080, 3306→
 
 ## 7. How later milestones attach
 
-- M2 watcher: calls the same `reload` path. Hosts fallback is one more renderer output (a marked block).
+- M2 watcher: **done.** The daemon rescans www every 1.5s (`internal/daemon/watch.go`) and calls the same
+  `reload` path when the site list changes: a folder added, removed or renamed, a `.devstack.toml` edited, a
+  `public/` or `index.php` appearing. A change must look the same on two scans in a row, so a folder being
+  copied or cloned is picked up once it settles (measured: about 3s from new folder to served). Polling a scan
+  instead of file notifications ignores churn inside projects (vendor/, node_modules/). stack.toml still takes an
+  explicit reload, so a half-saved file is never applied. Still to do in M2: `*.test` names with the hosts-file
+  fallback, asked for once (one admin prompt), because Windows itself doesn't resolve `*.localhost` for
+  programs other than browsers and curl.
 - M3: `dns` and `certs` packages. The renderer gains a `listen 443 ssl` block when `site.SSL`.
 - M4: `model` already resolves a PHP version per site and runs one pool per version in use. The shim is a separate tiny exe.
 - M5: a second renderer behind `services.web`. The model doesn't change.
