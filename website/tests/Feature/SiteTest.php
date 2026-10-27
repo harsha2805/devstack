@@ -77,7 +77,8 @@ class SiteTest extends TestCase
             ->assertSee('certificate by', false)
             ->assertSee('Approvers');
         $this->get('/privacy')->assertOk()->assertSee('devstack.holostack.in/latest.json')->assertSee('Check for updates automatically');
-        $this->get('/')->assertSee('Code signing policy')->assertSee(route('privacy'), false);
+        $this->get('/')->assertSee('Code signing policy')->assertSee(route('privacy'), false)
+            ->assertSee('certificate by', false)->assertSee('SignPath Foundation');
     }
 
     public function test_sponsor_redirects_to_github_sponsors(): void

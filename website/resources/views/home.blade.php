@@ -22,6 +22,8 @@
       <p class="fine">Free and open source · Installs for your account, no administrator prompt · Windows 10/11, 64-bit
         @if ($release) · <a href="{{ route('changelog') }}">What's new in {{ $release['version'] }}</a>@endif
         · <a href="{{ route('code-signing') }}">Code signing policy</a></p>
+      <p class="fine">Free code signing provided by <a href="https://signpath.io">SignPath.io</a>, certificate by
+        <a href="https://signpath.org">SignPath Foundation</a>.</p>
       @if ($downloads)
         <p class="downloads" title="Installer and zip downloads from GitHub Releases, including in-app updates">
           <strong>{{ number_format($downloads) }}</strong> {{ $downloads === 1 ? 'download' : 'downloads' }} so far</p>
