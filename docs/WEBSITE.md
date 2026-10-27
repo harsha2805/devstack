@@ -28,28 +28,47 @@ and open `https://devstack-web.test`.
 3. `website\deploy.ps1`: builds `dist\website.zip`, including `latest.json` only once step 2's installer URL is live.
 4. Upload and extract the zip (below). Installed copies of devstack see the update within a day.
 
-## One-time cPanel setup
+## Hosting layout
 
-1. **PHP version:** in *MultiPHP Manager* (or *Select PHP Version*), set the subdomain to **PHP 8.3 or newer**, with
-   the `mbstring`, `openssl`, `fileinfo`, `tokenizer`, `ctype` and `xml` extensions (on by default on most hosts).
-2. **Subdomain:** *Domains* → *Create a New Domain* (or *Subdomains*): `devstack.holostack.in`, with the document
-   root set to **`devstack.holostack.in/public`**. Pointing it at `public/` keeps `.env`, `storage/` and the code
-   out of reach of the web.
-3. **HTTPS:** *SSL/TLS Status* → run AutoSSL for the subdomain. The app only accepts an `https://` feed.
-4. **DNS:** if holostack.in's DNS isn't managed by this cPanel, add an `A` record for `devstack` pointing at the
-   hosting server's IP.
+holostack.in's hosting (Apache, `host8.cloudindianserver.com`, IP `103.235.104.192`) gives each domain a fixed web
+root, `domains/devstack.holostack.in/public_html`, which can't be pointed at Laravel's `public/`. So the app sits
+next to it, outside the web root:
+
+```
+domains/devstack.holostack.in/
+├── devstack/      the Laravel app: .env, app/, storage/, vendor/ ... (not reachable from the web)
+└── public_html/   Laravel's public files, and an index.php that loads ../devstack
+```
+
+The `index.php` calls `$app->usePublicPath(__DIR__)`, so Laravel treats `public_html/` as its public folder; that's
+where `latest.json` and the CSS are read from. `deploy.ps1` builds exactly this layout (`-Layout public_html`, the
+default). For a host that can point the web root at `public/`, use `-Layout public` and extract the plain tree.
+
+## One-time setup
+
+1. **PHP 8.3 or newer** for the domain (Laravel 13 needs it), with `mbstring`, `openssl`, `fileinfo`, `tokenizer`,
+   `ctype` and `xml` (on by default on most hosts).
+2. **DNS:** holostack.in uses the hosting's nameservers (`ns11`/`ns12.dnshorizon.com`). In the panel's DNS zone for
+   `holostack.in`, add an `A` record: name `devstack`, value `103.235.104.192` (or a `CNAME` `devstack` →
+   `holostack.in`). Check with `nslookup devstack.holostack.in 8.8.8.8`.
+3. **HTTPS:** once that name resolves, issue a Let's Encrypt certificate for `devstack.holostack.in` in the panel's
+   SSL section. Until then the server answers with its own `host8.cloudindianserver.com` certificate, which
+   browsers and the app reject. The app only accepts an `https://` feed.
 
 ## Each deploy
 
-1. Run `website\deploy.ps1`. It writes `dist\website.zip`, with production dependencies and `.env` inside.
-2. In cPanel *File Manager*, open `devstack.holostack.in/` (the folder above `public`), upload the zip and
-   *Extract* it, replacing existing files.
-3. Make sure `storage/` and `bootstrap/cache/` are writable (755 for folders is usual on cPanel).
+1. Run `website\deploy.ps1`. It writes `dist\website.zip` with `devstack/` and `public_html/` inside.
+2. In the File Manager, open `domains/devstack.holostack.in/`, upload the zip there (next to `public_html`, not in
+   it) and extract it, overwriting existing files.
+3. Make sure `devstack/storage/` and `devstack/bootstrap/cache/` are writable (755 folders is usual).
 4. Delete the uploaded zip.
 5. Check `https://devstack.holostack.in/` and `https://devstack.holostack.in/latest.json`.
 
-With SSH or cPanel's *Terminal*, `php artisan config:cache && php artisan route:cache && php artisan view:cache`
-after extracting makes the site a little faster; run `php artisan optimize:clear` before the next upload.
+Files removed from the site in a later version stay on the server until deleted by hand; extracting only adds and
+overwrites.
+
+With SSH or a panel terminal, run `php artisan config:cache && php artisan route:cache && php artisan view:cache` in
+`devstack/` after extracting, and `php artisan optimize:clear` before the next upload.
 
 `website/.env.production` holds the production `APP_KEY`. `deploy.ps1` creates it the first time; it is not in git,
 so back it up with the release signing key.
