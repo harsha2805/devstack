@@ -39,7 +39,10 @@ if (git status --porcelain) { throw "Uncommitted changes. Commit (and push) them
 git fetch -q origin
 $head = git rev-parse HEAD
 if ($head -ne (git rev-parse origin/main)) { throw "HEAD isn't pushed to origin/main. Push first." }
-if (gh release view "v$Version" --repo $Repo 2>$null) { throw "Release v$Version already exists on GitHub." }
+# "release not found" arrives on stderr, which Windows PowerShell turns into an
+# error under 'Stop'; ask through cmd and judge by the exit code alone.
+cmd /c "gh release view v$Version --repo $Repo >nul 2>&1"
+if ($LASTEXITCODE -eq 0) { throw "Release v$Version already exists on GitHub." }
 
 $changelog = Get-Content CHANGELOG.md -Raw
 $section = [regex]::Match($changelog, "(?ms)^## \[$([regex]::Escape($Version))\][^\r\n]*\r?\n(.*?)(?=^## \[|\z)")
@@ -54,7 +57,7 @@ $($section.Groups[1].Value.Trim())
 **Verify:** the SHA-256 of each file is in ``SHA256SUMS.txt``.
 "@ | Set-Content $notes -Encoding utf8
 
-gh release create "v$Version" $setup $zip "$out\SHA256SUMS.txt" --repo $Repo --target $head --title "devstack $Version" --notes-file $notes
+cmd /c "gh release create v$Version `"$setup`" `"$zip`" `"$out\SHA256SUMS.txt`" --repo $Repo --target $head --title `"devstack $Version`" --notes-file `"$notes`" 2>&1"
 if ($LASTEXITCODE) { throw "gh release create failed" }
 Remove-Item $notes
 Write-Host "Published https://github.com/$Repo/releases/tag/v$Version. Next: website\deploy.ps1" -ForegroundColor Green
