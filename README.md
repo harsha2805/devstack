@@ -124,3 +124,8 @@ The **AI guide** switch on each site (or `devstack guide add`) fixes that:
 | `etc-custom\nginx\*.conf` | your own nginx config, included and never touched |
 | `data\` | MySQL data, daemon state, `secrets.toml` |
 | `logs\` | `devstack.log`, `nginx-error.log`, `php-8.3-error.log`, `mysql.log`, `sites\*.access.log` |
+
+## License
+
+[MIT](LICENSE). devstack downloads nginx (BSD), PHP (PHP License) and MySQL (GPLv2) from their publishers at run
+time; none of them are bundled.
