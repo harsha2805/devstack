@@ -76,3 +76,13 @@ func TestSetServiceRollsBack(t *testing.T) {
 		t.Fatalf("file changed: %q", got)
 	}
 }
+
+func TestSetKeyNumber(t *testing.T) {
+	root := writeStack(t, "[ports]\nhttp  = 80\nhttps = 443   # TLS\n")
+	if err := SetKey(root, "ports", "https", "8443"); err != nil {
+		t.Fatal(err)
+	}
+	if got := readStack(t, root); got != "[ports]\nhttp  = 80\nhttps = 8443   # TLS\n" {
+		t.Fatalf("got %q", got)
+	}
+}

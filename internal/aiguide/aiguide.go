@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/harsha2805/devstack/internal/certs"
 	"github.com/harsha2805/devstack/internal/config"
 	"github.com/harsha2805/devstack/internal/model"
 )
@@ -167,6 +168,18 @@ func Render(st *model.Stack, site model.Site, cli string) string {
 		w("- Requests for files that don't exist go to `index.php` (front controller).")
 	}
 	w("- The site is already being served by nginx %s. Don't start another server (`php -S`, `artisan serve`, `npm run serve` for PHP).", st.Nginx.Version)
+	if st.HTTPS {
+		plain := strings.Replace(url, "https://", "http://", 1)
+		plain = strings.Replace(plain, fmt.Sprintf(":%d", st.HTTPSPort), "", 1)
+		if st.HTTPPort != 80 {
+			plain += fmt.Sprintf(":%d", st.HTTPPort)
+		}
+		ca := "the devstack CA"
+		if d, err := certs.Dir(); err == nil {
+			ca = "`" + filepath.Join(d, "ca.crt") + "`"
+		}
+		w("- HTTPS uses devstack's local CA, which Windows programs trust. PHP, Node and Python don't by default: from code, call %s, or trust %s.", plain, ca)
+	}
 	if st.DNS {
 		w("- `*.%s` names resolve for every program on this machine while devstack runs.", st.TLD)
 	} else {

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/harsha2805/devstack/internal/certs"
 	"github.com/harsha2805/devstack/internal/config"
 	"github.com/harsha2805/devstack/internal/discover"
 	"github.com/harsha2805/devstack/internal/model"
@@ -17,7 +18,9 @@ import (
 var update = flag.Bool("update", false, "rewrite testdata/golden")
 
 // fixture builds a stack under a temp root with fake php/nginx/mysql folders.
-func fixture(t *testing.T) *model.Stack {
+func fixture(t *testing.T) *model.Stack { return fixtureWith(t, nil) }
+
+func fixtureWith(t *testing.T, change func(*config.Stack)) *model.Stack {
 	t.Helper()
 	root := t.TempDir()
 	phpDir := filepath.Join(root, "bin", "php", "8.3")
@@ -36,6 +39,9 @@ func fixture(t *testing.T) *model.Stack {
 	cfg.PHP.Workers = 2
 	cfg.PHP.Extensions = []string{"curl", "mbstring", "pdo_mysql", "gd"}
 	cfg.PHP.INI = map[string]string{"memory_limit": "1G", "date.timezone": "Asia/Kolkata"}
+	if change != nil {
+		change(&cfg)
+	}
 	www := filepath.Join(root, "www")
 	list := []sites.Site{
 		{Name: "My_App", Slug: "my-app", Dir: filepath.Join(www, "My_App"), Docroot: filepath.Join(www, "My_App", "public"), HasIndex: true},
@@ -125,5 +131,31 @@ func TestModelDetails(t *testing.T) {
 	}
 	if !strings.HasSuffix(filepath.ToSlash(st.MySQL.DataDir), "data/mysql/8.4") {
 		t.Errorf("datadir = %s", st.MySQL.DataDir)
+	}
+}
+
+func TestHTTPS(t *testing.T) {
+	t.Setenv("DEVSTACK_APPDATA", t.TempDir())
+	st := fixtureWith(t, func(c *config.Stack) { c.Services.HTTPS = "on"; c.Ports.HTTPS = 8443 })
+	if _, err := Write(st); err == nil || !strings.Contains(err.Error(), "services.https") {
+		t.Fatalf("no CA yet: err = %v", err)
+	}
+	if _, err := certs.LoadOrCreate("test"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Write(st); err != nil {
+		t.Fatal(err)
+	}
+	conf, _ := os.ReadFile(filepath.Join(st.Etc, "nginx", "sites", "my-app.conf"))
+	for _, want := range []string{"listen       127.0.0.1:8443 ssl;", "listen       [::1]:8443 ssl;", "ssl_certificate      ", "my-app.crt"} {
+		if !strings.Contains(string(conf), want) {
+			t.Errorf("site.conf lacks %q", want)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(st.CertDir, "my-app.key")); err != nil {
+		t.Error("certificate not issued")
+	}
+	if got := st.URL(st.Sites[0]); got != "https://my-app.localhost:8443" {
+		t.Errorf("URL = %s", got)
 	}
 }

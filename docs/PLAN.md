@@ -267,7 +267,17 @@ found via `GetExtendedTcpTable`. `init` picks free fallbacks (80→8080, 3306→
   `control.SetDNS` adds the rule before changing config (declining changes nothing) and removes it after.
   Verified on this machine: Windows resolver, wildcard subdomains, Python, PHP, curl and Edge all reach
   `hello.test`; real domains and Laragon's hosts entries unaffected; turning off left no rule and no listener.
-  This also covers most of M3's DNS item; trusted local HTTPS is what remains there.
+  This also covers most of M3's DNS item.
+- M3 trusted HTTPS: **done.** `internal/certs`: a per-user ECDSA CA in `%LOCALAPPDATA%\devstack\ca` with critical
+  name constraints (localhost, the TLD, 127.0.0.0/8, ::1), trusted in the user's Root store (Windows' own
+  prompt, no admin). Per-site leaf certificates (397 days, renewed 30 days before expiry or when names change)
+  in `data/devstack/certs`; issued in `render.Write` so every reload keeps them current. nginx listens on
+  `ports.https` (443, or a free fallback picked when turning on) with `http2`. Schannel (curl.exe) hard-fails
+  without revocation info and refuses `file:` CRL URLs, so leaves point at an empty CRL that the landing page
+  serves at `http://localhost/.well-known/devstack-ca.crl`. Verified: curl.exe with strict revocation, .NET
+  SslStream, Edge; a google.com certificate signed by the CA fails on its constraints. Found while testing:
+  deleting a Root certificate through a context whose store was already closed reports success and changes
+  nothing, so Untrust deletes with the store open and recounts afterwards.
 - M3: `dns` and `certs` packages. The renderer gains a `listen 443 ssl` block when `site.SSL`.
 - M4: `model` already resolves a PHP version per site and runs one pool per version in use. The shim is a separate tiny exe.
 - M5: a second renderer behind `services.web`. The model doesn't change.

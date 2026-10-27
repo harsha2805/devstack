@@ -149,6 +149,7 @@ func (s *Server) routes() http.Handler {
 	api.HandleFunc("POST /api/site/php", s.handleSitePHP)
 	api.HandleFunc("POST /api/site/guide", s.handleSiteGuide)
 	api.HandleFunc("POST /api/dns", s.handleDNS)
+	api.HandleFunc("POST /api/https", s.handleHTTPS)
 	api.HandleFunc("POST /api/dns/dismiss", s.handleDNSDismiss)
 	api.HandleFunc("POST /api/packages/install", s.handleInstall)
 	api.HandleFunc("POST /api/packages/remove", s.handleRemove)
@@ -262,6 +263,7 @@ type stateView struct {
 	Links      map[string]string `json:"links"`
 	Update     *updateView       `json:"update"`
 	DNS        *dnsView          `json:"dns,omitempty"`
+	HTTPS      *control.HTTPSStatus `json:"https,omitempty"`
 }
 
 // plannedService describes what will run, for display while stopped.
@@ -312,6 +314,9 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 	v.Root = root
 	if ds, err := control.CheckDNS(r.Context(), root, false); err == nil {
 		v.DNS = &dnsView{DNSStatus: ds, Asked: set.DNSAsked}
+	}
+	if hs, err := control.CheckHTTPS(root); err == nil {
+		v.HTTPS = &hs
 	}
 	if l, err := stack.Load(r.Context(), root); err != nil {
 		v.Errors = append(v.Errors, err.Error())
@@ -880,10 +885,15 @@ func (s *Server) handleOpen(w http.ResponseWriter, r *http.Request) {
 }
 
 func localURL(u string) bool {
-	if !strings.HasPrefix(u, "http://") {
+	var host string
+	switch {
+	case strings.HasPrefix(u, "http://"):
+		host = strings.TrimPrefix(u, "http://")
+	case strings.HasPrefix(u, "https://"):
+		host = strings.TrimPrefix(u, "https://")
+	default:
 		return false
 	}
-	host := strings.TrimPrefix(u, "http://")
 	if i := strings.IndexAny(host, "/?#"); i >= 0 {
 		host = host[:i]
 	}

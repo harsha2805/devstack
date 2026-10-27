@@ -91,8 +91,9 @@ func TestOpenRefusesArbitraryTargets(t *testing.T) {
 }
 
 func TestLocalURL(t *testing.T) {
-	ok := []string{"http://localhost:8080/", "http://hello.localhost", "http://api.kbs.localhost:8080/x?y", "http://kbs.test/"}
-	bad := []string{"https://hello.localhost", "http://localhost.evil.com/", "http://example.com/?x=.localhost", "file:///C:/x", "javascript:alert(1)"}
+	ok := []string{"http://localhost:8080/", "http://hello.localhost", "http://api.kbs.localhost:8080/x?y", "http://kbs.test/",
+		"https://hello.localhost", "https://kbs.test:8443/"}
+	bad := []string{"https://evil.com/", "https://hello.localhost.evil.com/", "http://localhost.evil.com/", "http://example.com/?x=.localhost", "file:///C:/x", "javascript:alert(1)"}
 	for _, u := range ok {
 		if !localURL(u) {
 			t.Errorf("%s should be allowed", u)

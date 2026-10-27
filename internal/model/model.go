@@ -29,6 +29,12 @@ type Stack struct {
 	TLD      string
 	DNS      bool // services.dns: *.<TLD> resolves for every program, so URLs use it
 	HTTPPort int
+	// HTTPS is services.https: every site is also served on HTTPSPort with a
+	// certificate from devstack's local CA (package certs), kept in CertDir.
+	HTTPS     bool
+	HTTPSPort int
+	CertDir   string
+	CRLFile   string // the CA's revocation list, published by the landing page (set when rendering)
 	// IPv6 is true when [::1] can be bound. Browsers resolve *.localhost to ::1
 	// first, and on Windows a refused loopback connect stalls ~200ms before
 	// falling back to 127.0.0.1, so we listen on both.
@@ -69,19 +75,25 @@ type Site struct {
 	PHP       *PHPPool
 	Hostnames []string // server_name entries, wildcards included
 	AccessLog string
+	CertFile  string // set when HTTPS is on
+	KeyFile   string
 }
 
 // URL is the site's address: <slug>.<tld> when devstack's DNS is on, else
-// <slug>.localhost, which browsers resolve with no setup.
+// <slug>.localhost, which browsers resolve with no setup; https when HTTPS is on.
 func (s Stack) URL(site Site) string {
 	host := site.Slug + ".localhost"
 	if s.DNS {
 		host = site.Slug + "." + s.TLD
 	}
-	if s.HTTPPort != 80 {
-		return fmt.Sprintf("http://%s:%d", host, s.HTTPPort)
+	scheme, port, def := "http", s.HTTPPort, 80
+	if s.HTTPS {
+		scheme, port, def = "https", s.HTTPSPort, 443
 	}
-	return "http://" + host
+	if port != def {
+		return fmt.Sprintf("%s://%s:%d", scheme, host, port)
+	}
+	return scheme + "://" + host
 }
 
 // RootURL is the landing page.
@@ -119,6 +131,9 @@ func Resolve(cfg config.Stack, found discover.Result, siteList []sites.Site, sit
 		Tmp:       filepath.Join(cfg.Root, "tmp"),
 		TLD:       cfg.TLD,
 		DNS:       cfg.Services.DNS == "on",
+		HTTPS:     cfg.Services.HTTPS == "on",
+		HTTPSPort: cfg.Ports.HTTPS,
+		CertDir:   filepath.Join(cfg.Root, "data", "devstack", "certs"),
 		HTTPPort:  cfg.Ports.HTTP,
 		IPv6:      ipv6Loopback(),
 		Warnings:  append([]string(nil), siteWarns...),
@@ -177,6 +192,10 @@ func Resolve(cfg config.Stack, found discover.Result, siteList []sites.Site, sit
 		for _, tld := range []string{st.TLD, "localhost"} {
 			site.Hostnames = append(site.Hostnames, s.Slug+"."+tld, "*."+s.Slug+"."+tld)
 		}
+		if st.HTTPS {
+			site.CertFile = filepath.Join(st.CertDir, s.Slug+".crt")
+			site.KeyFile = filepath.Join(st.CertDir, s.Slug+".key")
+		}
 		st.Sites = append(st.Sites, site)
 	}
 
@@ -231,6 +250,9 @@ func checkPorts(st *Stack) error {
 		}
 		used[port] = who
 	}
+	if st.HTTPS {
+		claim(st.HTTPSPort, "ports.https")
+	}
 	if st.MySQL != nil {
 		claim(st.MySQL.Port, "ports.mysql")
 	}
@@ -245,6 +267,9 @@ func checkPorts(st *Stack) error {
 // Ports lists every port the stack listens on, with its owner.
 func (s Stack) Ports() map[int]string {
 	out := map[int]string{s.HTTPPort: "nginx"}
+	if s.HTTPS {
+		out[s.HTTPSPort] = "nginx"
+	}
 	if s.MySQL != nil {
 		out[s.MySQL.Port] = "mysql"
 	}

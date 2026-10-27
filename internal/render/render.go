@@ -15,8 +15,40 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/harsha2805/devstack/internal/certs"
 	"github.com/harsha2805/devstack/internal/model"
 )
+
+// ensureCerts issues or renews site certificates before the config that
+// points at them is written. Nothing happens unless HTTPS is on.
+func ensureCerts(st *model.Stack) error {
+	if !st.HTTPS {
+		return nil
+	}
+	ca, err := certs.Load()
+	if err != nil {
+		return fmt.Errorf("services.https: %w", err)
+	}
+	if !ca.Covers(st.TLD) {
+		return fmt.Errorf("services.https: the devstack CA can't sign *.%s; turn HTTPS off and on again to replace it", st.TLD)
+	}
+	var list []certs.Site
+	for _, s := range st.Sites {
+		list = append(list, certs.Site{Name: s.Slug, DNSNames: s.Hostnames, CertFile: s.CertFile, KeyFile: s.KeyFile})
+	}
+	st.CRLFile = ca.CRLPath()
+	_, err = ca.Ensure(st.CertDir, CRLURL(st), list)
+	return err
+}
+
+// CRLURL is where the landing page publishes the CA's revocation list.
+func CRLURL(st *model.Stack) string {
+	host := "localhost"
+	if st.HTTPPort != 80 {
+		host = fmt.Sprintf("localhost:%d", st.HTTPPort)
+	}
+	return "http://" + host + "/.well-known/devstack-ca.crl"
+}
 
 //go:embed templates/*
 var templateFS embed.FS
@@ -103,6 +135,9 @@ func (r Result) Changed() bool { return len(r.Written)+len(r.Removed) > 0 }
 // Write renders st into etc/ and creates the runtime folders the configs refer to.
 func Write(st *model.Stack) (Result, error) {
 	var res Result
+	if err := ensureCerts(st); err != nil {
+		return res, err
+	}
 	files, err := Files(st)
 	if err != nil {
 		return res, err

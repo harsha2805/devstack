@@ -8,10 +8,16 @@ import (
 	"strings"
 )
 
-// SetService sets services.<key> = "<value>" in root's stack.toml. Only that
-// line changes (or one is added to [services]), so comments and layout
-// survive. The result must still load; otherwise the file is left as it was.
+// SetService sets services.<key> = "<value>" in root's stack.toml.
 func SetService(root, key, value string) error {
+	return SetKey(root, "services", key, fmt.Sprintf("%q", value))
+}
+
+// SetKey sets <section>.<key> to literal (TOML syntax: `"on"`, `443`) in
+// root's stack.toml. Only that line changes (or one is added to the section),
+// so comments and layout survive. The result must still load; otherwise the
+// file is left as it was.
+func SetKey(root, section, key, literal string) error {
 	path := filepath.Join(root, FileName)
 	old, err := os.ReadFile(path)
 	if err != nil {
@@ -27,27 +33,27 @@ func SetService(root, key, value string) error {
 		nl = "\r\n"
 	}
 	lines := strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n")
-	line := fmt.Sprintf("%-5s = %q", key, value)
-	keyRe := regexp.MustCompile(`^(\s*` + regexp.QuoteMeta(key) + `\s*=\s*)"[^"]*"(.*)$`)
+	line := fmt.Sprintf("%-5s = %s", key, literal)
+	keyRe := regexp.MustCompile(`^(\s*` + regexp.QuoteMeta(key) + `\s*=\s*)("[^"]*"|[^\s#]+)(.*)$`)
 
-	section, last, done := false, -1, false
+	inSection, last, done := false, -1, false
 	for i, l := range lines {
 		t := strings.TrimSpace(l)
 		if strings.HasPrefix(t, "[") {
-			if section {
-				break // end of [services]
+			if inSection {
+				break // end of the section
 			}
-			section = t == "[services]"
-			if section {
+			inSection = t == "["+section+"]"
+			if inSection {
 				last = i
 			}
 			continue
 		}
-		if !section {
+		if !inSection {
 			continue
 		}
 		if m := keyRe.FindStringSubmatch(l); m != nil {
-			lines[i] = m[1] + fmt.Sprintf("%q", value) + m[2]
+			lines[i] = m[1] + literal + m[3]
 			done = true
 			break
 		}
@@ -63,7 +69,7 @@ func SetService(root, key, value string) error {
 		for len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) == "" {
 			lines = lines[:len(lines)-1]
 		}
-		lines = append(lines, "", "[services]", line, "")
+		lines = append(lines, "", "["+section+"]", line, "")
 	}
 
 	out := bom + strings.Join(lines, nl)

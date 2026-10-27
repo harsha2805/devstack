@@ -54,6 +54,7 @@ devstack reload      # after editing stack.toml (folders in www\ are picked up o
 devstack logs nginx -f
 devstack db creds    # generated MySQL root password
 devstack dns on      # <site>.test addresses for every program (one admin prompt; off / status)
+devstack https on    # trusted HTTPS for every site (Windows asks once; off / status)
 devstack guide add   # AI guide for coding agents in the current site's folder (also: remove, show)
 devstack doctor
 devstack down
@@ -79,6 +80,24 @@ Windows itself doesn't resolve `*.localhost`, so PHP, Postman and most CLI tools
   (`api.my-app.test`) works the moment its folder appears. There is no hosts file to edit per site.
 - `stack.toml` records it as `services.dns = "on"`, and site URLs switch to `<name>.test`. Turning it off
   removes the rule again (one more prompt).
+
+## HTTPS
+
+Turn on **HTTPS** in Settings (or `devstack https on`) and every site also answers at `https://`, with a
+certificate Windows trusts: Edge, Chrome, curl.exe and PowerShell show no warnings. Plain `http://` keeps working.
+
+- devstack makes a certificate authority for your Windows account in `%LOCALAPPDATA%\devstack\ca`, and Windows asks
+  you once to trust it. No administrator rights are needed.
+- The CA can only sign local names: `*.localhost`, your TLD (`*.test`) and loopback addresses. Even a stolen CA
+  key can't produce a certificate for a real website.
+- Each site gets its own certificate (`name.test`, `*.name.test`, `name.localhost`, `*.name.localhost`), reissued
+  when its names change and before it expires. New folders get one automatically.
+- The landing page publishes the CA's empty revocation list, so strict Windows clients (curl.exe) can finish
+  their revocation check.
+- PHP, Node and Python keep their own trust lists. From code, call the `http://` address, or point the tool at
+  `ca.crt`. The AI guide tells agents the same.
+- Port 443 is used unless another program holds it; then devstack picks 8443 or another free port.
+- Turning HTTPS off, or uninstalling devstack, removes the CA from Windows and deletes it.
 
 ## AI guide
 

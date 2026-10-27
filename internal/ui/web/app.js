@@ -364,7 +364,7 @@ async function refreshLog() {
 }
 
 function renderSettings() {
-  draw("settings", [S.settings, S.root, S.version, S.dns], () => {
+  draw("settings", [S.settings, S.root, S.version, S.dns, S.https], () => {
     const sw = (id, on) => `<label class="switch"><input type="checkbox" id="${id}" ${on ? "checked" : ""}><span></span></label>`;
     $("#settings").innerHTML = `
       <h3>Stack</h3>
@@ -374,6 +374,7 @@ function renderSettings() {
         <div class="set-desc">Ports, PHP extensions and php.ini settings. Reload after saving.</div></div>
         <button class="btn small" id="edit-config">${icon("open")}Edit</button></div>
       ${S.dns ? dnsCard(S.dns) : ""}
+      ${S.https ? httpsCard(S.https) : ""}
       <h3>Startup</h3>
       <div class="set-card"><div class="grow"><div class="set-title">Start servers when devstack opens</div>
         <div class="set-desc">Your sites are up as soon as the app is.</div></div>${sw("set-start", S.settings.start_servers)}</div>
@@ -396,6 +397,8 @@ function renderSettings() {
     $("#set-updates").onchange = (e) => act("/api/settings", { check_updates: e.target.checked }).catch(() => {});
     $("#set-dns") && ($("#set-dns").onchange = (e) => act("/api/dns", { on: e.target.checked }).catch(() => {}));
     $("#dns-repair") && ($("#dns-repair").onclick = () => act("/api/dns", { on: true }).catch(() => {}));
+    $("#set-https") && ($("#set-https").onchange = (e) => act("/api/https", { on: e.target.checked }).catch(() => {}));
+    $("#https-repair") && ($("#https-repair").onclick = () => act("/api/https", { on: true }).catch(() => {}));
     document.querySelectorAll("#settings [data-link]").forEach((b) => (b.onclick = () => open("url", b.dataset.link)));
     drawn.update = null;
   });
@@ -416,6 +419,24 @@ function dnsCard(d) {
   return `<h3>Addresses</h3>
     <div class="set-card"><div class="grow"><div class="set-title">.${esc(d.tld)} addresses</div><div class="set-desc">${desc}</div></div>
       ${d.on && !d.rule ? `<button class="btn small primary" id="dns-repair">Repair</button>` : sw}</div>`;
+}
+
+// httpsCard is the Settings card for trusted HTTPS.
+function httpsCard(h) {
+  const sw = `<label class="switch"><input type="checkbox" id="set-https" ${h.on ? "checked" : ""} aria-label="HTTPS"><span></span></label>`;
+  const port = h.port === 443 ? "" : ` on port ${h.port}`;
+  let desc;
+  if (h.on && !h.trusted) {
+    desc = `<span class="error-text">Windows no longer trusts the devstack certificate, so browsers will warn.</span>`;
+  } else if (h.on) {
+    desc = `Every site also answers at <span class="mono">https://</span>${esc(port)} with a certificate Windows trusts (Edge, Chrome, curl, PowerShell).
+      PHP, Node and Python keep their own trust lists: point them at <span class="mono">${esc(h.ca)}</span> if they call a site over HTTPS.`;
+  } else {
+    desc = `Serve every site over <span class="mono">https://</span> too, with a certificate browsers trust. Windows asks you once to trust devstack's
+      local certificate authority, which can only sign local names, never real websites. No administrator rights needed.`;
+  }
+  return `<div class="set-card"><div class="grow"><div class="set-title">HTTPS</div><div class="set-desc">${desc}</div></div>
+      ${h.on && !h.trusted ? `<button class="btn small primary" id="https-repair">Trust again</button>` : sw}</div>`;
 }
 
 // renderUpdate draws the update card: up to date, available, downloading, or failed.

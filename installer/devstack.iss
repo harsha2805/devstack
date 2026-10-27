@@ -209,11 +209,16 @@ end;
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
   Command: String;
+  Code: Integer;
 begin
   if CurUninstallStep = usUninstall then
   begin
     StackRoot := ReadStackRoot;
     QuitDevstack(ExpandConstant('{app}'));
+    { Don't leave devstack's certificate authority trusted once the app is gone.
+      Windows asks to confirm; the CA files go with the settings folder below. }
+    if DirExists(ExpandConstant('{#AppData}\ca')) and FileExists(ExpandConstant('{app}\devstack.exe')) then
+      Exec(ExpandConstant('{app}\devstack.exe'), 'https untrust', ExpandConstant('{app}'), SW_HIDE, ewWaitUntilTerminated, Code);
     { Remove sign-in start only when it points at this installation. }
     if RegQueryStringValue(HKCU, RunKey, RunValue, Command) and
        (CompareText(Command, '"' + ExpandConstant('{app}\devstack-app.exe') + '" --tray') = 0) then

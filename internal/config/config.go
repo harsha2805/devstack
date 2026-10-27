@@ -47,7 +47,8 @@ type Paths struct {
 type Services struct {
 	Web   string `toml:"web"`
 	MySQL string `toml:"mysql"`
-	DNS   string `toml:"dns"` // "on": answer *.<tld> on 127.0.0.1:53 (see package dns)
+	DNS   string `toml:"dns"`   // "on": answer *.<tld> on 127.0.0.1:53 (see package dns)
+	HTTPS string `toml:"https"` // "on": serve every site over HTTPS too (see package certs)
 }
 
 type PHP struct {
@@ -60,6 +61,7 @@ type PHP struct {
 
 type Ports struct {
 	HTTP  int `toml:"http"`
+	HTTPS int `toml:"https"`
 	MySQL int `toml:"mysql"`
 	PHP   int `toml:"php"`
 }
@@ -83,14 +85,14 @@ func Default() Stack {
 		WWW:      "www",
 		TLD:      "test",
 		Paths:    Paths{Bin: []string{"bin"}},
-		Services: Services{Web: "nginx", DNS: Off},
+		Services: Services{Web: "nginx", DNS: Off, HTTPS: Off},
 		PHP: PHP{
 			Workers:     4,
 			MaxRequests: 500,
 			Extensions:  append([]string(nil), DefaultExtensions...),
 			INI:         map[string]string{},
 		},
-		Ports: Ports{HTTP: 80, MySQL: 3306, PHP: 9000},
+		Ports: Ports{HTTP: 80, HTTPS: 443, MySQL: 3306, PHP: 9000},
 	}
 }
 
@@ -153,6 +155,9 @@ func (c Stack) Validate() error {
 	if v := c.Services.DNS; v != "on" && v != Off {
 		bad("services.dns", "%q must be \"on\" or \"off\"", v)
 	}
+	if v := c.Services.HTTPS; v != "on" && v != Off {
+		bad("services.https", "%q must be \"on\" or \"off\"", v)
+	}
 	if v := c.PHP.Default; v != "" && !versionRe.MatchString(v) {
 		bad("php.default", "%q must be a version like \"8.3\"", v)
 	}
@@ -173,6 +178,7 @@ func (c Stack) Validate() error {
 		}
 	}
 	checkPort("ports.http", c.Ports.HTTP)
+	checkPort("ports.https", c.Ports.HTTPS)
 	checkPort("ports.mysql", c.Ports.MySQL)
 	if c.Ports.PHP < 1024 || c.Ports.PHP > 65535-1000 {
 		bad("ports.php", "must be 1024..64535, got %d", c.Ports.PHP)
