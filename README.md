@@ -155,6 +155,15 @@ devstack has no telemetry. It connects to the internet only to check for updates
 download an update from GitHub when you click Update now, and to download nginx, PHP and MySQL from their
 publishers when you install them. Details: [devstack.holostack.in/privacy](https://devstack.holostack.in/privacy).
 
+## Star history
+
+<a href="https://www.star-history.com/#harsha2805/devstack&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=harsha2805/devstack&type=Date&theme=dark">
+    <img alt="Star history of harsha2805/devstack" src="https://api.star-history.com/svg?repos=harsha2805/devstack&type=Date">
+  </picture>
+</a>
+
 ## License
 
 [MIT](LICENSE). devstack downloads nginx (BSD), PHP (PHP License) and MySQL (GPLv2) from their publishers at run
