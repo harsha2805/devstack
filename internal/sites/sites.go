@@ -3,6 +3,7 @@ package sites
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -38,7 +39,7 @@ func Scan(www string) ([]Site, []string, error) {
 	taken := map[string]string{}
 	for _, e := range entries {
 		name := e.Name()
-		if !e.IsDir() || strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") {
+		if !dirEntry(www, e) || strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") {
 			continue
 		}
 		dir := filepath.Join(www, name)
@@ -119,4 +120,18 @@ func isDir(p string) bool {
 func isFile(p string) bool {
 	st, err := os.Stat(p)
 	return err == nil && !st.IsDir()
+}
+
+// dirEntry reports whether e is a folder, following junctions and symlinks so a
+// project linked in from elsewhere (mklink /J) is a site too. Go reports a
+// Windows junction as irregular and a symlink as a link, never as a directory.
+func dirEntry(www string, e fs.DirEntry) bool {
+	if e.IsDir() {
+		return true
+	}
+	if e.Type()&(fs.ModeSymlink|fs.ModeIrregular) == 0 {
+		return false
+	}
+	st, err := os.Stat(filepath.Join(www, e.Name()))
+	return err == nil && st.IsDir()
 }

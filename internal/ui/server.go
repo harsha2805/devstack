@@ -909,6 +909,7 @@ var knownLinks = map[string]bool{
 	"https://nginx.org/LICENSE":             true,
 	"https://www.mysql.com/about/legal/":    true,
 	"https://github.com/harsha2805/devstack": true,
+	"https://github.com/sponsors/harsha2805": true,
 }
 
 func knownLink(u string) bool { return knownLinks[u] }

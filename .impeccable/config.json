@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "website/public/css/site.css"
+        ],
+        "createdAt": "2026-10-27T05:53:16.427Z",
+        "reason": "Claude triage: L109 is .ticks li::before, a 10x6px checkmark drawn with border-left+border-bottom rotated -45deg, not a card side border"
+      }
+    ]
+  }
+}

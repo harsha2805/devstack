@@ -11,8 +11,8 @@ First release.
 
 ### Added
 - **nginx, PHP and MySQL for every project folder.** Each folder in `www` is a site at `http://<name>.localhost`,
-  with no hosts file or DNS setup. Laravel-style `public/` folders are found on their own. Several PHP versions run
-  side by side, and each site can pick one.
+  with no hosts file or DNS setup. Laravel-style `public/` folders are found on their own, and projects kept
+  elsewhere can be linked in (`mklink /J`). Several PHP versions run side by side, and each site can pick one.
 - **Official server downloads.** nginx, PHP and MySQL come straight from nginx.org, windows.php.net and
   mysql.com, each checked against a pinned SHA-256. A failed or tampered download leaves nothing behind.
 - **A tray app with a dashboard.** Sites (with Browse and Folder buttons), Servers (restart, database login,
@@ -36,5 +36,6 @@ First release.
   click Update now. Updates are signed; running servers stop for the update and start again afterwards.
 - **Installer.** Installs for your account only, with no administrator prompt, and adds `devstack` to your PATH.
   Uninstalling keeps your stack folder with its sites and databases.
+- **Sponsor link.** Settings → About links to GitHub Sponsors, for anyone who wants to support devstack.
 - **Command line.** `devstack init`, `up`, `down`, `status`, `reload`, `restart`, `sites`, `logs`, `doctor`,
   `db creds`, `pkg`, `dns`, `https` and `guide`, for everything the app does.

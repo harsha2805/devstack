@@ -10,6 +10,7 @@ const ICONS = {
   stop: '<rect x="4" y="4" width="8" height="8" rx="1" fill="currentColor"/>',
   folder: '<path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h3l1.5 1.5h4.5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z" fill="none" stroke="currentColor" stroke-width="1.2"/>',
   reload: '<path d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5v3h-3" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>',
+  heart: '<path d="M8 13.5S2.5 10.2 2.5 6.3A2.8 2.8 0 0 1 8 5a2.8 2.8 0 0 1 5.5 1.3c0 3.9-5.5 7.2-5.5 7.2z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>',
   globe: '<circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M2.5 8h11M8 2.5c1.6 1.6 2.3 3.5 2.3 5.5S9.6 11.9 8 13.5M8 2.5C6.4 4.1 5.7 6 5.7 8s.7 3.9 2.3 5.5" fill="none" stroke="currentColor" stroke-width="1.2"/>',
   open: '<path d="M9 3h4v4M13 3 7.5 8.5M11 9.5V12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h2.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>',
   check: '<path d="m3.5 8.5 3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
@@ -389,7 +390,10 @@ function renderSettings() {
         <div class="set-desc">Open source. Runs unmodified builds of nginx (<button class="link" data-link="https://nginx.org/LICENSE">BSD</button>),
         PHP (<button class="link" data-link="https://www.php.net/license/">PHP License</button>) and
         MySQL (<button class="link" data-link="https://www.mysql.com/about/legal/">GPLv2</button>), downloaded from their publishers.</div></div>
-        <button class="btn small" data-link="https://github.com/harsha2805/devstack">${icon("open")}Source</button></div>`;
+        <button class="btn small" data-link="https://github.com/harsha2805/devstack">${icon("open")}Source</button></div>
+      <div class="set-card"><div class="grow"><div class="set-title">Support devstack</div>
+        <div class="set-desc">devstack is free and open source. Sponsoring on GitHub keeps it going.</div></div>
+        <button class="btn small" data-link="https://github.com/sponsors/harsha2805">${icon("heart")}Sponsor</button></div>`;
     $("#open-root").onclick = () => open("folder", S.root);
     $("#edit-config").onclick = () => open("config", "");
     $("#set-start").onchange = (e) => act("/api/settings", { start_servers: e.target.checked }).catch(() => {});

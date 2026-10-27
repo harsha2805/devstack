@@ -1,7 +1,7 @@
 # Releasing devstack
 
-A release is an installer, a portable zip and a signed update feed, uploaded to
-`https://devstack.holostack.in/`.
+A release is an installer, a portable zip and a signed update feed. The installer and zip go on GitHub Releases;
+the feed goes on `https://devstack.holostack.in/latest.json`.
 
 ## Once per machine
 
@@ -32,12 +32,14 @@ Older release files move to `dist\release\old\<version>\`.
 
 ## Publish
 
-1. Upload the installer and the zip to `https://devstack.holostack.in/`.
-2. Upload `latest.json` **last**, so the feed never points at a file that isn't there yet.
-3. Tag the commit: `git tag v<version>` and push the tag.
+1. `.\publish-release.ps1 -Version 0.2.0` creates the GitHub release `v0.2.0` on the pushed commit, with the
+   installer, the zip and `SHA256SUMS.txt` attached and the changelog section as its notes. It refuses if the files
+   don't match the signed feed, or if there are uncommitted or unpushed changes.
+2. `website\deploy.ps1` packages the website with the new `latest.json` and changelog; upload it as described in
+   [WEBSITE.md](WEBSITE.md). It only includes `latest.json` once the installer's GitHub URL is live, so installed
+   apps never see an update before its file exists.
 
-Any static host works (it only has to serve files over HTTPS). `latest.json` should not be cached for long; a
-few minutes is fine.
+Installers live on GitHub Releases (free bandwidth, visible history); only `latest.json` is on the website.
 
 ## How updates work
 
@@ -46,7 +48,7 @@ The app reads `https://devstack.holostack.in/latest.json`:
 ```json
 {
   "version": "0.2.0",
-  "url": "https://devstack.holostack.in/devstack_setup_0.2.0.exe",
+  "url": "https://github.com/harsha2805/devstack/releases/download/v0.2.0/devstack_setup_0.2.0.exe",
   "sha256": "<SHA-256 of the installer>",
   "notes": "Shown in Settings → Updates.",
   "page": "https://devstack.holostack.in",

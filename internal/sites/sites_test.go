@@ -2,7 +2,9 @@ package sites
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -84,5 +86,25 @@ func TestScan(t *testing.T) {
 	}
 	if len(warns) != 2 { // collision + unknown key
 		t.Errorf("want 2 warnings, got %q", warns)
+	}
+}
+
+// A project linked into www with a junction (mklink /J) is a site; a link to a
+// file is not.
+func TestScanFollowsJunctions(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("junctions are Windows-only")
+	}
+	www, elsewhere := t.TempDir(), t.TempDir()
+	if err := exec.Command("cmd", "/c", "mklink", "/J", filepath.Join(www, "linked-app"), elsewhere).Run(); err != nil {
+		t.Skipf("mklink /J: %v", err)
+	}
+	os.WriteFile(filepath.Join(www, "notes.txt"), []byte("x"), 0o644)
+	list, _, err := Scan(www)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 1 || list[0].Slug != "linked-app" {
+		t.Fatalf("got %+v", list)
 	}
 }

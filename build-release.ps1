@@ -4,9 +4,10 @@
   SHA256SUMS.txt, and latest.json (the signed in-app update feed).
 
 .DESCRIPTION
-  Upload devstack_setup_<version>.exe and the zip to https://devstack.holostack.in/,
-  then latest.json LAST, so the feed never points at an installer that isn't
-  there yet. Previous release files are moved to dist\release\old\<version>.
+  Then publish: .\publish-release.ps1 puts the installer, zip and checksums on
+  GitHub Releases, and website\deploy.ps1 packages the site with latest.json
+  (only once its download URL is live, so the feed never points at a missing
+  installer). Previous release files are moved to dist\release\old\<version>.
 
   latest.json is signed with the offline release key (tools/release; see
   docs/RELEASING.md). The script checks the key before building and fails
@@ -19,7 +20,9 @@
 param(
     [Parameter(Mandatory)][string]$Version,
     [string]$Notes = "",
-    [string]$BaseUrl = "https://devstack.holostack.in"
+    [string]$Site = "https://devstack.holostack.in",
+    # Installers are served from GitHub Releases; the tag is v<version>.
+    [string]$Repo = "https://github.com/harsha2805/devstack"
 )
 
 $ErrorActionPreference = 'Stop'
@@ -82,13 +85,13 @@ foreach ($name in $setup, $zip) { $hashes[$name] = (Get-FileHash "$out\$name" -A
 
 [ordered]@{
     version = $Version
-    url     = "$BaseUrl/$setup"
+    url     = "$Repo/releases/download/v$Version/$setup"
     sha256  = $hashes[$setup]
     notes   = $Notes
-    page    = $BaseUrl
+    page    = $Site
 } | ConvertTo-Json | Set-Content "$out\latest.json" -Encoding utf8
 go run ./tools/release sign "$out\latest.json"
 if ($LASTEXITCODE) { throw "Signing latest.json failed" }
 
 Get-ChildItem $out -File | Select-Object Name, @{ n = 'MB'; e = { [math]::Round($_.Length / 1MB, 2) } } | Format-Table -AutoSize
-Write-Host "Upload $setup and $zip, then latest.json, to $BaseUrl/" -ForegroundColor Green
+Write-Host "Next: .\publish-release.ps1 -Version $Version (GitHub release), then website\deploy.ps1 (site + latest.json)." -ForegroundColor Green

@@ -1,5 +1,10 @@
 # devstack
 
+[![Latest release](https://img.shields.io/github/v/release/harsha2805/devstack)](https://github.com/harsha2805/devstack/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/harsha2805/devstack/total)](https://github.com/harsha2805/devstack/releases)
+[![License: MIT](https://img.shields.io/github/license/harsha2805/devstack)](LICENSE)
+[![Sponsor](https://img.shields.io/github/sponsors/harsha2805?label=sponsor)](https://github.com/sponsors/harsha2805)
+
 A portable local web dev stack for Windows: Nginx/Apache, multiple PHP versions, MySQL, Redis, Mailpit,
 automatic `*.test` sites with wildcard DNS and trusted local SSL. One exe, one config file.
 
@@ -27,7 +32,9 @@ Requires Go 1.27+.
 go test ./...
 ```
 
-Releases (installer, portable zip, signed update feed): see [docs/RELEASING.md](docs/RELEASING.md). What changed
+The website at devstack.holostack.in is a small Laravel app in [`website/`](website/); see
+[docs/WEBSITE.md](docs/WEBSITE.md). Releases (installer, portable zip, signed update feed): see
+[docs/RELEASING.md](docs/RELEASING.md). What changed
 in each version: [CHANGELOG.md](CHANGELOG.md).
 
 ## Desktop app
