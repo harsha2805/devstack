@@ -36,6 +36,7 @@ func LongPath(p string) string { return p }
 
 func ShellOpen(string) error                  { return errUnsupported }
 func MessageBox(string, string)               {}
+func AllowForeground(int)                     {}
 func Autostart(string) bool                    { return false }
 func SetAutostart(string, string, bool) error  { return errUnsupported }
 

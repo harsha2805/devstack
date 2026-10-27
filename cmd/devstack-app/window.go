@@ -87,6 +87,9 @@ func (w *window) Show() {
 		w.mu.Unlock()
 		themeTitleBar(w.hwnd)
 		wv.SetSize(int(minWinW*scale), int(minWinH*scale), webview2.HintMin)
+		// Opened from the tray or a second launch: come to the front. Windows
+		// allows it when the user just acted (see winproc.AllowForeground).
+		procSetForeground.Call(w.hwnd)
 		wv.Navigate(w.url)
 		wv.Run() // returns when the window is closed
 	}()

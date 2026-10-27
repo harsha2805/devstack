@@ -25,6 +25,19 @@ func MessageBox(title, text string) {
 	windows.MessageBox(0, m, t, windows.MB_OK|windows.MB_ICONERROR)
 }
 
+var procAllowSetForeground = windows.NewLazySystemDLL("user32.dll").NewProc("AllowSetForegroundWindow")
+
+// AllowForeground lets process pid bring its window to the front. Windows only
+// lets the program the user just started take focus, so a second launch hands
+// that right to the running app before asking it to show its window.
+// pid 0 allows any process.
+func AllowForeground(pid int) {
+	if pid == 0 {
+		pid = -1 // ASFW_ANY
+	}
+	procAllowSetForeground.Call(uintptr(uint32(int32(pid))))
+}
+
 const runKey =`Software\Microsoft\Windows\CurrentVersion\Run`
 
 // Autostart reports whether HKCU\...\Run has a value named name.

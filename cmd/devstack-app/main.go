@@ -64,11 +64,13 @@ func main() {
 		log.SetOutput(lw)
 	}
 
-	// One app per user. A second launch asks the first to show its window.
+	// One app per user. A second launch asks the first to show its window and exits.
 	lock, err := winproc.LockFile(filepath.Join(dir, "app.lock"))
 	if err != nil {
 		if err := showRunning(dir); err != nil {
 			log.Printf("second instance: %v", err)
+			winproc.MessageBox("devstack", "devstack is already running but didn't respond.\n\n"+
+				"Quit it from the tray icon (or end devstack-app.exe in Task Manager), then open it again.")
 		}
 		return
 	}
@@ -76,6 +78,11 @@ func main() {
 
 	exe, _ := os.Executable()
 	srv := &ui.Server{Version: version, Exe: exe}
+	// The background service runs from devstack.exe when it sits next to the
+	// app, so Task Manager tells it apart from the app itself.
+	if cli := filepath.Join(filepath.Dir(exe), "devstack.exe"); fileExists(cli) {
+		srv.Daemon = cli
+	}
 	addr, err := srv.Listen()
 	if err != nil {
 		fatal(err)
@@ -102,23 +109,49 @@ func main() {
 type instance struct {
 	Addr  string `json:"addr"`
 	Token string `json:"token"`
+	PID   int    `json:"pid"`
 }
 
 func writeInstance(dir, addr, token string) {
-	b, _ := json.Marshal(instance{addr, token})
+	b, _ := json.Marshal(instance{addr, token, os.Getpid()})
 	os.WriteFile(filepath.Join(dir, "app-instance.json"), b, 0o600)
 }
 
-func showRunning(dir string) error { return callRunning(dir, "/api/show") }
+func readInstance(dir string) (instance, error) {
+	var in instance
+	b, err := os.ReadFile(filepath.Join(dir, "app-instance.json"))
+	if err != nil {
+		return in, err
+	}
+	return in, json.Unmarshal(b, &in)
+}
+
+// showRunning brings the running app's window forward. It retries for a few
+// seconds, because the first app may still be starting up (it takes the lock
+// before it writes app-instance.json).
+func showRunning(dir string) error {
+	var err error
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(250 * time.Millisecond) {
+		in, rerr := readInstance(dir)
+		if rerr == nil {
+			winproc.AllowForeground(in.PID)
+		}
+		if err = callRunning(dir, "/api/show"); err == nil {
+			return nil
+		}
+	}
+	return err
+}
+
+func fileExists(p string) bool {
+	st, err := os.Stat(p)
+	return err == nil && !st.IsDir()
+}
 
 // callRunning POSTs to the running app's dashboard API.
 func callRunning(dir, path string) error {
-	b, err := os.ReadFile(filepath.Join(dir, "app-instance.json"))
+	in, err := readInstance(dir)
 	if err != nil {
-		return err
-	}
-	var in instance
-	if err := json.Unmarshal(b, &in); err != nil {
 		return err
 	}
 	req, _ := http.NewRequest(http.MethodPost, "http://"+in.Addr+path, bytes.NewReader([]byte("{}")))

@@ -10,6 +10,7 @@ const ICONS = {
   stop: '<rect x="4" y="4" width="8" height="8" rx="1" fill="currentColor"/>',
   folder: '<path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h3l1.5 1.5h4.5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z" fill="none" stroke="currentColor" stroke-width="1.2"/>',
   reload: '<path d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5v3h-3" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>',
+  globe: '<circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M2.5 8h11M8 2.5c1.6 1.6 2.3 3.5 2.3 5.5S9.6 11.9 8 13.5M8 2.5C6.4 4.1 5.7 6 5.7 8s.7 3.9 2.3 5.5" fill="none" stroke="currentColor" stroke-width="1.2"/>',
   open: '<path d="M9 3h4v4M13 3 7.5 8.5M11 9.5V12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h2.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>',
   check: '<path d="m3.5 8.5 3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
   cross: '<path d="m4.5 4.5 7 7m0-7-7 7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
@@ -186,7 +187,7 @@ function renderTabs() {
 }
 
 function renderSites() {
-  draw("sites", [S.sites, S.phps, S.default_php, S.www], () => {
+  draw("sites", [S.sites, S.phps, S.default_php, S.www, S.running], () => {
     const el = $("#sites");
     if (!S.sites.length) {
       el.innerHTML = `<div class="empty"><p>No sites yet. Every folder in <span class="mono">${esc(S.www)}</span> becomes a site.</p>
@@ -206,11 +207,13 @@ function renderSites() {
           <td><div class="site-name">${esc(s.slug)}</div>${s.name !== s.slug ? `<div class="site-sub">${esc(s.name)}</div>` : ""}</td>
           <td><button class="link" data-url="${i}">${esc(s.url.replace(/^http:\/\//, ""))}</button></td>
           <td><select data-php="${i}" aria-label="PHP version for ${esc(s.slug)}">${phpOptions(s)}</select></td>
-          <td class="actions"><button class="btn small ghost" data-folder="${i}" title="${esc(s.dir)}">${icon("folder")}Folder</button></td>
+          <td class="actions"><button class="btn small ghost" data-browse="${i}" ${S.running ? `title="Open ${esc(s.url)} in your browser"` : 'disabled title="Start the servers first"'}>${icon("globe")}Browse</button>
+            <button class="btn small ghost" data-folder="${i}" title="${esc(s.dir)}">${icon("folder")}Folder</button></td>
         </tr>`).join("")}
       </tbody></table>
       <p class="muted" style="margin:12px 0 0;font-size:12px">New folders in <span class="mono">${esc(S.www)}</span> show up after Reload.</p>`;
     el.querySelectorAll("[data-url]").forEach((b) => (b.onclick = () => open("url", S.sites[b.dataset.url].url)));
+    el.querySelectorAll("[data-browse]").forEach((b) => (b.onclick = () => open("url", S.sites[b.dataset.browse].url)));
     el.querySelectorAll("[data-folder]").forEach((b) => (b.onclick = () => open("folder", S.sites[b.dataset.folder].dir)));
     el.querySelectorAll("[data-php]").forEach((sel) => (sel.onchange = () => {
       const s = S.sites[sel.dataset.php];

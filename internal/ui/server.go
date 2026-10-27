@@ -47,7 +47,8 @@ const AutostartName = "devstack"
 
 type Server struct {
 	Version string
-	Exe     string // this executable; spawns the daemon and is the autostart target
+	Exe     string // this executable; the autostart target
+	Daemon  string // runs the background service (`<Daemon> --root X daemon`); Exe when empty
 	OnShow  func() // bring the window forward (second launch)
 	OnQuit  func()
 
@@ -456,7 +457,11 @@ func (s *Server) runStart(ctx context.Context, j *Job) error {
 	}
 	s.step(j, "Checking configuration", "done", 0, 0)
 	s.step(j, "Starting servers", "running", 0, 0)
-	c, err := control.Spawn(ctx, root, s.Exe)
+	daemon := s.Daemon
+	if daemon == "" {
+		daemon = s.Exe
+	}
+	c, err := control.Spawn(ctx, root, daemon)
 	if err != nil {
 		return err
 	}
