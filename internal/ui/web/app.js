@@ -201,20 +201,28 @@ function renderSites() {
       return opts.join("");
     };
     el.innerHTML = `<table>
-      <thead><tr><th>Site</th><th>Address</th><th>PHP</th><th></th></tr></thead>
+      <thead><tr><th>Site</th><th>Address</th><th>PHP</th><th title="Tells AI coding agents how this site runs here">AI guide</th><th></th></tr></thead>
       <tbody>${S.sites.map((s, i) => `
         <tr>
           <td><div class="site-name">${esc(s.slug)}</div>${s.name !== s.slug ? `<div class="site-sub">${esc(s.name)}</div>` : ""}</td>
           <td><button class="link" data-url="${i}">${esc(s.url.replace(/^http:\/\//, ""))}</button></td>
           <td><select data-php="${i}" aria-label="PHP version for ${esc(s.slug)}">${phpOptions(s)}</select></td>
+          <td><label class="switch" title="${s.guide ? "Remove" : "Add"} the AI guide for ${esc(s.slug)}"><input type="checkbox" data-guide="${i}" ${s.guide ? "checked" : ""} aria-label="AI guide for ${esc(s.slug)}"><span></span></label></td>
           <td class="actions"><button class="btn small ghost" data-browse="${i}" ${S.running ? `title="Open ${esc(s.url)} in your browser"` : 'disabled title="Start the servers first"'}>${icon("globe")}Browse</button>
             <button class="btn small ghost" data-folder="${i}" title="${esc(s.dir)}">${icon("folder")}Folder</button></td>
         </tr>`).join("")}
       </tbody></table>
-      <p class="muted" style="margin:12px 0 0;font-size:12px">New folders in <span class="mono">${esc(S.www)}</span> show up after Reload.</p>`;
+      <p class="muted" style="margin:12px 0 0;font-size:12px">New folders in <span class="mono">${esc(S.www)}</span> show up after Reload.</p>
+      <p class="muted" style="margin:6px 0 0;font-size:12px">AI guide: tells coding agents (Claude Code, Codex, Cursor, Copilot) this site's URL, PHP, database and logs.
+        It writes <span class="mono">.devstack/ai-guide.md</span> (kept out of git) and a short pointer in <span class="mono">AGENTS.md</span> and <span class="mono">CLAUDE.md</span>. Your own text in those files is left alone.</p>`;
     el.querySelectorAll("[data-url]").forEach((b) => (b.onclick = () => open("url", S.sites[b.dataset.url].url)));
     el.querySelectorAll("[data-browse]").forEach((b) => (b.onclick = () => open("url", S.sites[b.dataset.browse].url)));
     el.querySelectorAll("[data-folder]").forEach((b) => (b.onclick = () => open("folder", S.sites[b.dataset.folder].dir)));
+    el.querySelectorAll("[data-guide]").forEach((cb) => (cb.onchange = () => {
+      const s = S.sites[cb.dataset.guide];
+      act("/api/site/guide", { slug: s.slug, on: cb.checked }, cb.checked ? `Added the AI guide to ${s.slug}` : `Removed the AI guide from ${s.slug}`)
+        .catch(() => (cb.checked = !cb.checked));
+    }));
     el.querySelectorAll("[data-php]").forEach((sel) => (sel.onchange = () => {
       const s = S.sites[sel.dataset.php];
       act("/api/site/php", { slug: s.slug, php: sel.value }, `${s.slug} now uses ${sel.value ? "PHP " + sel.value : "the default PHP"}`).catch(() => {});

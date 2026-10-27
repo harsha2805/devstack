@@ -53,6 +53,7 @@ devstack sites       # URLs, e.g. http://hello.localhost:8080
 devstack reload      # after adding a folder to www\ or editing stack.toml
 devstack logs nginx -f
 devstack db creds    # generated MySQL root password
+devstack guide add   # AI guide for coding agents in the current site's folder (also: remove, show)
 devstack doctor
 devstack down
 ```
@@ -63,6 +64,20 @@ Servers are downloaded on demand from their publishers (windows.php.net, nginx.o
 against the SHA-256 pins in `internal/packages/catalog.json`. Maintainers refresh that file with
 `go run ./tools/catalog`. To reuse builds you already have, pass `init --bin D:\laragon\bin`. devstack runs
 alongside other local stacks, and `init` moves to free ports when 80 and 3306 are taken.
+
+## AI guide
+
+AI coding agents don't know how a project runs on this machine, so they guess: the wrong `php`, a php.ini-less
+PHP without extensions, `artisan serve` next to a site that is already served, database settings from nowhere.
+The **AI guide** switch on each site (or `devstack guide add`) fixes that:
+
+- `.devstack/ai-guide.md` gets this machine's details: site URL, the exact PHP build and how to run it and
+  Composer with the stack's php.ini, the database host and port, log files, devstack commands, and what not to
+  touch. The folder ignores itself in git, and devstack rewrites the guide on every start and reload, so it
+  follows PHP version, port and path changes. Passwords are never written; it says to run `devstack db creds`.
+- `AGENTS.md` (read by Codex, Cursor, Copilot and others) gets a short pointer to that file, and `CLAUDE.md`
+  imports `AGENTS.md` for Claude Code. Both are safe to commit. devstack only edits between its
+  `<!-- devstack:begin -->` markers, and turning the guide off removes exactly what it added.
 
 ## Layout
 

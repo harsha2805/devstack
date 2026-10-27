@@ -24,6 +24,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 
+	"github.com/harsha2805/devstack/internal/aiguide"
 	"github.com/harsha2805/devstack/internal/api"
 	"github.com/harsha2805/devstack/internal/appconf"
 	"github.com/harsha2805/devstack/internal/config"
@@ -146,6 +147,7 @@ func (s *Server) routes() http.Handler {
 	api.HandleFunc("POST /api/reload", s.handleReload)
 	api.HandleFunc("POST /api/restart", s.handleRestart)
 	api.HandleFunc("POST /api/site/php", s.handleSitePHP)
+	api.HandleFunc("POST /api/site/guide", s.handleSiteGuide)
 	api.HandleFunc("POST /api/packages/install", s.handleInstall)
 	api.HandleFunc("POST /api/packages/remove", s.handleRemove)
 	api.HandleFunc("POST /api/open", s.handleOpen)
@@ -231,6 +233,7 @@ type siteView struct {
 	URL     string   `json:"url"`
 	PHP     string   `json:"php"`
 	Pinned  bool     `json:"pinned"` // php set in .devstack.toml
+	Guide   bool     `json:"guide"`  // has an AI guide (package aiguide)
 	Dir     string   `json:"dir"`
 	Docroot string   `json:"docroot"`
 	Aliases []string `json:"aliases,omitempty"`
@@ -348,7 +351,7 @@ func (s *Server) fillStack(v *stateView, st *model.Stack) {
 	}
 	for _, site := range st.Sites {
 		sv := siteView{Name: site.Name, Slug: site.Slug, URL: st.URL(site), Dir: site.Dir, Docroot: site.Docroot,
-			Aliases: site.Aliases, Pinned: site.Site.PHP != ""}
+			Aliases: site.Aliases, Pinned: site.Site.PHP != "", Guide: aiguide.Installed(site.Dir)}
 		if site.PHP != nil {
 			sv.PHP = site.PHP.Key
 		}
@@ -651,6 +654,8 @@ func (s *Server) handleSitePHP(w http.ResponseWriter, r *http.Request) {
 			replyErr(w, http.StatusInternalServerError, err)
 			return
 		}
+	} else {
+		s.syncGuides(r)
 	}
 	reply(w, nil)
 }

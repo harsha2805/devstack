@@ -242,7 +242,7 @@ pre#log-text {
 .set-desc.error-text { color: var(--danger); }
 .update-bar { margin: 8px 0 4px; max-width: 360px; }
 .tab-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-left: 6px; vertical-align: 2px; }
-.switch { position: relative; width: 40px; height: 20px; flex: none; }
+.switch { position: relative; display: inline-block; vertical-align: middle; width: 40px; height: 20px; flex: none; }
 .switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
 .switch span {
   position: absolute; inset: 0; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--card);

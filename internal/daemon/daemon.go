@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/harsha2805/devstack/internal/aiguide"
 	"github.com/harsha2805/devstack/internal/api"
 	"github.com/harsha2805/devstack/internal/logfile"
 	"github.com/harsha2805/devstack/internal/model"
@@ -135,6 +136,7 @@ func (d *Daemon) startAll(ctx context.Context) error {
 		return err
 	}
 	d.log.Printf("rendered etc/: %d written, %d removed", len(res.Written), len(res.Removed))
+	d.syncGuides(st)
 	specs, err := services.Specs(st, d.logs)
 	if err != nil {
 		return err
@@ -188,6 +190,8 @@ func (d *Daemon) reload(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	d.syncGuides(st)
 
 	var actions, errs []string
 	for _, f := range res.Written {
@@ -324,4 +328,16 @@ func randomHex(n int) string {
 	b := make([]byte, n)
 	rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+// syncGuides keeps projects' AI guides in step with the stack (PHP version,
+// ports, paths). Failures are logged, never fatal.
+func (d *Daemon) syncGuides(st *model.Stack) {
+	changed, err := aiguide.Sync(st, aiguide.CLI())
+	for _, slug := range changed {
+		d.log.Printf("updated AI guide for %s", slug)
+	}
+	if err != nil {
+		d.log.Printf("AI guide: %v", err)
+	}
 }
