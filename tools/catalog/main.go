@@ -4,8 +4,9 @@
 //	go run ./tools/catalog
 //
 // PHP hashes come from php.net's releases.json. nginx and MySQL publish no
-// sha256, so their archives are downloaded once here and hashed. Entries whose
-// URL is unchanged keep their previous hash (use -rehash to force).
+// sha256, so their archives are downloaded once here and hashed, as are the
+// PECL extension builds (sqlsrv, pdo_sqlsrv) php.net's PHP zips don't bundle.
+// Entries whose URL is unchanged keep their previous hash (use -rehash to force).
 package main
 
 import (
@@ -20,6 +21,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -33,17 +35,22 @@ func main() {
 	out := flag.String("out", "internal/packages/catalog.json", "catalog file to write")
 	phpMin := flag.String("php-min", "8.1", "oldest PHP minor to include")
 	mysql := flag.String("mysql", "8.4.13:lts,9.7.2:lts", "MySQL versions, comma separated, optional :label")
+	exts := flag.String("ext", "sqlsrv,pdo_sqlsrv", "PECL extensions to pin for every PHP minor, comma separated")
 	rehash := flag.Bool("rehash", false, "download and hash everything again")
 	flag.Parse()
 	log.SetFlags(0)
 	ctx := context.Background()
 
 	old := map[string]packages.Entry{} // by URL, from the existing catalog
+	oldExt := map[string]packages.Extension{}
 	if b, err := os.ReadFile(*out); err == nil && !*rehash {
 		var c packages.Catalog
 		if json.Unmarshal(b, &c) == nil {
 			for _, e := range c.Entries {
 				old[e.URL] = e
+			}
+			for _, x := range c.Extensions {
+				oldExt[x.URL] = x
 			}
 		}
 	}
@@ -87,11 +94,32 @@ func main() {
 		}
 	}
 
-	c := packages.Catalog{Generated: time.Now().UTC().Truncate(time.Second), Entries: entries}
+	var xs []packages.Extension
+	for _, name := range strings.Split(*exts, ",") {
+		if name = strings.TrimSpace(name); name == "" {
+			continue
+		}
+		found, err := peclEntries(ctx, name, php)
+		check(err)
+		xs = append(xs, found...)
+	}
+	for i := range xs {
+		x := &xs[i]
+		if prev, ok := oldExt[x.URL]; ok {
+			x.SHA256, x.Size = prev.SHA256, prev.Size
+			continue
+		}
+		log.Printf("hashing %s ...", x)
+		sum, size, err := hashURL(ctx, []string{x.URL})
+		check(err)
+		x.SHA256, x.Size = sum, size
+	}
+
+	c := packages.Catalog{Generated: time.Now().UTC().Truncate(time.Second), Entries: entries, Extensions: xs}
 	b, err := json.MarshalIndent(c, "", "  ")
 	check(err)
 	check(os.WriteFile(*out, append(b, '\n'), 0o644))
-	log.Printf("wrote %s: %d entries", *out, len(entries))
+	log.Printf("wrote %s: %d entries, %d extension builds", *out, len(entries), len(xs))
 }
 
 // phpEntries reads php.net's release index: the newest NTS x64 build per minor.
@@ -114,6 +142,8 @@ func phpEntries(ctx context.Context, min string) ([]packages.Entry, error) {
 		}
 		var version string
 		json.Unmarshal(fields["version"], &version)
+		// "8.4.27-1" is php.net's rebuild of 8.4.27; php -v still says 8.4.27.
+		version, _, _ = strings.Cut(version, "-")
 		for name, raw := range fields {
 			if !strings.HasPrefix(name, "nts-") || !strings.HasSuffix(name, "-x64") {
 				continue
@@ -132,6 +162,60 @@ func phpEntries(ctx context.Context, min string) ([]packages.Entry, error) {
 				URL:    "https://downloads.php.net/~windows/releases/archives/" + build.Zip.Path,
 				SHA256: strings.ToLower(build.Zip.SHA256),
 			})
+		}
+	}
+	return out, nil
+}
+
+// peclEntries finds, for each PHP build, the newest stable release of a PECL
+// extension built for that minor, NTS x64 with the same compiler (vs16, vs17).
+// php.net publishes no hashes for these; main hashes the downloads.
+func peclEntries(ctx context.Context, name string, php []packages.Entry) ([]packages.Extension, error) {
+	base := "https://downloads.php.net/~windows/pecl/releases/" + name + "/"
+	body, err := get(ctx, base)
+	if err != nil {
+		return nil, err
+	}
+	var versions []discover.Version
+	for _, m := range regexp.MustCompile(`href="(\d+\.\d+\.\d+)/"`).FindAllStringSubmatch(string(body), -1) {
+		if v, err := discover.ParseVersion(m[1]); err == nil {
+			versions = append(versions, v)
+		}
+	}
+	sort.Slice(versions, func(i, j int) bool { return versions[j].Less(versions[i]) })
+	if len(versions) == 0 {
+		return nil, fmt.Errorf("%s: no releases listed at %s", name, base)
+	}
+
+	listings := map[string]string{}
+	vsRe := regexp.MustCompile(`-nts-Win32-(vs\d+)-x64\.zip$`)
+	var out []packages.Extension
+	for _, p := range php {
+		pv, _ := discover.ParseVersion(p.Version)
+		minor := pv.MajorMinor()
+		m := vsRe.FindStringSubmatch(p.URL)
+		if m == nil {
+			return nil, fmt.Errorf("%s: can't tell the compiler from %s", p, p.URL)
+		}
+		found := false
+		for _, v := range versions {
+			dir := base + v.String() + "/"
+			if _, ok := listings[dir]; !ok {
+				b, err := get(ctx, dir)
+				if err != nil {
+					return nil, err
+				}
+				listings[dir] = string(b)
+			}
+			file := fmt.Sprintf("php_%s-%s-%s-nts-%s-x64.zip", name, v, minor, m[1])
+			if strings.Contains(listings[dir], `href="`+file+`"`) {
+				out = append(out, packages.Extension{Name: name, Version: v.String(), PHP: minor, URL: dir + file})
+				found = true
+				break
+			}
+		}
+		if !found {
+			log.Printf("%s: no build for PHP %s; skipped", name, minor)
 		}
 	}
 	return out, nil

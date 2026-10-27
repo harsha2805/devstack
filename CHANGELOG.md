@@ -5,9 +5,19 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions
 The release scripts need a section for the version they build and take the in-app update notes from the
 bold lead-ins under it, so write each feature up here when it lands.
 
-## [0.1.1] — unreleased
+## [0.2.0] — unreleased
+
+### Added
+- **SQL Server for PHP.** Install `sqlsrv` and `pdo_sqlsrv` from Servers → Versions → PHP extensions, or with
+  `devstack pkg install ext sqlsrv pdo_sqlsrv`. php.net's PHP builds leave them out, so devstack downloads the right
+  build for each installed PHP version from php.net's PECL builds, checks it against a pinned SHA-256, adds it to
+  `php.extensions` in `stack.toml` and restarts PHP. PHP versions installed later get it too. If Microsoft's ODBC
+  Driver for SQL Server is missing (sqlsrv can't connect without it), the app says so and links to it. Stacks that
+  copied in Microsoft's `php_sqlsrv_83_nts_x64.dll` by hand switch to the managed copy.
 
 ### Changed
+- **Current PHP builds.** PHP 8.2 to 8.5 now download php.net's rebuilt zips (`8.4.27-1` and so on). The PHP
+  versions are the same.
 - **Signed releases.** Releases are now built by GitHub Actions from the tagged source and, once SignPath Foundation
   accepts the project, code-signed, so Windows can name the publisher instead of warning about an unknown app.
   The [code signing policy](https://devstack.holostack.in/code-signing) says how.

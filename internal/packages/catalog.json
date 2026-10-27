@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-26T11:55:25Z",
+  "generated": "2026-10-27T11:32:19Z",
   "entries": [
     {
       "kind": "php",
@@ -11,30 +11,30 @@
     {
       "kind": "php",
       "version": "8.2.35",
-      "url": "https://downloads.php.net/~windows/releases/archives/php-8.2.35-nts-Win32-vs16-x64.zip",
-      "sha256": "798ffa4b9ce22a820d57048e9695df7245bf917ed067917f256942a10918a8cc",
-      "size": 33702163
+      "url": "https://downloads.php.net/~windows/releases/archives/php-8.2.35-1-nts-Win32-vs16-x64.zip",
+      "sha256": "ebe75134c03869826cb1714d31fd5eb96afefa6d9fd35d786971c03020e7bce2",
+      "size": 33780725
     },
     {
       "kind": "php",
       "version": "8.3.36",
-      "url": "https://downloads.php.net/~windows/releases/archives/php-8.3.36-nts-Win32-vs16-x64.zip",
-      "sha256": "3c9242622c7402b47c38d2ec2ed779cef3a290fd6f2bde6c35f9c482699e7900",
-      "size": 34101685
+      "url": "https://downloads.php.net/~windows/releases/archives/php-8.3.36-1-nts-Win32-vs16-x64.zip",
+      "sha256": "1a097d52b7a68622cdc723073b61cc70caf79c941218ff65b2d8441dbc6b10d4",
+      "size": 34179998
     },
     {
       "kind": "php",
       "version": "8.4.27",
-      "url": "https://downloads.php.net/~windows/releases/archives/php-8.4.27-nts-Win32-vs17-x64.zip",
-      "sha256": "93bd8a815a52156606fb906d0573437908c61f96e2cc52c03a51e36a41bf5236",
-      "size": 35290559
+      "url": "https://downloads.php.net/~windows/releases/archives/php-8.4.27-1-nts-Win32-vs17-x64.zip",
+      "sha256": "dbae154a0a89791f36c3d48e68bae797878333e7d6cb5721e74617de59b63ab7",
+      "size": 35296081
     },
     {
       "kind": "php",
       "version": "8.5.12",
-      "url": "https://downloads.php.net/~windows/releases/archives/php-8.5.12-nts-Win32-vs17-x64.zip",
-      "sha256": "2ab242af38d76bdf417cde5ec048b1bcd76a5a40f39a3d15d5f046f38571c477",
-      "size": 36306925
+      "url": "https://downloads.php.net/~windows/releases/archives/php-8.5.12-1-nts-Win32-vs17-x64.zip",
+      "sha256": "2a36a2edcb7a5b9252f638fd5e4cf84d7f6e066092654220dc0b63e5cf4e9723",
+      "size": 36310917
     },
     {
       "kind": "nginx",
@@ -77,6 +77,88 @@
       "size": 342737674,
       "strip": "mysql-9.7.2-winx64/",
       "label": "lts"
+    }
+  ],
+  "extensions": [
+    {
+      "name": "sqlsrv",
+      "version": "5.12.0",
+      "php": "8.1",
+      "url": "https://downloads.php.net/~windows/pecl/releases/sqlsrv/5.12.0/php_sqlsrv-5.12.0-8.1-nts-vs16-x64.zip",
+      "sha256": "00aefd8a92a518086d58fec98f82949a08177ee9f65974be9ebd2e3c6f78b3c2",
+      "size": 694380
+    },
+    {
+      "name": "sqlsrv",
+      "version": "5.12.0",
+      "php": "8.2",
+      "url": "https://downloads.php.net/~windows/pecl/releases/sqlsrv/5.12.0/php_sqlsrv-5.12.0-8.2-nts-vs16-x64.zip",
+      "sha256": "90861d8a5f19339a16c5a01afb1291e2043fdf6cbaa0efe07d2972c75709e5ab",
+      "size": 697581
+    },
+    {
+      "name": "sqlsrv",
+      "version": "5.13.3",
+      "php": "8.3",
+      "url": "https://downloads.php.net/~windows/pecl/releases/sqlsrv/5.13.3/php_sqlsrv-5.13.3-8.3-nts-vs16-x64.zip",
+      "sha256": "1a9d8cc6819e92ccfd19d67893abf643de1093b1ef7106402e2ae668110298db",
+      "size": 746459
+    },
+    {
+      "name": "sqlsrv",
+      "version": "5.13.3",
+      "php": "8.4",
+      "url": "https://downloads.php.net/~windows/pecl/releases/sqlsrv/5.13.3/php_sqlsrv-5.13.3-8.4-nts-vs17-x64.zip",
+      "sha256": "e47854a5d84adf2d78911ccdaa8b5bfd1048e11dab90ca64ad168f719fb4701f",
+      "size": 850716
+    },
+    {
+      "name": "sqlsrv",
+      "version": "5.13.3",
+      "php": "8.5",
+      "url": "https://downloads.php.net/~windows/pecl/releases/sqlsrv/5.13.3/php_sqlsrv-5.13.3-8.5-nts-vs17-x64.zip",
+      "sha256": "d38dbc0f7e2dcd99237fc9ec2fba07ab547d13dd3fc76b343ceed842f9539a41",
+      "size": 855039
+    },
+    {
+      "name": "pdo_sqlsrv",
+      "version": "5.12.0",
+      "php": "8.1",
+      "url": "https://downloads.php.net/~windows/pecl/releases/pdo_sqlsrv/5.12.0/php_pdo_sqlsrv-5.12.0-8.1-nts-vs16-x64.zip",
+      "sha256": "2a5b38e19c4bab76644398b5bf9ded660726f59d4e86464991140a48239275fe",
+      "size": 667397
+    },
+    {
+      "name": "pdo_sqlsrv",
+      "version": "5.12.0",
+      "php": "8.2",
+      "url": "https://downloads.php.net/~windows/pecl/releases/pdo_sqlsrv/5.12.0/php_pdo_sqlsrv-5.12.0-8.2-nts-vs16-x64.zip",
+      "sha256": "d2a81c2d51976f039335a6c0ea10acd90c69390c83bf75253688eb6993acad97",
+      "size": 678569
+    },
+    {
+      "name": "pdo_sqlsrv",
+      "version": "5.13.3",
+      "php": "8.3",
+      "url": "https://downloads.php.net/~windows/pecl/releases/pdo_sqlsrv/5.13.3/php_pdo_sqlsrv-5.13.3-8.3-nts-vs16-x64.zip",
+      "sha256": "0561c4fa3dc764899d6c366af4893fb12c1d36353a6c6eb2398016e429d465b4",
+      "size": 726460
+    },
+    {
+      "name": "pdo_sqlsrv",
+      "version": "5.13.3",
+      "php": "8.4",
+      "url": "https://downloads.php.net/~windows/pecl/releases/pdo_sqlsrv/5.13.3/php_pdo_sqlsrv-5.13.3-8.4-nts-vs17-x64.zip",
+      "sha256": "fd31b57ea01f30e13564e9f12231a0553d64e303f4dc89856efc0514a2e28159",
+      "size": 843353
+    },
+    {
+      "name": "pdo_sqlsrv",
+      "version": "5.13.3",
+      "php": "8.5",
+      "url": "https://downloads.php.net/~windows/pecl/releases/pdo_sqlsrv/5.13.3/php_pdo_sqlsrv-5.13.3-8.5-nts-vs17-x64.zip",
+      "sha256": "63bbda9081266cba12c46071324166e97434aa8366e47d8122122ff5e6cffb36",
+      "size": 847471
     }
   ]
 }

@@ -9,6 +9,8 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/harsha2805/devstack/internal/config"
+	"github.com/harsha2805/devstack/internal/control"
 	"github.com/harsha2805/devstack/internal/discover"
 	"github.com/harsha2805/devstack/internal/packages"
 )
@@ -31,8 +33,11 @@ func cmdPkg(ctx context.Context, e *env, args []string) error {
 	case "list", "ls":
 		return pkgList(ctx, e, cat, bin)
 	case "install", "add":
+		if len(rest) > 0 && rest[0] == "ext" {
+			return pkgExt(ctx, e, root, rest[1:], true)
+		}
 		if len(rest) < 1 || len(rest) > 2 {
-			return usageError{"usage: pkg install <nginx|php|mysql> [version]"}
+			return usageError{"usage: pkg install <nginx|php|mysql> [version], or pkg install ext <name>..."}
 		}
 		kind, err := parseKind(rest[0])
 		if err != nil {
@@ -51,11 +56,20 @@ func cmdPkg(ctx context.Context, e *env, args []string) error {
 			fmt.Fprintf(e.stdout, "%s is already installed.\n", entry)
 			return nil
 		}
+		if err == nil && kind == discover.PHP {
+			// Extensions devstack downloads (sqlsrv) aren't in php.net's zip.
+			if cfg, cerr := config.Load(root); cerr == nil {
+				err = control.FetchExtensions(ctx, root, cfg.PHP.Extensions, extProgress(e))
+			}
+		}
 		if err == nil {
 			fmt.Fprintln(e.stdout, "Run `devstack reload` (or `up`) to use it.")
 		}
 		return err
 	case "remove", "rm":
+		if len(rest) > 0 && rest[0] == "ext" {
+			return pkgExt(ctx, e, root, rest[1:], false)
+		}
 		if len(rest) != 2 {
 			return usageError{"usage: pkg remove <nginx|php|mysql> <exact version>"}
 		}
@@ -91,7 +105,74 @@ func pkgList(ctx context.Context, e *env, cat packages.Catalog, bin string) erro
 	}
 	tw.Flush()
 	fmt.Fprintf(e.stdout, "\nCatalog from %s. Installs go to %s.\n", cat.Generated.Format("2006-01-02"), bin)
+
+	exts, odbc, err := control.CheckExtensions(ctx, filepath.Dir(bin))
+	if err != nil || len(exts) == 0 {
+		return nil
+	}
+	fmt.Fprintln(e.stdout, "\nPHP extensions devstack can download (pkg install ext <name>):")
+	tw = tabwriter.NewWriter(e.stdout, 0, 0, 3, ' ', 0)
+	fmt.Fprintln(tw, "EXTENSION\tSTATUS")
+	for _, x := range exts {
+		status := "off"
+		switch {
+		case x.Enabled && len(x.Missing) > 0:
+			status = "on, not downloaded for PHP " + strings.Join(x.Missing, ", ")
+		case x.Enabled:
+			status = "on"
+		}
+		fmt.Fprintf(tw, "%s\t%s\n", x.Name, status)
+	}
+	tw.Flush()
+	if h := odbc.Hint(); h != "" {
+		fmt.Fprintln(e.stdout, "\n"+h)
+	}
 	return nil
+}
+
+// pkgExt turns catalog PHP extensions on (download + php.extensions) or off.
+func pkgExt(ctx context.Context, e *env, root string, names []string, on bool) error {
+	if len(names) == 0 {
+		return usageError{"usage: pkg install ext <name>... (or pkg remove ext <name>...), e.g. pkg install ext sqlsrv pdo_sqlsrv"}
+	}
+	for i, n := range names {
+		names[i] = strings.TrimPrefix(strings.TrimSuffix(strings.ToLower(n), ".dll"), "php_")
+	}
+	if !on {
+		if err := control.DisableExtensions(ctx, root, names); err != nil {
+			return err
+		}
+		fmt.Fprintf(e.stdout, "Turned off %s in stack.toml. The files stay, so turning it back on needs no download.\n", strings.Join(names, ", "))
+		return nil
+	}
+	if err := control.EnableExtensions(ctx, root, names, extProgress(e)); err != nil {
+		return err
+	}
+	fmt.Fprintf(e.stdout, "Turned on %s in stack.toml; running PHP versions restart with it.\n", strings.Join(names, ", "))
+	if _, odbc, err := control.CheckExtensions(ctx, root); err == nil {
+		if h := odbc.Hint(); h != "" {
+			fmt.Fprintln(e.stdout, "\n"+h)
+		} else if odbc.Needed {
+			fmt.Fprintf(e.stdout, "It connects through %s.\n", odbc.Driver)
+		}
+	}
+	return nil
+}
+
+// extProgress prints a progress line per extension download.
+func extProgress(e *env) control.ExtProgress {
+	var start time.Time
+	current := ""
+	return func(x packages.Extension, done, total int64) {
+		label := x.Name + " (PHP " + x.PHP + ")"
+		if label != current {
+			current, start = label, time.Now()
+		}
+		fmt.Fprintf(e.stdout, "\r  %-22s %s", label, progressText(done, total, time.Since(start)))
+		if total > 0 && done >= total {
+			fmt.Fprintf(e.stdout, "\r  %-22s verified and installed%s\n", label, strings.Repeat(" ", 30))
+		}
+	}
 }
 
 func installWithProgress(ctx context.Context, e *env, bin string, en packages.Entry) (string, error) {

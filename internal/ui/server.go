@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -153,6 +154,7 @@ func (s *Server) routes() http.Handler {
 	api.HandleFunc("POST /api/dns/dismiss", s.handleDNSDismiss)
 	api.HandleFunc("POST /api/packages/install", s.handleInstall)
 	api.HandleFunc("POST /api/packages/remove", s.handleRemove)
+	api.HandleFunc("POST /api/ext", s.handleExt)
 	api.HandleFunc("POST /api/open", s.handleOpen)
 	api.HandleFunc("POST /api/settings", s.handleSettings)
 	api.HandleFunc("POST /api/update/check", s.handleUpdateCheck)
@@ -243,27 +245,29 @@ type siteView struct {
 }
 
 type stateView struct {
-	Version    string            `json:"version"`
-	NeedsSetup bool              `json:"needs_setup"`
-	Setup      *setupView        `json:"setup,omitempty"`
-	Root       string            `json:"root,omitempty"`
-	WWW        string            `json:"www,omitempty"`
-	RootURL    string            `json:"root_url,omitempty"`
-	Running    bool              `json:"running"`
-	Phase      string            `json:"phase"`
-	Groups     []control.Group   `json:"groups"`
-	Planned    []plannedService  `json:"planned"`
-	Sites      []siteView        `json:"sites"`
-	PHPs       []string          `json:"phps"`
-	DefaultPHP string            `json:"default_php"`
-	Errors     []string          `json:"errors"`
-	Warnings   []string          `json:"warnings"`
-	Job        *Job              `json:"job"`
-	Settings   map[string]bool   `json:"settings"`
-	Links      map[string]string `json:"links"`
-	Update     *updateView       `json:"update"`
-	DNS        *dnsView          `json:"dns,omitempty"`
-	HTTPS      *control.HTTPSStatus `json:"https,omitempty"`
+	Version    string                    `json:"version"`
+	NeedsSetup bool                      `json:"needs_setup"`
+	Setup      *setupView                `json:"setup,omitempty"`
+	Root       string                    `json:"root,omitempty"`
+	WWW        string                    `json:"www,omitempty"`
+	RootURL    string                    `json:"root_url,omitempty"`
+	Running    bool                      `json:"running"`
+	Phase      string                    `json:"phase"`
+	Groups     []control.Group           `json:"groups"`
+	Planned    []plannedService          `json:"planned"`
+	Sites      []siteView                `json:"sites"`
+	PHPs       []string                  `json:"phps"`
+	DefaultPHP string                    `json:"default_php"`
+	Errors     []string                  `json:"errors"`
+	Warnings   []string                  `json:"warnings"`
+	Job        *Job                      `json:"job"`
+	Settings   map[string]bool           `json:"settings"`
+	Links      map[string]string         `json:"links"`
+	Update     *updateView               `json:"update"`
+	DNS        *dnsView                  `json:"dns,omitempty"`
+	HTTPS      *control.HTTPSStatus      `json:"https,omitempty"`
+	Extensions []control.ExtensionStatus `json:"extensions"`
+	ODBC       *control.ODBCStatus       `json:"odbc,omitempty"`
 }
 
 // plannedService describes what will run, for display while stopped.
@@ -274,11 +278,11 @@ type plannedService struct {
 }
 
 type setupView struct {
-	Root      string        `json:"root"`
-	PHP       []optionView  `json:"php"`
-	MySQL     []optionView  `json:"mysql"`
-	Nginx     optionView    `json:"nginx"`
-	VCRuntime bool          `json:"vc_runtime"`
+	Root      string       `json:"root"`
+	PHP       []optionView `json:"php"`
+	MySQL     []optionView `json:"mysql"`
+	Nginx     optionView   `json:"nginx"`
+	VCRuntime bool         `json:"vc_runtime"`
 }
 
 type optionView struct {
@@ -291,8 +295,8 @@ type optionView struct {
 
 func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 	v := stateView{Version: s.Version, Phase: "stopped", Groups: []control.Group{}, Sites: []siteView{},
-		Errors: []string{}, Warnings: []string{}, Planned: []plannedService{},
-		Links: map[string]string{"vc_redist": setup.VCRedistURL}}
+		Errors: []string{}, Warnings: []string{}, Planned: []plannedService{}, Extensions: []control.ExtensionStatus{},
+		Links: map[string]string{"vc_redist": setup.VCRedistURL, "odbc": packages.ODBCDriverURL}}
 	s.mu.Lock()
 	if s.job != nil {
 		j := *s.job
@@ -318,6 +322,9 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 	if hs, err := control.CheckHTTPS(root); err == nil {
 		v.HTTPS = &hs
 	}
+	if xs, odbc, err := control.CheckExtensions(r.Context(), root); err == nil {
+		v.Extensions, v.ODBC = xs, &odbc
+	}
 	if l, err := stack.Load(r.Context(), root); err != nil {
 		v.Errors = append(v.Errors, err.Error())
 	} else if st := l.Stack; st != nil {
@@ -342,7 +349,22 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 func (s *Server) fillStack(v *stateView, st *model.Stack) {
 	v.WWW = st.WWW
 	v.RootURL = st.RootURL()
-	v.Warnings = append(v.Warnings, st.Warnings...)
+	// Missing extensions devstack can download show on the extensions card
+	// with an Install button instead.
+	cat, _ := packages.Default()
+	handled := map[string]bool{}
+	bin := strings.ToLower(filepath.Join(st.Root, "bin")) + string(filepath.Separator)
+	for _, p := range st.PHP {
+		if len(p.Missing) > 0 && strings.HasPrefix(strings.ToLower(p.Build.Dir), bin) &&
+			!slices.ContainsFunc(p.Missing, func(e string) bool { return !slices.Contains(cat.ExtensionNames(), e) }) {
+			handled[model.MissingExtensionsWarning(p)] = true
+		}
+	}
+	for _, w := range st.Warnings {
+		if !handled[w] {
+			v.Warnings = append(v.Warnings, w)
+		}
+	}
 	if st.DefaultPHP != nil {
 		v.DefaultPHP = st.DefaultPHP.Key
 	}
@@ -772,7 +794,56 @@ func (s *Server) handleInstall(w http.ResponseWriter, r *http.Request) {
 			return err
 		}
 		s.step(j, label, "done", e.Size, e.Size)
-		return nil
+		if e.Kind != discover.PHP {
+			return nil
+		}
+		// Extensions devstack downloads (sqlsrv) aren't in php.net's zip.
+		cfg, err := config.Load(root)
+		if err != nil {
+			return nil
+		}
+		return control.FetchExtensions(ctx, root, cfg.PHP.Extensions, s.extStep(j))
+	})
+}
+
+// extStep shows each extension download as a job step.
+func (s *Server) extStep(j *Job) control.ExtProgress {
+	return func(x packages.Extension, done, total int64) {
+		state := "running"
+		if total > 0 && done >= total {
+			state = "done"
+		}
+		s.step(j, "Download "+x.Name+" for PHP "+x.PHP, state, done, total)
+	}
+}
+
+// handleExt turns a catalog PHP extension (sqlsrv) on, downloading it for
+// every PHP version, or off.
+func (s *Server) handleExt(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name string `json:"name"`
+		On   bool   `json:"on"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		replyErr(w, http.StatusBadRequest, err)
+		return
+	}
+	cat, _ := packages.Default()
+	if !slices.Contains(cat.ExtensionNames(), req.Name) {
+		replyErr(w, http.StatusBadRequest, fmt.Errorf("unknown extension %q", req.Name))
+		return
+	}
+	root := s.root()
+	if !req.On {
+		if err := control.DisableExtensions(r.Context(), root, []string{req.Name}); err != nil {
+			replyErr(w, http.StatusInternalServerError, err)
+			return
+		}
+		reply(w, nil)
+		return
+	}
+	s.startJob(w, "Installing "+req.Name, func(ctx context.Context, j *Job) error {
+		return control.EnableExtensions(ctx, root, []string{req.Name}, s.extStep(j))
 	})
 }
 
@@ -904,10 +975,11 @@ func localURL(u string) bool {
 }
 
 var knownLinks = map[string]bool{
-	setup.VCRedistURL:                       true,
-	"https://www.php.net/license/":          true,
-	"https://nginx.org/LICENSE":             true,
-	"https://www.mysql.com/about/legal/":    true,
+	setup.VCRedistURL:                        true,
+	packages.ODBCDriverURL:                   true,
+	"https://www.php.net/license/":           true,
+	"https://nginx.org/LICENSE":              true,
+	"https://www.mysql.com/about/legal/":     true,
 	"https://github.com/harsha2805/devstack": true,
 	"https://github.com/sponsors/harsha2805": true,
 }
@@ -980,6 +1052,6 @@ func replyErr(w http.ResponseWriter, code int, err error) {
 // discardWriter lets StartServers reuse startJob without an HTTP request.
 type discardWriter struct{}
 
-func (discardWriter) Header() http.Header       { return http.Header{} }
+func (discardWriter) Header() http.Header         { return http.Header{} }
 func (discardWriter) Write(b []byte) (int, error) { return len(b), nil }
-func (discardWriter) WriteHeader(int)            {}
+func (discardWriter) WriteHeader(int)             {}

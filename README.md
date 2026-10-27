@@ -55,6 +55,7 @@ browser. `go run ./tools/uipreview` serves it alone for browser testing.
 devstack init        # downloads nginx/PHP/MySQL (sha256-verified), picks free ports, writes stack.toml + www\hello
 devstack pkg list    # available and installed server versions
 devstack pkg install php 8.3
+devstack pkg install ext sqlsrv pdo_sqlsrv   # SQL Server for PHP (php.net builds leave it out)
 devstack up          # renders etc\ and starts everything in the background
 devstack status
 devstack sites       # URLs, e.g. http://hello.localhost:8080

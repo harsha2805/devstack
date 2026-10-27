@@ -61,7 +61,7 @@ func init() {
 		{"dns", "on | off | status", "<site>.test addresses for every program (one admin prompt)", false, cmdDNS},
 		{"https", "on | off | status | untrust", "trusted HTTPS for every site (Windows asks once)", false, cmdHTTPS},
 		{"guide", "add | remove | show [SITE]", "AI guide for coding agents in a site's folder", false, cmdGuide},
-		{"pkg", "list | install SERVER [VERSION] | remove SERVER VERSION", "download nginx, PHP and MySQL builds", false, cmdPkg},
+		{"pkg", "list | install SERVER [VERSION] | remove SERVER VERSION | install/remove ext NAME...", "download nginx, PHP and MySQL builds, and extra PHP extensions (sqlsrv)", false, cmdPkg},
 		{"version", "", "print the version", false, cmdVersion},
 		{"daemon", "", "run the supervisor (started by `up`)", true, cmdDaemon},
 	}

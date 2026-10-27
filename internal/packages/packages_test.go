@@ -141,3 +141,58 @@ func TestInstallRefusesUnpinned(t *testing.T) {
 		t.Error("entries without sha256 must be refused")
 	}
 }
+
+func TestCatalogHasSQLServerForEveryPHP(t *testing.T) {
+	c, err := Default()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range c.Entries {
+		if e.Kind != discover.PHP {
+			continue
+		}
+		v, _ := discover.ParseVersion(e.Version)
+		for _, name := range []string{"sqlsrv", "pdo_sqlsrv"} {
+			x, err := c.FindExtension(name, v.MajorMinor())
+			if err != nil {
+				t.Errorf("PHP %s: %v", e.Version, err)
+				continue
+			}
+			if len(x.SHA256) != 64 || x.Size == 0 || !strings.HasPrefix(x.URL, "https://downloads.php.net/") {
+				t.Errorf("incomplete extension entry %+v", x)
+			}
+		}
+	}
+	if _, err := c.FindExtension("imagick", "8.4"); err == nil || !strings.Contains(err.Error(), "sqlsrv") {
+		t.Errorf("unknown extension: %v", err)
+	}
+}
+
+func TestInstallExtensionTakesOnlyTheDLL(t *testing.T) {
+	z := makeZip(t, map[string]string{"php_sqlsrv.dll": "dll", "php_sqlsrv.pdb": "pdb", "LICENSE": "l"})
+	srv := serve(t, map[string][]byte{"/s.zip": z})
+	ext := t.TempDir()
+	x := Extension{Name: "sqlsrv", Version: "5.13.3", PHP: "8.4", URL: srv.URL + "/s.zip", SHA256: sum(z)}
+	dll, err := InstallExtension(context.Background(), ext, x, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(dll); string(b) != "dll" || filepath.Base(dll) != "php_sqlsrv.dll" {
+		t.Errorf("dll = %s %q", dll, b)
+	}
+	if entries, _ := os.ReadDir(ext); len(entries) != 1 {
+		t.Errorf("ext holds more than the DLL: %v", entries)
+	}
+	if _, err := InstallExtension(context.Background(), ext, x, nil); !errors.Is(err, ErrInstalled) {
+		t.Errorf("second install: %v", err)
+	}
+
+	bad := x
+	bad.Name, bad.SHA256 = "pdo_sqlsrv", strings.Repeat("0", 64)
+	if _, err := InstallExtension(context.Background(), ext, bad, nil); err == nil || !strings.Contains(err.Error(), "checksum mismatch") {
+		t.Fatalf("want checksum error, got %v", err)
+	}
+	if entries, _ := os.ReadDir(ext); len(entries) != 1 {
+		t.Errorf("failed install left files: %v", entries)
+	}
+}

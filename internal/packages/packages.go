@@ -33,7 +33,7 @@ type Entry struct {
 	// releases from Downloads/ to archives/, so entries list both.
 	Mirrors []string `json:"mirrors,omitempty"`
 	SHA256  string   `json:"sha256"`
-	Size    int64         `json:"size"`
+	Size    int64    `json:"size"`
 	// Strip is the top-level folder inside the zip ("nginx-1.30.6/"), removed on extract.
 	Strip string `json:"strip,omitempty"`
 	// Label marks notable lines: "lts", "stable", "mainline".
@@ -57,9 +57,31 @@ func ProductName(k discover.Kind) string {
 }
 
 type Catalog struct {
-	Generated time.Time `json:"generated"`
-	Entries   []Entry   `json:"entries"`
+	Generated  time.Time   `json:"generated"`
+	Entries    []Entry     `json:"entries"`
+	Extensions []Extension `json:"extensions,omitempty"`
 }
+
+// Extension is a PHP extension DLL that php.net's Windows builds don't bundle,
+// built for one PHP minor (NTS x64, matching compiler) by its publisher.
+type Extension struct {
+	Name    string `json:"name"`    // "sqlsrv", as written in php.extensions
+	Version string `json:"version"` // the extension's own version, "5.13.3"
+	PHP     string `json:"php"`     // PHP minor it is built for, "8.4"
+	URL     string `json:"url"`
+	SHA256  string `json:"sha256"`
+	Size    int64  `json:"size"`
+}
+
+func (x Extension) String() string { return fmt.Sprintf("%s %s for PHP %s", x.Name, x.Version, x.PHP) }
+
+// ODBCDriverURL is Microsoft's page for the ODBC Driver for SQL Server, which
+// sqlsrv and pdo_sqlsrv need and which only Microsoft's installer can add.
+const ODBCDriverURL = "https://learn.microsoft.com/sql/connect/odbc/download-odbc-driver-for-sql-server"
+
+// NeedsODBC reports whether an extension only works with Microsoft's ODBC
+// Driver for SQL Server installed.
+func NeedsODBC(name string) bool { return name == "sqlsrv" || name == "pdo_sqlsrv" }
 
 //go:embed catalog.json
 var catalogJSON []byte
@@ -113,6 +135,38 @@ func (c Catalog) Find(kind discover.Kind, constraint string) (Entry, error) {
 	return Entry{}, fmt.Errorf("no %s %s in the catalog (available: %s)", kind, constraint, strings.Join(have, ", "))
 }
 
+// ExtensionNames lists the extensions the catalog can install, sorted.
+func (c Catalog) ExtensionNames() []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, x := range c.Extensions {
+		if !seen[x.Name] {
+			seen[x.Name] = true
+			out = append(out, x.Name)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// FindExtension returns the build of extension name for PHP minor php ("8.4").
+func (c Catalog) FindExtension(name, php string) (Extension, error) {
+	known := false
+	for _, x := range c.Extensions {
+		if x.Name != name {
+			continue
+		}
+		known = true
+		if x.PHP == php {
+			return x, nil
+		}
+	}
+	if !known {
+		return Extension{}, fmt.Errorf("devstack can't install the %s extension (it can install: %s)", name, strings.Join(c.ExtensionNames(), ", "))
+	}
+	return Extension{}, fmt.Errorf("no %s build for PHP %s", name, php)
+}
+
 // Dir is where an entry is installed under a bin root.
 func Dir(binRoot string, kind discover.Kind, version string) string {
 	return filepath.Join(binRoot, string(kind), version)
@@ -150,7 +204,7 @@ func Install(ctx context.Context, binRoot string, e Entry, progress Progress) (s
 
 	var errs []error
 	for _, u := range append([]string{e.URL}, e.Mirrors...) {
-		err := download(ctx, e, u, zipPath, progress)
+		err := download(ctx, e.String(), e.SHA256, e.Size, u, zipPath, progress)
 		if err == nil {
 			errs = nil
 			break
@@ -178,7 +232,52 @@ type checksumError struct{ msg string }
 
 func (c checksumError) Error() string { return c.msg }
 
-func download(ctx context.Context, e Entry, url, to string, progress Progress) error {
+// InstallExtension downloads and verifies x and puts its DLL into extDir
+// (a PHP build's ext folder). It returns the DLL's path.
+func InstallExtension(ctx context.Context, extDir string, x Extension, progress Progress) (string, error) {
+	if len(x.SHA256) != 64 {
+		return "", fmt.Errorf("%s: catalog entry has no sha256; refusing to install unverified files", x)
+	}
+	dll := "php_" + x.Name + ".dll"
+	dest := filepath.Join(extDir, dll)
+	if _, err := os.Stat(dest); err == nil {
+		return dest, fmt.Errorf("%s: %w (%s)", x, ErrInstalled, dest)
+	}
+	if _, err := os.Stat(extDir); err != nil {
+		return "", fmt.Errorf("%s: %w", x, err)
+	}
+	zipPath := filepath.Join(extDir, "."+x.Name+".zip.partial")
+	partial := dest + ".partial"
+	defer os.Remove(zipPath)
+	defer os.Remove(partial)
+	if err := download(ctx, x.String(), x.SHA256, x.Size, x.URL, zipPath, progress); err != nil {
+		return "", err
+	}
+	if err := extractFile(zipPath, dll, partial); err != nil {
+		return "", fmt.Errorf("%s: unpack: %w", x, err)
+	}
+	if err := os.Rename(partial, dest); err != nil {
+		return "", err
+	}
+	return dest, nil
+}
+
+// extractFile copies the archive's top-level file name to target.
+func extractFile(zipPath, name, target string) error {
+	r, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+	for _, f := range r.File {
+		if strings.EqualFold(f.Name, name) {
+			return writeEntry(f, target)
+		}
+	}
+	return fmt.Errorf("no %s in the archive", name)
+}
+
+func download(ctx context.Context, what, want string, size int64, url, to string, progress Progress) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return err
@@ -186,15 +285,15 @@ func download(ctx context.Context, e Entry, url, to string, progress Progress) e
 	req.Header.Set("User-Agent", UserAgent)
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("%s: download: %w", e, err)
+		return fmt.Errorf("%s: download: %w", what, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("%s: download %s: %s", e, url, resp.Status)
+		return fmt.Errorf("%s: download %s: %s", what, url, resp.Status)
 	}
 	total := resp.ContentLength
 	if total <= 0 {
-		total = e.Size
+		total = size
 	}
 
 	f, err := os.Create(to)
@@ -224,7 +323,7 @@ func download(ctx context.Context, e Entry, url, to string, progress Progress) e
 		}
 		if rerr != nil {
 			f.Close()
-			return fmt.Errorf("%s: download: %w", e, rerr)
+			return fmt.Errorf("%s: download: %w", what, rerr)
 		}
 	}
 	if progress != nil {
@@ -233,8 +332,8 @@ func download(ctx context.Context, e Entry, url, to string, progress Progress) e
 	if err := f.Close(); err != nil {
 		return err
 	}
-	if got := hex.EncodeToString(h.Sum(nil)); !strings.EqualFold(got, e.SHA256) {
-		return checksumError{fmt.Sprintf("%s: checksum mismatch: got %s, catalog says %s; the download was altered or corrupted", e, got, e.SHA256)}
+	if got := hex.EncodeToString(h.Sum(nil)); !strings.EqualFold(got, want) {
+		return checksumError{fmt.Sprintf("%s: checksum mismatch: got %s, catalog says %s; the download was altered or corrupted", what, got, want)}
 	}
 	return nil
 }

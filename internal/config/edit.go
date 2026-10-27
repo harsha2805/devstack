@@ -18,6 +18,60 @@ func SetService(root, key, value string) error {
 // so comments and layout survive. The result must still load; otherwise the
 // file is left as it was.
 func SetKey(root, section, key, literal string) error {
+	return editLines(root, func(lines []string) []string { return setLine(lines, section, key, literal) })
+}
+
+// SetExtensions sets php.extensions to names in root's stack.toml, replacing
+// the whole array even when it spans several lines.
+func SetExtensions(root string, names []string) error {
+	quoted := make([]string, len(names))
+	for i, n := range names {
+		quoted[i] = fmt.Sprintf("%q", n)
+	}
+	literal := "[" + strings.Join(quoted, ", ") + "]"
+	return editLines(root, func(lines []string) []string {
+		inSection := false
+		for i := 0; i < len(lines); i++ {
+			t := strings.TrimSpace(lines[i])
+			if strings.HasPrefix(t, "[") {
+				if inSection {
+					break
+				}
+				inSection = t == "[php]"
+				continue
+			}
+			m := arrayKeyRe.FindStringSubmatch(lines[i])
+			if !inSection || m == nil {
+				continue
+			}
+			// Extension names can't contain "]" or "#", so the first "]"
+			// outside a comment closes the array.
+			end := i
+			for end < len(lines) && !strings.Contains(code(lines[end]), "]") {
+				end++
+			}
+			if end == len(lines) {
+				return lines // unterminated: Load reports it
+			}
+			_, rest, _ := strings.Cut(lines[end], "]")
+			lines[i] = m[1] + literal + rest
+			return append(lines[:i+1], lines[end+1:]...)
+		}
+		return setLine(lines, "php", "extensions", literal)
+	})
+}
+
+var arrayKeyRe = regexp.MustCompile(`^(\s*extensions\s*=\s*)\[`)
+
+// code is l without a trailing # comment.
+func code(l string) string {
+	before, _, _ := strings.Cut(l, "#")
+	return before
+}
+
+// editLines rewrites root's stack.toml through fn, keeping its BOM and line
+// endings. The result must still load; otherwise the file is left as it was.
+func editLines(root string, fn func([]string) []string) error {
 	path := filepath.Join(root, FileName)
 	old, err := os.ReadFile(path)
 	if err != nil {
@@ -32,7 +86,22 @@ func SetKey(root, section, key, literal string) error {
 	if strings.Contains(text, "\r\n") {
 		nl = "\r\n"
 	}
-	lines := strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n")
+	lines := fn(strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n"))
+
+	out := bom + strings.Join(lines, nl)
+	if err := os.WriteFile(path, []byte(out), 0o644); err != nil {
+		return err
+	}
+	if _, err := Load(root); err != nil {
+		os.WriteFile(path, old, 0o644)
+		return err
+	}
+	return nil
+}
+
+// setLine sets <section>.<key> = literal on its line, or adds the line to the
+// section (or the section to the end).
+func setLine(lines []string, section, key, literal string) []string {
 	line := fmt.Sprintf("%-5s = %s", key, literal)
 	keyRe := regexp.MustCompile(`^(\s*` + regexp.QuoteMeta(key) + `\s*=\s*)("[^"]*"|[^\s#]+)(.*)$`)
 
@@ -71,14 +140,5 @@ func SetKey(root, section, key, literal string) error {
 		}
 		lines = append(lines, "", "["+section+"]", line, "")
 	}
-
-	out := bom + strings.Join(lines, nl)
-	if err := os.WriteFile(path, []byte(out), 0o644); err != nil {
-		return err
-	}
-	if _, err := Load(root); err != nil {
-		os.WriteFile(path, old, 0o644)
-		return err
-	}
-	return nil
+	return lines
 }

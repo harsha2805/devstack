@@ -86,3 +86,39 @@ func TestSetKeyNumber(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestSetExtensions(t *testing.T) {
+	cases := []struct {
+		name, in, want string
+	}{
+		{
+			"one line keeps comment",
+			"[php]\nworkers    = 4\nextensions = [\"curl\", \"gd\"]  # enabled\n\n[ports]\nhttp = 8080\n",
+			"[php]\nworkers    = 4\nextensions = [\"curl\", \"sqlsrv\"]  # enabled\n\n[ports]\nhttp = 8080\n",
+		},
+		{
+			"several lines",
+			"[php]\nextensions = [\n  \"curl\", # web\n  \"gd\",\n]\nworkers = 4\n",
+			"[php]\nextensions = [\"curl\", \"sqlsrv\"]\nworkers = 4\n",
+		},
+		{
+			"missing key, php.ini table after",
+			"[php]\nworkers = 4\n\n[php.ini]\nmemory_limit = \"512M\"\n",
+			"[php]\nworkers = 4\nextensions = [\"curl\", \"sqlsrv\"]\n\n[php.ini]\nmemory_limit = \"512M\"\n",
+		},
+		{
+			"no php section",
+			"www = \"www\"\n",
+			"www = \"www\"\n\n[php]\nextensions = [\"curl\", \"sqlsrv\"]\n",
+		},
+	}
+	for _, c := range cases {
+		root := writeStack(t, c.in)
+		if err := SetExtensions(root, []string{"curl", "sqlsrv"}); err != nil {
+			t.Fatalf("%s: %v", c.name, err)
+		}
+		if got := readStack(t, root); got != c.want {
+			t.Errorf("%s:\n got %q\nwant %q", c.name, got, c.want)
+		}
+	}
+}

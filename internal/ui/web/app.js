@@ -292,7 +292,7 @@ function renderServers() {
   });
 
   const job = S.job && S.job.title.startsWith("Installing") ? S.job : null;
-  draw("packages", [packages, job], () => {
+  draw("packages", [packages, job, S.extensions, S.odbc], () => {
     const el = $("#packages");
     if (!packages) { el.innerHTML = '<span class="muted">Loading…</span>'; return; }
     const busy = S.job && !S.job.finished;
@@ -319,7 +319,13 @@ function renderServers() {
           <span class="muted num">${size(p.size)}</span>
           ${action}
         </div>`;
-      }).join("")}</div></div>`).join("");
+      }).join("")}</div></div>`).join("") + extensionsGroup(job, busy);
+    el.querySelectorAll("[data-ext]").forEach((b) => (b.onclick = () => {
+      const [name, on] = b.dataset.ext.split("|");
+      if (on === "0" && !confirm(`Turn off ${name}? PHP restarts without it; the files stay.`)) return;
+      act("/api/ext", { name, on: on === "1" }, on === "0" ? `Turned off ${name}` : "").catch(() => {});
+    }));
+    $("#odbc-get") && ($("#odbc-get").onclick = () => open("url", S.links.odbc));
     el.querySelectorAll("[data-install]").forEach((b) => (b.onclick = () => {
       const [kind, version] = b.dataset.install.split("|");
       act("/api/packages/install", { kind, version }).catch(() => {});
@@ -334,6 +340,44 @@ function renderServers() {
     if (S.job.error) toast(S.job.error, true); else toast(S.job.title.replace("Installing", "Installed"));
     api("/api/job/dismiss", {}).then(loadServerData).catch(() => {});
   }
+}
+
+// extensionsGroup lists the PHP extensions devstack downloads itself (php.net's
+// zips leave them out), with the ODBC driver they need.
+const EXT_TITLES = { sqlsrv: "Microsoft SQL Server", pdo_sqlsrv: "Microsoft SQL Server for PDO" };
+function extensionsGroup(job, busy) {
+  const exts = S.extensions || [];
+  if (!exts.length) return "";
+  const rows = exts.map((x) => {
+    const installing = job && job.title === `Installing ${x.name}` && !job.finished;
+    let note = "", action;
+    if (installing) {
+      const step = job.steps.find((s) => s.state === "running") || job.steps[job.steps.length - 1];
+      const pct = step && step.total ? Math.round((step.done / step.total) * 100) : 0;
+      action = `<div style="width:160px"><div class="bar-track"><div class="bar-fill" style="transform:scaleX(${pct / 100})"></div></div><div class="muted" style="font-size:11.5px">${esc(step ? step.label.replace("Download ", "") : "Starting…")}</div></div>`;
+    } else if (x.enabled && x.missing && x.missing.length) {
+      note = `<span class="muted"> · not downloaded for PHP ${esc(x.missing.join(", "))}</span>`;
+      action = `<button class="btn small" data-ext="${esc(x.name)}|1" ${busy ? "disabled" : ""}>Download</button>`;
+    } else if (x.enabled) {
+      action = `<span class="badge live">On</span><button class="btn small ghost" data-ext="${esc(x.name)}|0" ${busy ? "disabled" : ""}>Turn off</button>`;
+    } else {
+      action = `<button class="btn small" data-ext="${esc(x.name)}|1" ${busy ? "disabled" : ""}>Install</button>`;
+    }
+    return `<div class="row">
+      <div class="grow"><b class="mono">${esc(x.name)}</b> <span class="muted">${esc(EXT_TITLES[x.name] || "")}</span>${note}</div>
+      ${action}
+    </div>`;
+  }).join("");
+  const o = S.odbc;
+  let odbc = "";
+  if (o && o.needed && !o.driver) {
+    odbc = `<div class="notice warn" style="display:flex;align-items:center;gap:10px"><div class="grow">SQL Server needs Microsoft's ODBC Driver for SQL Server (17 or 18). PHP loads sqlsrv without it, but connections fail until it is installed. Its installer asks for administrator rights.</div>
+      <button class="btn small" id="odbc-get">${icon("open")} Get the driver</button></div>`;
+  } else if (o && o.needed) {
+    odbc = `<div class="muted" style="font-size:12px;margin-top:4px">Connects through ${esc(o.driver)}.</div>`;
+  }
+  return `<div class="pkg-group"><h3>PHP extensions <span class="h-note">Not in php.net's builds; downloaded from php.net's PECL builds for each PHP version and checked against a pinned SHA-256.</span></h3>
+    <div class="rows">${rows}</div>${odbc}</div>`;
 }
 
 let logTimer, logFiles = [];

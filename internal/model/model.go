@@ -58,6 +58,7 @@ type PHPPool struct {
 	INIPath     string
 	ExtDir      string
 	Extensions  []string // requested and present
+	Missing     []string // requested, but no DLL in ExtDir
 	Opcache     bool
 	MaxRequests int
 	INI         map[string]string
@@ -225,16 +226,15 @@ func newPool(cfg config.Stack, st *Stack, b discover.Build) *PHPPool {
 	for i := 0; i < cfg.PHP.Workers; i++ {
 		p.Ports = append(p.Ports, PHPPort(cfg.Ports.PHP, b.Version, i))
 	}
-	var missing []string
 	for _, e := range cfg.PHP.Extensions {
 		if exists(filepath.Join(p.ExtDir, "php_"+e+".dll")) {
 			p.Extensions = append(p.Extensions, e)
 		} else {
-			missing = append(missing, e)
+			p.Missing = append(p.Missing, e)
 		}
 	}
-	if len(missing) > 0 {
-		st.Warnings = append(st.Warnings, fmt.Sprintf("%s: extensions not found in %s: %s", p.Name, p.ExtDir, strings.Join(missing, ", ")))
+	if len(p.Missing) > 0 {
+		st.Warnings = append(st.Warnings, MissingExtensionsWarning(p))
 	}
 	p.Opcache = exists(filepath.Join(p.ExtDir, "php_opcache.dll"))
 	return p
@@ -294,4 +294,9 @@ var ipv6Loopback = func() bool {
 func exists(p string) bool {
 	_, err := os.Stat(p)
 	return err == nil
+}
+
+// MissingExtensionsWarning is the warning for p's requested-but-absent extensions.
+func MissingExtensionsWarning(p *PHPPool) string {
+	return fmt.Sprintf("%s: extensions not found in %s: %s", p.Name, p.ExtDir, strings.Join(p.Missing, ", "))
 }
