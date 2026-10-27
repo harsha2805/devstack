@@ -22,6 +22,7 @@ import (
 
 	"github.com/harsha2805/devstack/internal/aiguide"
 	"github.com/harsha2805/devstack/internal/api"
+	"github.com/harsha2805/devstack/internal/dns"
 	"github.com/harsha2805/devstack/internal/logfile"
 	"github.com/harsha2805/devstack/internal/model"
 	"github.com/harsha2805/devstack/internal/render"
@@ -53,6 +54,9 @@ type Daemon struct {
 	st       *model.Stack
 	www      string // watched folder and the fingerprint of its scan in st (see watch.go)
 	scan     string
+
+	dnsMu  sync.Mutex
+	dnsSrv *dns.Server // nil unless services.dns is on (see dns.go)
 
 	opMu     sync.Mutex // one reload/restart at a time
 	shutdown chan struct{}
@@ -140,6 +144,7 @@ func (d *Daemon) startAll(ctx context.Context) error {
 	}
 	d.log.Printf("rendered etc/: %d written, %d removed", len(res.Written), len(res.Removed))
 	d.syncGuides(st)
+	d.applyDNS(st)
 	specs, err := services.Specs(st, d.logs)
 	if err != nil {
 		return err
@@ -172,6 +177,7 @@ func (d *Daemon) stopAll() {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	d.sup.StopAll(ctx)
+	d.stopDNS()
 }
 
 // reload re-reads everything and changes only what differs: new units start,
@@ -196,6 +202,7 @@ func (d *Daemon) reload(ctx context.Context) ([]string, error) {
 	}
 
 	d.syncGuides(st)
+	d.applyDNS(st)
 
 	var actions, errs []string
 	for _, f := range res.Written {

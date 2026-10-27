@@ -187,8 +187,15 @@ function renderTabs() {
 }
 
 function renderSites() {
-  draw("sites", [S.sites, S.phps, S.default_php, S.www, S.running], () => {
+  draw("sites", [S.sites, S.phps, S.default_php, S.www, S.running, S.dns], () => {
     const el = $("#sites");
+    const d = S.dns;
+    const ask = d && !d.on && !d.asked && S.sites.length ? `<div class="ask">
+        <div class="grow"><div class="set-title">Use ${esc(S.sites[0].slug)}.${esc(d.tld)} addresses?</div>
+        <div class="set-desc">Right now sites answer at <span class="mono">name.localhost</span>, which only browsers and curl understand.
+        With <span class="mono">.${esc(d.tld)}</span> addresses, PHP, Postman and terminals reach them too. Windows asks for administrator approval once;
+        only <span class="mono">*.${esc(d.tld)}</span> lookups go to devstack, never other sites.</div></div>
+        <button class="btn small primary" id="dns-yes">Turn on</button><button class="btn small ghost" id="dns-no">Not now</button></div>` : "";
     if (!S.sites.length) {
       el.innerHTML = `<div class="empty"><p>No sites yet. Every folder in <span class="mono">${esc(S.www)}</span> becomes a site.</p>
         <button class="btn" id="empty-open">${icon("folder")}Open www folder</button></div>`;
@@ -200,7 +207,7 @@ function renderSites() {
       for (const v of S.phps || []) opts.push(`<option value="${esc(v)}" ${site.pinned && site.php === v ? "selected" : ""}>PHP ${esc(v)}</option>`);
       return opts.join("");
     };
-    el.innerHTML = `<table>
+    el.innerHTML = ask + `<table>
       <thead><tr><th>Site</th><th>Address</th><th>PHP</th><th title="Tells AI coding agents how this site runs here">AI guide</th><th></th></tr></thead>
       <tbody>${S.sites.map((s, i) => `
         <tr>
@@ -218,6 +225,8 @@ function renderSites() {
     el.querySelectorAll("[data-url]").forEach((b) => (b.onclick = () => open("url", S.sites[b.dataset.url].url)));
     el.querySelectorAll("[data-browse]").forEach((b) => (b.onclick = () => open("url", S.sites[b.dataset.browse].url)));
     el.querySelectorAll("[data-folder]").forEach((b) => (b.onclick = () => open("folder", S.sites[b.dataset.folder].dir)));
+    $("#dns-yes") && ($("#dns-yes").onclick = () => act("/api/dns", { on: true }).catch(() => {}));
+    $("#dns-no") && ($("#dns-no").onclick = () => act("/api/dns/dismiss", {}, "You can turn it on later in Settings").catch(() => {}));
     el.querySelectorAll("[data-guide]").forEach((cb) => (cb.onchange = () => {
       const s = S.sites[cb.dataset.guide];
       act("/api/site/guide", { slug: s.slug, on: cb.checked }, cb.checked ? `Added the AI guide to ${s.slug}` : `Removed the AI guide from ${s.slug}`)
@@ -355,7 +364,7 @@ async function refreshLog() {
 }
 
 function renderSettings() {
-  draw("settings", [S.settings, S.root, S.version], () => {
+  draw("settings", [S.settings, S.root, S.version, S.dns], () => {
     const sw = (id, on) => `<label class="switch"><input type="checkbox" id="${id}" ${on ? "checked" : ""}><span></span></label>`;
     $("#settings").innerHTML = `
       <h3>Stack</h3>
@@ -364,6 +373,7 @@ function renderSettings() {
       <div class="set-card"><div class="grow"><div class="set-title">stack.toml</div>
         <div class="set-desc">Ports, PHP extensions and php.ini settings. Reload after saving.</div></div>
         <button class="btn small" id="edit-config">${icon("open")}Edit</button></div>
+      ${S.dns ? dnsCard(S.dns) : ""}
       <h3>Startup</h3>
       <div class="set-card"><div class="grow"><div class="set-title">Start servers when devstack opens</div>
         <div class="set-desc">Your sites are up as soon as the app is.</div></div>${sw("set-start", S.settings.start_servers)}</div>
@@ -384,10 +394,28 @@ function renderSettings() {
     $("#set-start").onchange = (e) => act("/api/settings", { start_servers: e.target.checked }).catch(() => {});
     $("#set-autostart").onchange = (e) => act("/api/settings", { autostart: e.target.checked }).catch(() => {});
     $("#set-updates").onchange = (e) => act("/api/settings", { check_updates: e.target.checked }).catch(() => {});
+    $("#set-dns") && ($("#set-dns").onchange = (e) => act("/api/dns", { on: e.target.checked }).catch(() => {}));
+    $("#dns-repair") && ($("#dns-repair").onclick = () => act("/api/dns", { on: true }).catch(() => {}));
     document.querySelectorAll("#settings [data-link]").forEach((b) => (b.onclick = () => open("url", b.dataset.link)));
     drawn.update = null;
   });
   renderUpdate();
+}
+
+// dnsCard is the Settings card for <site>.<tld> addresses.
+function dnsCard(d) {
+  const sw = `<label class="switch"><input type="checkbox" id="set-dns" ${d.on ? "checked" : ""} aria-label=".${esc(d.tld)} addresses"><span></span></label>`;
+  let desc;
+  if (d.on && !d.rule) {
+    desc = `<span class="error-text">The Windows rule that sends <span class="mono">*.${esc(d.tld)}</span> lookups to devstack is missing, so these addresses don't resolve.</span>`;
+  } else if (d.on) {
+    desc = `Sites answer at <span class="mono">name.${esc(d.tld)}</span> in every program while the servers run. Only <span class="mono">*.${esc(d.tld)}</span> lookups go to devstack; entries in the hosts file still win.`;
+  } else {
+    desc = `Sites answer at <span class="mono">name.localhost</span> (browsers and curl). Turn this on so <span class="mono">name.${esc(d.tld)}</span> works in PHP, Postman and terminals too. Windows asks for administrator approval once.`;
+  }
+  return `<h3>Addresses</h3>
+    <div class="set-card"><div class="grow"><div class="set-title">.${esc(d.tld)} addresses</div><div class="set-desc">${desc}</div></div>
+      ${d.on && !d.rule ? `<button class="btn small primary" id="dns-repair">Repair</button>` : sw}</div>`;
 }
 
 // renderUpdate draws the update card: up to date, available, downloading, or failed.

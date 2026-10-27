@@ -56,6 +56,7 @@ func init() {
 		{"doctor", "", "check config, servers, ports and folders", false, cmdDoctor},
 		{"render", "", "write etc/ without starting anything", false, cmdRender},
 		{"db", "creds", "show MySQL connection details", false, cmdDB},
+		{"dns", "on | off | status", "<site>.test addresses for every program (one admin prompt)", false, cmdDNS},
 		{"guide", "add | remove | show [SITE]", "AI guide for coding agents in a site's folder", false, cmdGuide},
 		{"pkg", "list | install SERVER [VERSION] | remove SERVER VERSION", "download nginx, PHP and MySQL builds", false, cmdPkg},
 		{"version", "", "print the version", false, cmdVersion},

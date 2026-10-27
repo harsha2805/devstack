@@ -53,6 +53,7 @@ devstack sites       # URLs, e.g. http://hello.localhost:8080
 devstack reload      # after editing stack.toml (folders in www\ are picked up on their own)
 devstack logs nginx -f
 devstack db creds    # generated MySQL root password
+devstack dns on      # <site>.test addresses for every program (one admin prompt; off / status)
 devstack guide add   # AI guide for coding agents in the current site's folder (also: remove, show)
 devstack doctor
 devstack down
@@ -64,6 +65,20 @@ Servers are downloaded on demand from their publishers (windows.php.net, nginx.o
 against the SHA-256 pins in `internal/packages/catalog.json`. Maintainers refresh that file with
 `go run ./tools/catalog`. To reuse builds you already have, pass `init --bin D:\laragon\bin`. devstack runs
 alongside other local stacks, and `init` moves to free ports when 80 and 3306 are taken.
+
+## .test addresses
+
+Sites always answer at `http://<name>.localhost`, which needs no setup but only works in browsers and curl:
+Windows itself doesn't resolve `*.localhost`, so PHP, Postman and most CLI tools can't reach it. Turning on
+**.test addresses** (Settings, the one-time question on the Sites tab, or `devstack dns on`) fixes that:
+
+- Windows asks for administrator approval once, to add a Name Resolution Policy rule that sends only `*.test`
+  lookups to `127.0.0.1`. Nothing else changes: real domains are never affected, and hosts-file entries
+  (Laragon's, for example) still win.
+- While the servers run, devstack answers those lookups itself, so every site and subdomain
+  (`api.my-app.test`) works the moment its folder appears. There is no hosts file to edit per site.
+- `stack.toml` records it as `services.dns = "on"`, and site URLs switch to `<name>.test`. Turning it off
+  removes the rule again (one more prompt).
 
 ## AI guide
 

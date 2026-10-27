@@ -258,9 +258,16 @@ found via `GetExtendedTcpTable`. `init` picks free fallbacks (80→8080, 3306→
   `public/` or `index.php` appearing. A change must look the same on two scans in a row, so a folder being
   copied or cloned is picked up once it settles (measured: about 3s from new folder to served). Polling a scan
   instead of file notifications ignores churn inside projects (vendor/, node_modules/). stack.toml still takes an
-  explicit reload, so a half-saved file is never applied. Still to do in M2: `*.test` names with the hosts-file
-  fallback, asked for once (one admin prompt), because Windows itself doesn't resolve `*.localhost` for
-  programs other than browsers and curl.
+  explicit reload, so a half-saved file is never applied.
+- M2 `*.test` names: **done, without the hosts file.** A hosts file has no wildcards, so with the watcher every new
+  folder would have needed another admin prompt, or the hosts file made writable by the user (weakening it for
+  every domain). Instead, one admin prompt adds an NRPT rule (`Add-DnsClientNrptRule -Namespace .test
+  -NameServers 127.0.0.1 -Comment devstack`), and the daemon answers `*.<tld>` on 127.0.0.1:53
+  (`internal/dns`, A 127.0.0.1 and AAAA ::1, everything else refused). `services.dns = "on"` in stack.toml;
+  `control.SetDNS` adds the rule before changing config (declining changes nothing) and removes it after.
+  Verified on this machine: Windows resolver, wildcard subdomains, Python, PHP, curl and Edge all reach
+  `hello.test`; real domains and Laragon's hosts entries unaffected; turning off left no rule and no listener.
+  This also covers most of M3's DNS item; trusted local HTTPS is what remains there.
 - M3: `dns` and `certs` packages. The renderer gains a `listen 443 ssl` block when `site.SSL`.
 - M4: `model` already resolves a PHP version per site and runs one pool per version in use. The shim is a separate tiny exe.
 - M5: a second renderer behind `services.web`. The model doesn't change.

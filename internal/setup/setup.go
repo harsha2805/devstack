@@ -322,8 +322,8 @@ $checks = [
 var stackTemplate = template.Must(template.New("stack.toml").Parse(`# devstack configuration. This file is the only source of truth:
 # everything in etc/ is generated from it on each ` + "`devstack up`" + ` / ` + "`reload`" + `.
 
-# Project folders. Each subfolder becomes <name>.localhost (works now) and
-# <name>.<tld> (once DNS support lands).
+# Project folders. Each subfolder becomes <name>.localhost (browsers and curl)
+# and, with services.dns = "on", <name>.<tld> (every program).
 www = "{{.WWW}}"
 tld = "test"
 
@@ -335,6 +335,9 @@ bin = [{{.Bins}}]
 web   = "nginx"
 # "" = newest installed, "8.4" = newest 8.4.x, "off" = don't run MySQL.
 mysql = "{{.MySQL}}"
+# "on" answers *.<tld> for every program on this machine. Turn it on from the
+# app or with ` + "`devstack dns on`" + `: it needs one administrator approval.
+dns   = "off"
 
 [php]
 default      = "{{.PHP}}"

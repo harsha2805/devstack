@@ -19,6 +19,8 @@ type Settings struct {
 	CheckUpdates bool `json:"check_updates"`
 	// ResumeServers restarts the stack once after an in-app update stopped it.
 	ResumeServers bool `json:"resume_servers,omitempty"`
+	// DNSAsked records that the one-time ".test addresses?" question was answered.
+	DNSAsked bool `json:"dns_asked,omitempty"`
 }
 
 // Dir is %LOCALAPPDATA%\devstack, or DEVSTACK_APPDATA when set (tests, previews).

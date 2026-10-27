@@ -47,6 +47,7 @@ type Paths struct {
 type Services struct {
 	Web   string `toml:"web"`
 	MySQL string `toml:"mysql"`
+	DNS   string `toml:"dns"` // "on": answer *.<tld> on 127.0.0.1:53 (see package dns)
 }
 
 type PHP struct {
@@ -82,7 +83,7 @@ func Default() Stack {
 		WWW:      "www",
 		TLD:      "test",
 		Paths:    Paths{Bin: []string{"bin"}},
-		Services: Services{Web: "nginx"},
+		Services: Services{Web: "nginx", DNS: Off},
 		PHP: PHP{
 			Workers:     4,
 			MaxRequests: 500,
@@ -148,6 +149,9 @@ func (c Stack) Validate() error {
 	}
 	if v := c.Services.MySQL; v != "" && v != Off && !versionRe.MatchString(v) {
 		bad("services.mysql", "%q must be a version like \"8.4\", \"\" for newest, or \"off\"", v)
+	}
+	if v := c.Services.DNS; v != "on" && v != Off {
+		bad("services.dns", "%q must be \"on\" or \"off\"", v)
 	}
 	if v := c.PHP.Default; v != "" && !versionRe.MatchString(v) {
 		bad("php.default", "%q must be a version like \"8.3\"", v)

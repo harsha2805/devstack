@@ -167,7 +167,11 @@ func Render(st *model.Stack, site model.Site, cli string) string {
 		w("- Requests for files that don't exist go to `index.php` (front controller).")
 	}
 	w("- The site is already being served by nginx %s. Don't start another server (`php -S`, `artisan serve`, `npm run serve` for PHP).", st.Nginx.Version)
-	w("- Browsers and curl resolve `*.localhost` on their own. If another tool can't, use `http://127.0.0.1:%d` with the header `Host: %s`.", st.HTTPPort, host)
+	if st.DNS {
+		w("- `*.%s` names resolve for every program on this machine while devstack runs.", st.TLD)
+	} else {
+		w("- Browsers and curl resolve `*.localhost` on their own. If another tool can't, use `http://127.0.0.1:%d` with the header `Host: %s`.", st.HTTPPort, host)
+	}
 
 	if p := site.PHP; p != nil {
 		php := filepath.Join(p.Build.Dir, "php.exe")

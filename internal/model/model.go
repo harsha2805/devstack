@@ -27,6 +27,7 @@ type Stack struct {
 	Tmp       string
 
 	TLD      string
+	DNS      bool // services.dns: *.<TLD> resolves for every program, so URLs use it
 	HTTPPort int
 	// IPv6 is true when [::1] can be bound. Browsers resolve *.localhost to ::1
 	// first, and on Windows a refused loopback connect stalls ~200ms before
@@ -70,9 +71,13 @@ type Site struct {
 	AccessLog string
 }
 
-// URL is the address that works with no DNS setup.
+// URL is the site's address: <slug>.<tld> when devstack's DNS is on, else
+// <slug>.localhost, which browsers resolve with no setup.
 func (s Stack) URL(site Site) string {
 	host := site.Slug + ".localhost"
+	if s.DNS {
+		host = site.Slug + "." + s.TLD
+	}
 	if s.HTTPPort != 80 {
 		return fmt.Sprintf("http://%s:%d", host, s.HTTPPort)
 	}
@@ -113,6 +118,7 @@ func Resolve(cfg config.Stack, found discover.Result, siteList []sites.Site, sit
 		Logs:      filepath.Join(cfg.Root, "logs"),
 		Tmp:       filepath.Join(cfg.Root, "tmp"),
 		TLD:       cfg.TLD,
+		DNS:       cfg.Services.DNS == "on",
 		HTTPPort:  cfg.Ports.HTTP,
 		IPv6:      ipv6Loopback(),
 		Warnings:  append([]string(nil), siteWarns...),
