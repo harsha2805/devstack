@@ -10,10 +10,14 @@ A release is an installer, a portable zip and a signed update feed, uploaded to
 
 ## Build
 
+Every feature or fix gets its line in `CHANGELOG.md` when it lands, under the version it will ship in. Then:
+
 ```powershell
-.\build-release.ps1 -Version 0.2.0 -Notes "Folder picker. Title bar follows light and dark mode."
+.\build-release.ps1 -Version 0.2.0
 ```
 
+It refuses to build a version without a `## [0.2.0]` section in `CHANGELOG.md`, and turns that section's bold
+lead-ins (`- **Folder picker.** ...`) into the update notes shown in Settings → Updates (`-Notes` overrides them).
 It checks the signing key, runs the tests, builds both exes with the version stamped in, and writes to
 `dist\release\`:
 

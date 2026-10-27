@@ -13,7 +13,8 @@
   without it, because released apps ignore unsigned or wrongly signed feeds.
 
 .EXAMPLE
-  .\build-release.ps1 -Version 0.1.0 -Notes "First release."
+  .\build-release.ps1 -Version 0.2.0
+  Notes come from the "## [0.2.0]" section of CHANGELOG.md, which must exist.
 #>
 param(
     [Parameter(Mandatory)][string]$Version,
@@ -26,6 +27,17 @@ Set-Location $PSScriptRoot
 
 if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw "Version must look like 1.2.3" }
 Write-Host "Building devstack $Version" -ForegroundColor Cyan
+
+# Every release is written up in CHANGELOG.md first. Its bold lead-ins become
+# the notes shown in Settings > Updates, unless -Notes is given.
+$changelog = Get-Content CHANGELOG.md -Raw
+$section = [regex]::Match($changelog, "(?ms)^## \[$([regex]::Escape($Version))\][^\r\n]*\r?\n(.*?)(?=^## \[|\z)")
+if (-not $section.Success) { throw "CHANGELOG.md has no '## [$Version]' section. Write up this release's changes first." }
+if (-not $Notes) {
+    $Notes = ([regex]::Matches($section.Groups[1].Value, '(?m)^- \*\*(.+?)\*\*') | ForEach-Object { $_.Groups[1].Value }) -join "`n"
+    $Notes = $Notes.Replace([string][char]96, '')   # the app shows plain text, not Markdown code spans
+    if (-not $Notes) { throw "The CHANGELOG.md section for $Version has no '- **Lead-in.**' items to use as update notes; pass -Notes." }
+}
 
 # Fail fast if the release signing key is missing or not trusted by this build.
 go run ./tools/release check

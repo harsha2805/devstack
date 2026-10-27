@@ -27,7 +27,8 @@ Requires Go 1.27+.
 go test ./...
 ```
 
-Releases (installer, portable zip, signed update feed): see [docs/RELEASING.md](docs/RELEASING.md).
+Releases (installer, portable zip, signed update feed): see [docs/RELEASING.md](docs/RELEASING.md). What changed
+in each version: [CHANGELOG.md](CHANGELOG.md).
 
 ## Desktop app
 
