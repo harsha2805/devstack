@@ -238,6 +238,10 @@ pre#log-text {
 .set-card .grow { flex: 1; min-width: 0; }
 .set-title { font-size: 13.5px; }
 .set-desc { font-size: 12px; color: var(--text-3); }
+.set-desc.notes { white-space: pre-line; color: var(--text-2); margin: 4px 0; }
+.set-desc.error-text { color: var(--danger); }
+.update-bar { margin: 8px 0 4px; max-width: 360px; }
+.tab-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-left: 6px; vertical-align: 2px; }
 .switch { position: relative; width: 40px; height: 20px; flex: none; }
 .switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
 .switch span {
@@ -293,7 +297,7 @@ pre#log-text {
 #toast.error { background: var(--danger); color: var(--on-accent); }
 
 @media (forced-colors: active) {
-  .dot, .pill i, .svc-dot, .bar-fill { forced-color-adjust: none; background: CanvasText; }
+  .dot, .pill i, .svc-dot, .bar-fill, .tab-dot { forced-color-adjust: none; background: CanvasText; }
   .strip, .card, .set-card { border-color: CanvasText; }
   .segmented button[aria-selected="true"] { outline: 1px solid Highlight; }
 }

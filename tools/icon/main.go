@@ -3,8 +3,9 @@
 //
 //	go run ./tools/icon
 //
-// Writes cmd/devstack-app/winres/icon.png (exe icon, 256px) and
-// cmd/devstack-app/icons/{tray,tray-running}.ico (16-48px).
+// Writes cmd/devstack-app/winres/icon.png (exe icon, 256px),
+// cmd/devstack-app/icons/{tray,tray-running}.ico (16-48px) and
+// installer/devstack.ico (Setup's own icon, 16-256px).
 package main
 
 import (
@@ -33,6 +34,8 @@ func main() {
 	must(writePNG(filepath.Join(app, "winres", "icon.png"), draw(256, false)))
 	must(writeICO(filepath.Join(app, "icons", "tray.ico"), false, 16, 20, 24, 32, 40, 48))
 	must(writeICO(filepath.Join(app, "icons", "tray-running.ico"), true, 16, 20, 24, 32, 40, 48))
+	must(os.MkdirAll("installer", 0o755))
+	must(writeICO(filepath.Join("installer", "devstack.ico"), false, 16, 24, 32, 48, 64, 128, 256))
 }
 
 // draw renders the icon at size px with 4x4 supersampling.

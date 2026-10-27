@@ -33,8 +33,13 @@ func StartDetached(cmd *exec.Cmd) (int, error) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: base | windows.CREATE_BREAKAWAY_FROM_JOB}
 	err := cmd.Start()
 	if errors.Is(err, windows.ERROR_ACCESS_DENIED) {
-		cmd.SysProcAttr.CreationFlags = base
-		cmd.Process = nil
+		// The parent's job forbids breakaway. An exec.Cmd can't be started
+		// twice, so retry with a copy.
+		retry := exec.Command(cmd.Path, cmd.Args[1:]...)
+		retry.Dir, retry.Env = cmd.Dir, cmd.Env
+		retry.Stdin, retry.Stdout, retry.Stderr = cmd.Stdin, cmd.Stdout, cmd.Stderr
+		retry.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: base}
+		cmd = retry
 		err = cmd.Start()
 	}
 	if err != nil {

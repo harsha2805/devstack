@@ -164,8 +164,12 @@ const role = (name) => name === "nginx" ? 0 : name.startsWith("php-") ? 1 : 2;
 const byRole = (list) => [...list].sort((a, b) => role(a.name) - role(b.name) || a.name.localeCompare(b.name));
 
 function renderTabs() {
-  draw("tabs", [tab], () => {
+  const update = S.update && S.update.version;
+  draw("tabs", [tab, update], () => {
     document.querySelectorAll("#tabs button").forEach((b) => b.setAttribute("aria-selected", b.dataset.tab === tab));
+    const set = $('#tabs [data-tab="settings"]');
+    set.innerHTML = "Settings" + (update ? '<i class="tab-dot" title="Update available"></i>' : "");
+    set.setAttribute("aria-label", update ? "Settings, update available" : "Settings");
     document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.dataset.view === tab));
   });
   draw("bar-actions", [tab, S.running, S.www], () => {
@@ -354,16 +358,65 @@ function renderSettings() {
         <div class="set-desc">Your sites are up as soon as the app is.</div></div>${sw("set-start", S.settings.start_servers)}</div>
       <div class="set-card"><div class="grow"><div class="set-title">Open devstack when you sign in</div>
         <div class="set-desc">Starts in the tray, without a window.</div></div>${sw("set-autostart", S.settings.autostart)}</div>
+      <h3>Updates</h3>
+      <div class="set-card" id="update-card"></div>
+      <div class="set-card"><div class="grow"><div class="set-title">Check for updates automatically</div>
+        <div class="set-desc">Once a day, from devstack.holostack.in. Updates install only when you choose.</div></div>${sw("set-updates", S.settings.check_updates)}</div>
       <h3>About</h3>
       <div class="set-card"><div class="grow"><div class="set-title">devstack ${esc(S.version)}</div>
-        <div class="set-desc">Runs unmodified builds of nginx (<button class="link" data-link="https://nginx.org/LICENSE">BSD</button>),
+        <div class="set-desc">Open source. Runs unmodified builds of nginx (<button class="link" data-link="https://nginx.org/LICENSE">BSD</button>),
         PHP (<button class="link" data-link="https://www.php.net/license/">PHP License</button>) and
-        MySQL (<button class="link" data-link="https://www.mysql.com/about/legal/">GPLv2</button>), downloaded from their publishers.</div></div></div>`;
+        MySQL (<button class="link" data-link="https://www.mysql.com/about/legal/">GPLv2</button>), downloaded from their publishers.</div></div>
+        <button class="btn small" data-link="https://github.com/harsha2805/devstack">${icon("open")}Source</button></div>`;
     $("#open-root").onclick = () => open("folder", S.root);
     $("#edit-config").onclick = () => open("config", "");
     $("#set-start").onchange = (e) => act("/api/settings", { start_servers: e.target.checked }).catch(() => {});
     $("#set-autostart").onchange = (e) => act("/api/settings", { autostart: e.target.checked }).catch(() => {});
+    $("#set-updates").onchange = (e) => act("/api/settings", { check_updates: e.target.checked }).catch(() => {});
     document.querySelectorAll("#settings [data-link]").forEach((b) => (b.onclick = () => open("url", b.dataset.link)));
+    drawn.update = null;
+  });
+  renderUpdate();
+}
+
+// renderUpdate draws the update card: up to date, available, downloading, or failed.
+function renderUpdate() {
+  const u = S.update;
+  const job = S.job && S.job.title === "Updating devstack" ? S.job : null;
+  draw("update", [u, job], () => {
+    const el = $("#update-card");
+    const checked = u.checked ? new Date(u.checked).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "";
+    let text, action = "";
+    if (!u.release) {
+      text = `<div class="set-title">Development build</div><div class="set-desc">Builds without a release version don't update.</div>`;
+    } else if (job && !job.finished) {
+      const st = job.steps[job.steps.length - 1] || { label: "Preparing", done: 0, total: 0 };
+      const pct = st.total ? Math.min(100, Math.round((st.done / st.total) * 100)) : 0;
+      text = `<div class="set-title">${esc(st.label)}…</div>
+        ${st.total ? `<div class="bar-track update-bar"><div class="bar-fill" style="transform:scaleX(${pct / 100})"></div></div>
+        <div class="set-desc num">${size(st.done || 0)} / ${size(st.total)}</div>`
+        : `<div class="set-desc">devstack closes and reopens itself once the installer starts.</div>`}`;
+    } else if (u.version) {
+      text = `<div class="set-title">devstack ${esc(u.version)} is available</div>
+        ${u.notes ? `<div class="set-desc notes">${esc(u.notes)}</div>` : ""}
+        ${job && job.error ? `<div class="set-desc error-text">${esc(job.error)}</div>` : ""}
+        <div class="set-desc">${u.installed ? "Running servers stop for the update and start again afterwards." : "This copy isn't installed, so the download page opens."}</div>`;
+      action = `<button class="btn small primary" id="update-now">${u.installed ? "Update now" : "Download"}</button>`;
+    } else {
+      const status = u.checking ? "Checking…" : u.error ? esc(u.error) : checked ? `You're up to date. Last checked ${esc(checked)}.` : "Not checked yet.";
+      text = `<div class="set-title">devstack ${esc(S.version)}</div><div class="set-desc ${u.error && !u.checking ? "error-text" : ""}">${status}</div>`;
+      action = `<button class="btn small" id="update-check" ${u.checking ? "disabled" : ""}>${icon("reload")}Check now</button>`;
+    }
+    el.innerHTML = `<div class="grow">${text}</div>${action}`;
+    $("#update-check") && ($("#update-check").onclick = () => {
+      $("#update-check").disabled = true;
+      api("/api/update/check", {}).then((v) => { if (!v.version) toast("devstack is up to date"); })
+        .catch((e) => toast(e.message, true)).finally(() => poll(true));
+    });
+    $("#update-now") && ($("#update-now").onclick = () => {
+      if (job && job.error) api("/api/job/dismiss", {}).catch(() => {});
+      act("/api/update/install", {}).catch(() => {});
+    });
   });
 }
 

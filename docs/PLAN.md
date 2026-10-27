@@ -350,13 +350,34 @@ Not yet: live theme switch while open (the title bar follows the theme at window
 - **Not carried over for v1:** accent picker, theme-test project, animated settings flyout, narrow-width layout.
   These can be added once people use it.
 
-### D4. Release
+### D4. Release: installer and update feed done
 
-- Inno Setup per-user installer, plus a signed `latest.json` update feed and `SHA256SUMS.txt`. This is the same
-  pipeline as Smart Awake's `build-release.ps1`, with the feed verified by a pinned release key.
-- Authenticode signing of both exes and the installer. Without it SmartScreen warns every public user.
+Decided 2026-10-26: the product is **devstack**, published by HoloStack, open source, hosted at
+**devstack.holostack.in**. Steps: [RELEASING.md](RELEASING.md).
+
+- `installer/devstack.iss`: Inno Setup, per user (`PrivilegesRequired=lowest`), `AppId=devstack`, installs both
+  exes into `%LOCALAPPDATA%\Programs\devstack`, adds that to the user PATH, optional sign-in start (the same
+  HKCU Run value as the app's setting). Before replacing or removing files it runs `devstack-app.exe --quit`,
+  which closes the app, stops the servers and waits. Uninstall keeps the stack folder.
+- `internal/update`: `latest.json` signed offline with Ed25519 (`tools/release`), public key pinned in the app.
+  The installer's SHA-256 is trusted only once the signature is, and it's re-checked with the file locked just
+  before launch. The same design as Smart Awake's, with Go's stdlib instead of ECDSA in .NET.
+- In the app: a check 30s after launch and then daily (can be turned off), Settings → Updates with **Update now**.
+  Updating stops the servers and sets `resume_servers`, so the new version starts them again. Portable copies
+  open the download page.
+- `build-release.ps1` builds into `dist\release\` (its own `bin\`, so a dev copy running from `dist\` doesn't
+  block it): installer, portable zip, `SHA256SUMS.txt`, signed `latest.json`.
+
+Verified on this machine with test builds in a scratch folder: a silent install, an upgrade over a running app,
+an upgrade with servers running (app, daemon, nginx and PHP stopped, files replaced, 0.1.1 reopened), servers
+resuming after an update, and an uninstall with servers running (all stopped, files, PATH and sign-in entry removed,
+stack kept). Found on the way: when the parent's job forbids breakaway, the daemon spawn retried a used
+`exec.Cmd` and failed with "exec: already started". It now retries with a copy.
+
+Not yet tested: the in-app download from the real feed, since nothing is hosted yet.
 
 ### Open (owner decisions)
 
-- Product name and publisher: "devstack by HoloStack"? Where it is hosted (for example holostack.in/devstack)?
-- Code-signing route: OV certificate, or Azure Trusted Signing.
+- Code signing. Open source makes Certum's open-source certificate (low cost) or SignPath Foundation (free, signs
+  CI builds) the likely routes. Until then releases are unsigned and SmartScreen warns on first run.
+- License for the repository (needed before it is published as open source).

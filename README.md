@@ -11,6 +11,13 @@ MySQL under one supervisor, servers downloaded from their publishers and verifie
 This is a clean-room project. It is designed from observable behavior and public documentation of the
 underlying servers. No code, templates, or assets from other closed-source tools are used.
 
+## Install
+
+Download `devstack_setup_<version>.exe` from [devstack.holostack.in](https://devstack.holostack.in). It installs
+for your user only (no admin prompt) into `%LOCALAPPDATA%\Programs\devstack` and adds `devstack` to your PATH.
+The app checks for updates once a day and installs one only when you click **Update now**
+(Settings → Updates). Uninstalling keeps your stack folder with its sites and databases.
+
 ## Build
 
 Requires Go 1.27+.
@@ -19,6 +26,8 @@ Requires Go 1.27+.
 .\build.ps1 -Version 0.1.0     # dist\devstack.exe (CLI) and dist\devstack-app.exe (tray + window)
 go test ./...
 ```
+
+Releases (installer, portable zip, signed update feed): see [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Desktop app
 

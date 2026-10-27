@@ -57,6 +57,7 @@ type Server struct {
 	mu       sync.Mutex
 	job      *Job
 	settings appconf.Settings
+	upd      updateState
 }
 
 // Job is a long action (setup, start, stop, install) the UI shows progress for.
@@ -148,6 +149,8 @@ func (s *Server) routes() http.Handler {
 	api.HandleFunc("POST /api/packages/remove", s.handleRemove)
 	api.HandleFunc("POST /api/open", s.handleOpen)
 	api.HandleFunc("POST /api/settings", s.handleSettings)
+	api.HandleFunc("POST /api/update/check", s.handleUpdateCheck)
+	api.HandleFunc("POST /api/update/install", s.handleUpdateInstall)
 	api.HandleFunc("POST /api/job/dismiss", func(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
 		if s.job != nil && s.job.Finished {
@@ -251,6 +254,7 @@ type stateView struct {
 	Job        *Job              `json:"job"`
 	Settings   map[string]bool   `json:"settings"`
 	Links      map[string]string `json:"links"`
+	Update     *updateView       `json:"update"`
 }
 
 // plannedService describes what will run, for display while stopped.
@@ -286,8 +290,10 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 		v.Job = &j
 	}
 	set := s.settings
+	v.Update = s.updateViewLocked()
 	s.mu.Unlock()
-	v.Settings = map[string]bool{"start_servers": set.StartServers, "autostart": winproc.Autostart(AutostartName)}
+	v.Settings = map[string]bool{"start_servers": set.StartServers, "check_updates": set.CheckUpdates,
+		"autostart": winproc.Autostart(AutostartName)}
 
 	root := s.root()
 	if root == "" {
@@ -884,6 +890,7 @@ func knownLink(u string) bool { return knownLinks[u] }
 func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		StartServers *bool `json:"start_servers"`
+		CheckUpdates *bool `json:"check_updates"`
 		Autostart    *bool `json:"autostart"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -897,9 +904,14 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if req.StartServers != nil {
+	if req.StartServers != nil || req.CheckUpdates != nil {
 		s.mu.Lock()
-		s.settings.StartServers = *req.StartServers
+		if req.StartServers != nil {
+			s.settings.StartServers = *req.StartServers
+		}
+		if req.CheckUpdates != nil {
+			s.settings.CheckUpdates = *req.CheckUpdates
+		}
 		set := s.settings
 		s.mu.Unlock()
 		if err := appconf.Save(set); err != nil {

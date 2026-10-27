@@ -15,6 +15,10 @@ type Settings struct {
 	Root string `json:"root"`
 	// StartServers starts the stack whenever the app starts.
 	StartServers bool `json:"start_servers"`
+	// CheckUpdates checks devstack.holostack.in for a newer release once a day.
+	CheckUpdates bool `json:"check_updates"`
+	// ResumeServers restarts the stack once after an in-app update stopped it.
+	ResumeServers bool `json:"resume_servers,omitempty"`
 }
 
 // Dir is %LOCALAPPDATA%\devstack, or DEVSTACK_APPDATA when set (tests, previews).
@@ -39,7 +43,7 @@ func path() (string, error) {
 
 // Load returns saved settings, or defaults if none are saved yet.
 func Load() (Settings, error) {
-	s := Settings{StartServers: true}
+	s := Settings{StartServers: true, CheckUpdates: true}
 	p, err := path()
 	if err != nil {
 		return s, err

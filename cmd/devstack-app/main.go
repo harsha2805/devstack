@@ -4,7 +4,8 @@
 //	go build -ldflags "-H windowsgui" -o dist\devstack-app.exe .\cmd\devstack-app
 //
 // It also runs the background daemon when started as `devstack-app --root X daemon`,
-// so it works without devstack.exe next to it.
+// so it works without devstack.exe next to it. `devstack-app --quit` closes a
+// running app and stops the servers; the installer runs it before replacing files.
 package main
 
 //go:generate go run github.com/tc-hib/go-winres@v0.3.3 make --in winres/winres.json --out rsrc
@@ -23,10 +24,12 @@ import (
 	"time"
 
 	"github.com/harsha2805/devstack/internal/appconf"
+	"github.com/harsha2805/devstack/internal/control"
 	"github.com/harsha2805/devstack/internal/daemon"
 	"github.com/harsha2805/devstack/internal/logfile"
 	"github.com/harsha2805/devstack/internal/packages"
 	"github.com/harsha2805/devstack/internal/ui"
+	"github.com/harsha2805/devstack/internal/update"
 	"github.com/harsha2805/devstack/internal/winproc"
 )
 
@@ -34,6 +37,7 @@ var version = "dev"
 
 func main() {
 	packages.UserAgent = "devstack/" + version
+	update.UserAgent = "devstack/" + version
 	args := os.Args[1:]
 
 	// Daemon mode, used by Start: devstack-app --root <root> daemon
@@ -50,6 +54,10 @@ func main() {
 	dir, err := appconf.Dir()
 	if err != nil {
 		fatal(err)
+	}
+	if len(args) == 1 && args[0] == "--quit" {
+		quitRunning(dir)
+		return
 	}
 	os.MkdirAll(dir, 0o755)
 	if lw, err := logfile.Open(filepath.Join(dir, "app.log")); err == nil {
@@ -83,9 +91,11 @@ func main() {
 	if !trayOnly || srv.Root() == "" {
 		win.Show()
 	}
-	if srv.Root() != "" && srv.Settings().StartServers {
+	resume := srv.ResumeAfterUpdate()
+	if srv.Root() != "" && (srv.Settings().StartServers || resume) {
 		srv.StartServers()
 	}
+	srv.AutoCheckUpdates()
 	app.run() // blocks until Quit
 }
 
@@ -99,7 +109,10 @@ func writeInstance(dir, addr, token string) {
 	os.WriteFile(filepath.Join(dir, "app-instance.json"), b, 0o600)
 }
 
-func showRunning(dir string) error {
+func showRunning(dir string) error { return callRunning(dir, "/api/show") }
+
+// callRunning POSTs to the running app's dashboard API.
+func callRunning(dir, path string) error {
 	b, err := os.ReadFile(filepath.Join(dir, "app-instance.json"))
 	if err != nil {
 		return err
@@ -108,7 +121,7 @@ func showRunning(dir string) error {
 	if err := json.Unmarshal(b, &in); err != nil {
 		return err
 	}
-	req, _ := http.NewRequest(http.MethodPost, "http://"+in.Addr+"/api/show", bytes.NewReader([]byte("{}")))
+	req, _ := http.NewRequest(http.MethodPost, "http://"+in.Addr+path, bytes.NewReader([]byte("{}")))
 	req.Header.Set("X-Token", in.Token)
 	req.Header.Set("X-Devstack", "1")
 	c := &http.Client{Timeout: 3 * time.Second}
@@ -121,6 +134,27 @@ func showRunning(dir string) error {
 		return errors.New(resp.Status)
 	}
 	return nil
+}
+
+// quitRunning asks a running app to quit (it stops the servers first) and
+// waits until it has exited, then stops a stack started from the CLI too, so
+// nothing holds the program files open.
+func quitRunning(dir string) {
+	if err := callRunning(dir, "/api/quit"); err == nil {
+		deadline := time.Now().Add(4 * time.Minute)
+		for time.Now().Before(deadline) {
+			if lock, err := winproc.LockFile(filepath.Join(dir, "app.lock")); err == nil {
+				lock.Close()
+				break
+			}
+			time.Sleep(250 * time.Millisecond)
+		}
+	}
+	if set, err := appconf.Load(); err == nil && set.Root != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+		defer cancel()
+		control.Down(ctx, set.Root, nil)
+	}
 }
 
 func fatal(err error) {
