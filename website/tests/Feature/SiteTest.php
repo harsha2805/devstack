@@ -66,9 +66,35 @@ class SiteTest extends TestCase
 
     public function test_changelog_renders_versions_and_escapes_html(): void
     {
+        // Before GitHub is asked: the CHANGELOG.md copy.
         $response = $this->get('/changelog')->assertOk()->assertSee('Changelog');
-        $this->assertMatchesRegularExpression('/<h2>0\.1\.0 /', $response->getContent());
-        $this->assertStringNotContainsString('build-release.ps1', $response->getContent(), 'maintainer notes above the first version should be dropped');
+        $html = $response->getContent();
+        $this->assertStringContainsString('<article class="release" id="v0.1.0"', $html);
+        $this->assertStringContainsString('October 27, 2026', $html, 'dates read as words');
+        $this->assertStringNotContainsString('build-release.ps1', $html, 'maintainer notes above the first version should be dropped');
+    }
+
+    public function test_changelog_layout_from_changelog_json(): void
+    {
+        $many = implode("\n", array_map(fn ($i) => "- Fix number $i.", range(1, 6)));
+        Http::fake([
+            Releases::API.'*' => Http::response([['tag_name' => 'v0.3.0', 'assets' => [$this->asset('v0.3.0', 'changelog.json')]]]),
+            Releases::DOWNLOADS.'v0.3.0/changelog.json' => Http::response(['versions' => [
+                ['version' => '0.3.1', 'date' => '', 'markdown' => "### Added\n- Coming next."],
+                ['version' => '0.3.0', 'date' => '2026-11-02', 'markdown' => "### Added\n- **Terminal.** <script>alert(1)</script>\n\n### Fixed\n$many"],
+            ]]),
+        ]);
+        $this->feed(['version' => '0.3.0', 'url' => Releases::DOWNLOADS.'v0.3.0/devstack_setup_0.3.0.exe']);
+
+        $html = $this->get('/changelog')->assertOk()->getContent();
+        $this->assertStringContainsString('<a class="release-tag" id="v0.3.0-title" href="#v0.3.0">0.3.0</a>', $html);
+        $this->assertStringContainsString('<time datetime="2026-11-02">November 2, 2026</time>', $html);
+        $this->assertMatchesRegularExpression('/id="v0\.3\.1".*?Unreleased/s', $html);
+        $this->assertMatchesRegularExpression('/id="v0\.3\.0".*?release-latest">Latest/s', $html, 'the version the feed offers is marked latest');
+        // Six fixes collapse behind their count; one addition doesn't.
+        $this->assertMatchesRegularExpression('/<details class="release-group">\s*<summary><span class="release-group-title">Fixed<\/span> <span class="release-count">6<\/span>/', $html);
+        $this->assertStringContainsString('<h3>Added</h3>', $html);
+        $this->assertStringNotContainsString('<script>alert(1)</script>', $html);
     }
 
     public function test_privacy_page(): void
@@ -179,7 +205,7 @@ class SiteTest extends TestCase
             ->assertSee(Releases::DOWNLOADS.'v0.2.3/SHA256SUMS.txt', false)
             ->assertSee('12'); // downloads: installer and zip, not latest.json
         $this->get('/download/portable')->assertRedirect(Releases::DOWNLOADS.'v0.2.3/devstack_0.2.3_portable.zip');
-        $this->get('/changelog')->assertSee('0.2.3 — 2026-10-28')->assertSee('php and composer per site.');
+        $this->get('/changelog')->assertSee('October 28, 2026')->assertSee('php and composer per site.');
         Http::assertSentCount(3); // the release list, its latest.json and changelog.json; pages use the cache
     }
 

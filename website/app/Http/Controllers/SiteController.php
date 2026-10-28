@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\Changelog;
 use App\Support\Releases;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 /**
@@ -32,12 +32,9 @@ class SiteController extends Controller
 
     public function changelog(): View
     {
-        $markdown = $this->changelogMarkdown();
+        $release = $this->release();
 
-        return view('changelog', [
-            'html' => Str::markdown($markdown, ['html_input' => 'escape', 'allow_unsafe_links' => false]),
-            'release' => $this->release(),
-        ]);
+        return view('changelog', ['entries' => Changelog::entries($release['version'] ?? null), 'release' => $release]);
     }
 
     /** Short link for the newest installer, e.g. from the README. */
@@ -60,27 +57,6 @@ class SiteController extends Controller
     public function sponsor(): RedirectResponse
     {
         return redirect()->away(self::SPONSOR);
-    }
-
-    /**
-     * The changelog from the newest release's changelog.json; until GitHub has
-     * been asked, the copy deploy.ps1 ships (locally, the repo's own).
-     */
-    private function changelogMarkdown(): string
-    {
-        $versions = Releases::changelog();
-        if ($versions) {
-            return collect($versions)
-                ->map(fn ($v) => '## '.$v['version'].' — '.($v['date'] ?: 'unreleased')."\n\n".$v['markdown'])
-                ->implode("\n\n");
-        }
-        $path = collect([resource_path('markdown/CHANGELOG.md'), base_path('../CHANGELOG.md')])->first(fn ($p) => is_file($p));
-        $markdown = $path ? file_get_contents($path) : '';
-        // The page has its own heading and intro; start at the first version.
-        $markdown = preg_replace('/\A.*?(?=^## )/ms', '', $markdown) ?? '';
-
-        // "## [0.1.0] — date" reads better on a web page without the brackets.
-        return preg_replace('/^## \[([^\]]+)\]/m', '## $1', $markdown) ?? '';
     }
 
     /**

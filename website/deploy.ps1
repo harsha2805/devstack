@@ -37,8 +37,17 @@ Set-Location $PSScriptRoot
 New-Item -ItemType Directory -Force resources\markdown | Out-Null
 Copy-Item ..\CHANGELOG.md resources\markdown\CHANGELOG.md -Force
 
-$feed = "..\dist\release\latest.json"
-if (Test-Path $feed) {
+# Extracting the zip overwrites the server's latest.json, so ship the newest
+# signed feed there is: the one attached to the newest GitHub release, or the
+# local build's when it is newer (a release published from this machine).
+$candidates = @()
+$fromGitHub = Join-Path ([IO.Path]::GetTempPath()) "devstack-deploy-feed"
+Remove-Item $fromGitHub -Recurse -Force -ErrorAction SilentlyContinue
+cmd /c "gh release download --repo harsha2805/devstack --pattern latest.json --dir `"$fromGitHub`" 2>nul"
+if (Test-Path "$fromGitHub\latest.json") { $candidates += "$fromGitHub\latest.json" }
+if (Test-Path "..\dist\release\latest.json") { $candidates += "..\dist\release\latest.json" }
+$feed = $candidates | Sort-Object { [version](Get-Content $_ -Raw | ConvertFrom-Json).version } -Descending | Select-Object -First 1
+if ($feed) {
     $url = (Get-Content $feed -Raw | ConvertFrom-Json).url
     try {
         Invoke-WebRequest $url -Method Head -UseBasicParsing -MaximumRedirection 5 | Out-Null
@@ -48,8 +57,9 @@ if (Test-Path $feed) {
         Write-Warning "latest.json not included: $url isn't reachable yet. Publish the GitHub release first (..\publish-release.ps1)."
     }
 } else {
-    Write-Warning "No ..\dist\release\latest.json; the site shows 'coming soon' until a release is built and published."
+    Write-Warning "No signed latest.json on GitHub or in ..\dist\release; the site shows 'coming soon' until a release is published."
 }
+Remove-Item $fromGitHub -Recurse -Force -ErrorAction SilentlyContinue
 
 if (-not (Test-Path .env.production)) {
     $key = (php artisan key:generate --show).Trim()
