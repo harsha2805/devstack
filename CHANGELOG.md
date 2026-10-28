@@ -5,7 +5,20 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions
 The release scripts need a section for the version they build and take the in-app update notes from the
 bold lead-ins under it, so write each feature up here when it lands.
 
-## [0.2.1] — unreleased
+## [0.2.2] — unreleased
+
+### Fixed
+- **The right ODBC driver.** With ODBC Driver 17 and 18 both installed, PHP's SQL Server extensions connect through
+  17, but devstack said 18. The app, `devstack pkg install ext` and the AI guide now name the driver PHP actually
+  uses, and the guide lists every installed one. Driver 18 encrypts by default and 17 doesn't, so the guide also
+  says to set encryption explicitly, so a project that connects here doesn't fail on a server with only 18.
+
+### Changed
+- **Placeholder warnings in the AI guide.** When `.env` still has template values such as `DB_HOST=REPLACE_ME` or
+  `DB_PASSWORD=your_password`, the guide names those keys and tells the agent not to connect or run migrations
+  until they're filled in. It never prints the values of secrets.
+
+## [0.2.1] — 2026-10-28
 
 ### Fixed
 - **Extensions per PHP version.** `php.extensions` is shared by every PHP version, but Microsoft's SQL Server DLLs

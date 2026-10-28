@@ -3,9 +3,6 @@
 package winproc
 
 import (
-	"regexp"
-	"strconv"
-
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 )
@@ -71,32 +68,24 @@ func SetAutostart(name, command string, on bool) error {
 	return k.SetStringValue(name, command)
 }
 
-var sqlServerODBC = regexp.MustCompile(`^ODBC Driver (\d+) for SQL Server$`)
-
-// ODBCSQLServer returns the newest installed "ODBC Driver N for SQL Server",
-// which PHP's sqlsrv and pdo_sqlsrv extensions connect through.
-func ODBCSQLServer() (string, bool) {
+// ODBCSQLServerDrivers lists the installed "ODBC Driver N for SQL Server"
+// names, newest first.
+func ODBCSQLServerDrivers() []string {
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE, `SOFTWARE\ODBC\ODBCINST.INI\ODBC Drivers`, registry.QUERY_VALUE)
 	if err != nil {
-		return "", false
+		return nil
 	}
 	defer k.Close()
 	names, err := k.ReadValueNames(0)
 	if err != nil {
-		return "", false
+		return nil
 	}
-	best, bestN := "", 0
+	var out []string
 	for _, n := range names {
-		m := sqlServerODBC.FindStringSubmatch(n)
-		if m == nil {
-			continue
-		}
-		if v, _, _ := k.GetStringValue(n); v != "Installed" {
-			continue
-		}
-		if d, _ := strconv.Atoi(m[1]); d > bestN {
-			best, bestN = n, d
+		if v, _, _ := k.GetStringValue(n); v == "Installed" && sqlServerODBC.MatchString(n) {
+			out = append(out, n)
 		}
 	}
-	return best, best != ""
+	sortODBC(out)
+	return out
 }

@@ -46,7 +46,7 @@ func SetAutostart(string, string, bool) error  { return errUnsupported }
 
 func FileVersion(string) ([4]int, error) { return [4]int{}, errUnsupported }
 func VCRuntime() (string, bool)           { return "", true }
-func ODBCSQLServer() (string, bool)       { return "", false }
+func ODBCSQLServerDrivers() []string      { return nil }
 
 func LockFile(path string) (*os.File, error) {
 	return os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o600)

@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -247,14 +248,15 @@ func Render(st *model.Stack, site model.Site, cli string) string {
 			where = fmt.Sprintf(" on `%s`", h)
 		}
 		w("- This project's `.env` sets `DB_CONNECTION=%s`%s.", conn, where)
+		if keys := placeholders(env, conn); len(keys) > 0 {
+			w("- `.env` still has placeholder values for %s. Don't connect, run migrations or seed until the user fills them in.", strings.Join(keys, ", "))
+		}
 		if drv, ok := pdoDriver[conn]; ok && site.PHP != nil {
 			w("- %s", driverLine(site.PHP, drv, cmd))
 		}
 		if conn == "sqlsrv" {
-			if name, ok := odbcDriver(); ok {
-				w("- %s is installed, which `pdo_sqlsrv` needs to connect.", name)
-			} else {
-				w("- Microsoft's ODBC Driver for SQL Server isn't installed, so connections fail even with `pdo_sqlsrv` loaded. Ask the user to install it from %s (it needs administrator rights).", packages.ODBCDriverURL)
+			for _, l := range odbcLines(odbcDrivers()) {
+				w("- %s", l)
 			}
 		}
 	}
@@ -306,8 +308,46 @@ var pdoDriver = map[string]string{
 	"mysql": "pdo_mysql", "mariadb": "pdo_mysql", "pgsql": "pdo_pgsql", "sqlite": "pdo_sqlite", "sqlsrv": "pdo_sqlsrv",
 }
 
-// odbcDriver names the installed ODBC Driver for SQL Server; tests replace it.
-var odbcDriver = winproc.ODBCSQLServer
+// odbcDrivers lists the installed ODBC Drivers for SQL Server; tests replace it.
+var odbcDrivers = winproc.ODBCSQLServerDrivers
+
+// odbcLines says which ODBC driver pdo_sqlsrv connects through, and how that
+// can differ on a machine with other drivers.
+func odbcLines(installed []string) []string {
+	used, ok := winproc.PHPODBCDriver(installed)
+	if !ok {
+		return []string{fmt.Sprintf("Microsoft's ODBC Driver for SQL Server isn't installed, so connections fail even with `pdo_sqlsrv` loaded. Ask the user to install it from %s (it needs administrator rights).", packages.ODBCDriverURL)}
+	}
+	out := []string{fmt.Sprintf("`pdo_sqlsrv` connects through %s, the only ODBC driver for SQL Server installed.", used)}
+	if len(installed) > 1 {
+		out[0] = fmt.Sprintf("Installed ODBC drivers: %s. `pdo_sqlsrv` connects through %s: with no `Driver=` in the connection it tries 17, then 18, then 13.",
+			strings.Join(installed, ", "), used)
+	}
+	if !strings.Contains(used, " 18 ") {
+		out = append(out, "ODBC Driver 18 encrypts by default and rejects a server certificate Windows doesn't trust, so a connection that works here can fail where only 18 is installed. "+
+			"Set encryption explicitly in the connection (Laravel: `encrypt` and `trust_server_certificate` in the sqlsrv connection) so both behave the same.")
+	}
+	return out
+}
+
+// placeholder matches values left from a template: REPLACE_ME, changeme,
+// your_password, <host>, xxx.
+var placeholder = regexp.MustCompile(`(?i)^(replace[_-]?me|change[_-]?me|todo|tbd|x{3,}|your[_-].+|<.+>|placeholder)$`)
+
+// placeholders lists the DB_ keys in env that still hold a placeholder.
+func placeholders(env map[string]string, conn string) []string {
+	keys := []string{"DB_HOST", "DB_PORT", "DB_DATABASE", "DB_USERNAME", "DB_PASSWORD"}
+	if conn == "sqlite" {
+		keys = []string{"DB_DATABASE"}
+	}
+	var out []string
+	for _, k := range keys {
+		if placeholder.MatchString(env[k]) {
+			out = append(out, "`"+k+"`")
+		}
+	}
+	return out
+}
 
 // downloadable lists the extensions devstack can download (sqlsrv, pdo_sqlsrv).
 var downloadable = sync.OnceValue(func() []string {

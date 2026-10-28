@@ -152,9 +152,10 @@ func TestMissingExtensions(t *testing.T) {
 }
 
 func TestDatabaseFromEnv(t *testing.T) {
-	odbc, orig := "", odbcDriver
-	odbcDriver = func() (string, bool) { return odbc, odbc != "" }
-	t.Cleanup(func() { odbcDriver = orig })
+	var odbc []string
+	orig := odbcDrivers
+	odbcDrivers = func() []string { return odbc }
+	t.Cleanup(func() { odbcDrivers = orig })
 
 	st, site := testStack(t)
 	st.MySQL = nil
@@ -178,13 +179,38 @@ func TestDatabaseFromEnv(t *testing.T) {
 		t.Error("asks for MySQL that the project doesn't use")
 	}
 
-	odbc = "ODBC Driver 18 for SQL Server"
+	if strings.Contains(guide, "placeholder") {
+		t.Error("real values flagged as placeholders")
+	}
+
+	odbc = []string{"ODBC Driver 18 for SQL Server"}
 	site.PHP.Extensions = []string{"pdo_sqlsrv_83_nts_x64"}
 	guide = Render(st, site, "devstack")
-	for _, want := range []string{"loads `pdo_sqlsrv`, the driver it needs", "ODBC Driver 18 for SQL Server is installed"} {
+	for _, want := range []string{"loads `pdo_sqlsrv`, the driver it needs", "connects through ODBC Driver 18 for SQL Server, the only"} {
 		if !strings.Contains(guide, want) {
 			t.Errorf("guide lacks %q", want)
 		}
+	}
+	if strings.Contains(guide, "encrypts by default") {
+		t.Error("encryption note with only Driver 18 installed")
+	}
+
+	// Both installed: PHP picks 17, which doesn't encrypt by default.
+	odbc = []string{"ODBC Driver 18 for SQL Server", "ODBC Driver 17 for SQL Server"}
+	env = "DB_CONNECTION=sqlsrv\nDB_HOST=REPLACE_ME\nDB_PORT=1433\nDB_DATABASE=axis\nDB_PASSWORD=your_password\n"
+	os.WriteFile(filepath.Join(site.Dir, ".env"), []byte(env), 0o644)
+	guide = Render(st, site, "devstack")
+	for _, want := range []string{
+		"Installed ODBC drivers: ODBC Driver 18 for SQL Server, ODBC Driver 17 for SQL Server. `pdo_sqlsrv` connects through ODBC Driver 17 for SQL Server",
+		"ODBC Driver 18 encrypts by default",
+		"placeholder values for `DB_HOST`, `DB_PASSWORD`. Don't connect",
+	} {
+		if !strings.Contains(guide, want) {
+			t.Errorf("guide lacks %q", want)
+		}
+	}
+	if strings.Contains(guide, "your_password") {
+		t.Error("the guide printed the password")
 	}
 
 	os.WriteFile(filepath.Join(site.Dir, ".env"), []byte("DB_CONNECTION=mysql\nDB_HOST=127.0.0.1\n"), 0o644)
