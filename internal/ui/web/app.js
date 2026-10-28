@@ -11,7 +11,6 @@ const ICONS = {
   folder: '<path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h3l1.5 1.5h4.5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z" fill="none" stroke="currentColor" stroke-width="1.2"/>',
   reload: '<path d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5v3h-3" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>',
   heart: '<path d="M8 13.5S2.5 10.2 2.5 6.3A2.8 2.8 0 0 1 8 5a2.8 2.8 0 0 1 5.5 1.3c0 3.9-5.5 7.2-5.5 7.2z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>',
-  globe: '<circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M2.5 8h11M8 2.5c1.6 1.6 2.3 3.5 2.3 5.5S9.6 11.9 8 13.5M8 2.5C6.4 4.1 5.7 6 5.7 8s.7 3.9 2.3 5.5" fill="none" stroke="currentColor" stroke-width="1.2"/>',
   open: '<path d="M9 3h4v4M13 3 7.5 8.5M11 9.5V12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h2.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>',
   check: '<path d="m3.5 8.5 3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
   cross: '<path d="m4.5 4.5 7 7m0-7-7 7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
@@ -209,22 +208,19 @@ function renderSites() {
       return opts.join("");
     };
     el.innerHTML = ask + `<table>
-      <thead><tr><th>Site</th><th>Address</th><th>PHP</th><th title="Tells AI coding agents how this site runs here">AI guide</th><th></th></tr></thead>
+      <thead><tr><th>Site</th><th>Address</th><th>PHP</th><th title="Tells AI coding agents how this site runs here">AI guide</th></tr></thead>
       <tbody>${S.sites.map((s, i) => `
         <tr>
-          <td><div class="site-name">${esc(s.slug)}</div>${s.name !== s.slug ? `<div class="site-sub">${esc(s.name)}</div>` : ""}</td>
-          <td><button class="link" data-url="${i}">${esc(s.url.replace(/^http:\/\//, ""))}</button></td>
+          <td><button class="link site-name" data-folder="${i}" title="Open ${esc(s.dir)}">${esc(s.slug)}</button>${s.name !== s.slug ? `<div class="site-sub">${esc(s.name)}</div>` : ""}</td>
+          <td><button class="link" data-url="${i}" title="${S.running ? `Open ${esc(s.url)} in your browser` : "Start the servers to open it"}">${esc(s.url.replace(/^http:\/\//, ""))}</button></td>
           <td><select data-php="${i}" aria-label="PHP version for ${esc(s.slug)}">${phpOptions(s)}</select></td>
           <td><label class="switch" title="${s.guide ? "Remove" : "Add"} the AI guide for ${esc(s.slug)}"><input type="checkbox" data-guide="${i}" ${s.guide ? "checked" : ""} aria-label="AI guide for ${esc(s.slug)}"><span></span></label></td>
-          <td class="actions"><button class="btn small ghost" data-browse="${i}" ${S.running ? `title="Open ${esc(s.url)} in your browser"` : 'disabled title="Start the servers first"'}>${icon("globe")}Browse</button>
-            <button class="btn small ghost" data-folder="${i}" title="${esc(s.dir)}">${icon("folder")}Folder</button></td>
         </tr>`).join("")}
       </tbody></table>
       <p class="muted" style="margin:12px 0 0;font-size:12px">New folders in <span class="mono">${esc(S.www)}</span> are served within a few seconds while the servers run.</p>
       <p class="muted" style="margin:6px 0 0;font-size:12px">AI guide: tells coding agents (Claude Code, Codex, Cursor, Copilot) this site's URL, PHP, database and logs.
         It writes <span class="mono">.devstack/ai-guide.md</span> (kept out of git) and a short pointer in <span class="mono">AGENTS.md</span> and <span class="mono">CLAUDE.md</span>. Your own text in those files is left alone.</p>`;
     el.querySelectorAll("[data-url]").forEach((b) => (b.onclick = () => open("url", S.sites[b.dataset.url].url)));
-    el.querySelectorAll("[data-browse]").forEach((b) => (b.onclick = () => open("url", S.sites[b.dataset.browse].url)));
     el.querySelectorAll("[data-folder]").forEach((b) => (b.onclick = () => open("folder", S.sites[b.dataset.folder].dir)));
     $("#dns-yes") && ($("#dns-yes").onclick = () => act("/api/dns", { on: true }).catch(() => {}));
     $("#dns-no") && ($("#dns-no").onclick = () => act("/api/dns/dismiss", {}, "You can turn it on later in Settings").catch(() => {}));

@@ -14,6 +14,8 @@ bold lead-ins under it, so write each feature up here when it lands.
   says to set encryption explicitly, so a project that connects here doesn't fail on a server with only 18.
 
 ### Changed
+- **Simpler sites list.** Click a site's name to open its folder, and its address to open it in the browser. The
+  Browse and Folder buttons are gone.
 - **Placeholder warnings in the AI guide.** When `.env` still has template values such as `DB_HOST=REPLACE_ME` or
   `DB_PASSWORD=your_password`, the guide names those keys and tells the agent not to connect or run migrations
   until they're filled in. It never prints the values of secrets.
