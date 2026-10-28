@@ -5,7 +5,25 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions
 The release scripts need a section for the version they build and take the in-app update notes from the
 bold lead-ins under it, so write each feature up here when it lands.
 
-## [0.2.0] — unreleased
+## [0.2.1] — unreleased
+
+### Fixed
+- **Extensions per PHP version.** `php.extensions` is shared by every PHP version, but Microsoft's SQL Server DLLs
+  carry one in their name (`php_sqlsrv_83_nts_x64.dll`). devstack now matches `sqlsrv` or `sqlsrv_83_nts_x64` to
+  whichever build each PHP has (`php_sqlsrv.dll`, or `php_sqlsrv_85_nts_x64.dll` for PHP 8.5), so the same list works
+  on every version. Before, PHP 8.5 quietly left both out.
+- **Skipped extensions are logged.** An extension listed in `stack.toml` that a PHP version has no DLL for is now
+  written to `devstack.log` as a warning, not only shown in the app.
+
+### Changed
+- **Sharper AI guide.** The guide in `.devstack/ai-guide.md` now lists extensions that were asked for but couldn't
+  load, with the command that downloads them, and says the PHP build is NTS x64. Its Database section reads
+  `DB_CONNECTION` from the project's `.env`: it names the host, says whether PHP loads the matching driver
+  (`pdo_sqlsrv`, `pdo_pgsql`, `pdo_mysql`, `pdo_sqlite`) and, for SQL Server, whether Microsoft's ODBC driver is
+  installed. A project whose database is elsewhere is no longer told to ask for MySQL. Guides refresh within 30
+  seconds of a `.env` change.
+
+## [0.2.0] — 2026-10-27
 
 ### Added
 - **SQL Server for PHP.** Install `sqlsrv` and `pdo_sqlsrv` from Servers → Versions → PHP extensions, or with

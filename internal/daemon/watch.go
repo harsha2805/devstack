@@ -15,6 +15,10 @@ import (
 // projects such as vendor/ or node_modules/.
 var watchInterval = 1500 * time.Millisecond
 
+// guideEvery is how many ticks pass between AI guide refreshes, which pick up
+// what a reload doesn't see, such as DB_CONNECTION changing in a project's .env.
+const guideEvery = 20
+
 // watchSites reloads when sites in www change: a folder added, removed or
 // renamed, a .devstack.toml edited, a public/ folder or index.php appearing.
 // stack.toml is not watched; it still takes an explicit reload.
@@ -22,7 +26,7 @@ func (d *Daemon) watchSites(ctx context.Context) {
 	t := time.NewTicker(watchInterval)
 	defer t.Stop()
 	var s settler
-	for {
+	for tick := 1; ; tick++ {
 		select {
 		case <-ctx.Done():
 			return
@@ -35,6 +39,13 @@ func (d *Daemon) watchSites(ctx context.Context) {
 		d.mu.Unlock()
 		if phase != api.PhaseRunning || www == "" {
 			continue
+		}
+		if tick%guideEvery == 0 && d.opMu.TryLock() { // a reload in progress writes the guides itself
+			d.mu.Lock()
+			st := d.st
+			d.mu.Unlock()
+			d.syncGuides(st)
+			d.opMu.Unlock()
 		}
 		list, _, err := sites.Scan(www)
 		if err != nil {

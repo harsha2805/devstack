@@ -9,6 +9,8 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -57,8 +59,9 @@ type PHPPool struct {
 	Ports       []int
 	INIPath     string
 	ExtDir      string
-	Extensions  []string // requested and present
+	Extensions  []string // what php.ini loads: requested names resolved to the DLLs in ExtDir (see ExtensionFile)
 	Missing     []string // requested, but no DLL in ExtDir
+	TS          bool     // a thread-safe build; devstack's own are NTS
 	Opcache     bool
 	MaxRequests int
 	INI         map[string]string
@@ -226,11 +229,14 @@ func newPool(cfg config.Stack, st *Stack, b discover.Build) *PHPPool {
 	for i := 0; i < cfg.PHP.Workers; i++ {
 		p.Ports = append(p.Ports, PHPPort(cfg.Ports.PHP, b.Version, i))
 	}
+	p.TS = ThreadSafe(b)
 	for _, e := range cfg.PHP.Extensions {
-		if exists(filepath.Join(p.ExtDir, "php_"+e+".dll")) {
-			p.Extensions = append(p.Extensions, e)
-		} else {
+		n, ok := ExtensionFile(b, e)
+		switch {
+		case !ok:
 			p.Missing = append(p.Missing, e)
+		case !slices.Contains(p.Extensions, n): // "sqlsrv" and "sqlsrv_83_nts_x64" can find the same DLL
+			p.Extensions = append(p.Extensions, n)
 		}
 	}
 	if len(p.Missing) > 0 {
@@ -299,4 +305,44 @@ func exists(p string) bool {
 // MissingExtensionsWarning is the warning for p's requested-but-absent extensions.
 func MissingExtensionsWarning(p *PHPPool) string {
 	return fmt.Sprintf("%s: extensions not found in %s: %s", p.Name, p.ExtDir, strings.Join(p.Missing, ", "))
+}
+
+// vendorExt matches Microsoft's build names for its SQL Server extensions,
+// which carry the PHP version: "sqlsrv_83_nts_x64".
+var vendorExt = regexp.MustCompile(`^(.+)_\d+_(n?ts)_(x64|x86)$`)
+
+// ExtensionBase is name without Microsoft's build suffix: "sqlsrv" for
+// "sqlsrv_83_nts_x64", and name itself otherwise.
+func ExtensionBase(name string) string {
+	if m := vendorExt.FindStringSubmatch(name); m != nil {
+		return m[1]
+	}
+	return name
+}
+
+// ExtensionFile finds the DLL in b's ext folder for name, a php.extensions
+// entry, and returns the name php.ini loads it by. php.extensions is shared by
+// every PHP version, but Microsoft's SQL Server DLLs are built per version
+// (php_sqlsrv_83_nts_x64.dll), so "sqlsrv" and "sqlsrv_83_nts_x64" both find
+// php_sqlsrv.dll (devstack's download) or php_sqlsrv_<b's version>_nts_x64.dll.
+func ExtensionFile(b discover.Build, name string) (string, bool) {
+	base := ExtensionBase(name)
+	flavor := "nts"
+	if ThreadSafe(b) {
+		flavor = "ts"
+	}
+	own := fmt.Sprintf("%s_%s_%s_x64", base, strings.ReplaceAll(b.Version.MajorMinor(), ".", ""), flavor)
+	for _, n := range []string{name, base, own} {
+		if exists(filepath.Join(b.Dir, "ext", "php_"+n+".dll")) {
+			return n, true
+		}
+	}
+	return "", false
+}
+
+// ThreadSafe reports whether b is PHP's thread-safe build (php8ts.dll beside
+// php.exe). Extension DLLs must match it.
+func ThreadSafe(b discover.Build) bool {
+	m, _ := filepath.Glob(filepath.Join(b.Dir, "php*ts.dll"))
+	return len(m) > 0
 }

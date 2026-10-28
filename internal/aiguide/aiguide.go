@@ -14,11 +14,16 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/harsha2805/devstack/internal/certs"
 	"github.com/harsha2805/devstack/internal/config"
 	"github.com/harsha2805/devstack/internal/model"
+	"github.com/harsha2805/devstack/internal/packages"
+	"github.com/harsha2805/devstack/internal/winproc"
 )
 
 const (
@@ -208,26 +213,64 @@ func Render(st *model.Stack, site model.Site, cli string) string {
 		w("Without PHPRC, `php.exe` loads no php.ini and has no extensions. For a single command, pass the ini instead:")
 		w("`\"%s\" -c \"%s\" artisan migrate` (prefix `&` in PowerShell).", php, p.INIPath)
 		w("")
+		flavor := "NTS"
+		if p.TS {
+			flavor = "TS"
+		}
+		w("- Build: %s x64. Extension DLLs from anywhere else must be %s x64 builds for PHP %s.", flavor, flavor, p.Key)
 		w("- php.ini: `%s`. It is generated from the `[php]` section of `%s`, which other projects share: ask before changing it, then reload.", p.INIPath, filepath.Join(st.Root, config.FileName))
 		if len(p.Extensions) > 0 {
 			w("- Extensions: %s", strings.Join(p.Extensions, ", "))
 		}
+		if len(p.Missing) > 0 {
+			w("- Requested in `%s` but not loaded, because `%s` has no DLL for them: %s. Code that needs them fails on this PHP.%s",
+				config.FileName, p.ExtDir, strings.Join(p.Missing, ", "), installHint(cmd, p.Missing))
+		}
 		w("- Errors: `%s`", filepath.Join(st.Logs, p.Name+"-error.log"))
 	}
 
+	w("")
+	w("## Database")
+	w("")
+	env := readEnv(filepath.Join(site.Dir, ".env"))
+	conn := env["DB_CONNECTION"]
+	if conn != "" {
+		where := ""
+		if conn == "sqlite" {
+			if db := env["DB_DATABASE"]; db != "" {
+				where = fmt.Sprintf(", file `%s`", db)
+			}
+		} else if h := env["DB_HOST"]; h != "" {
+			if port := env["DB_PORT"]; port != "" {
+				h += ":" + port
+			}
+			where = fmt.Sprintf(" on `%s`", h)
+		}
+		w("- This project's `.env` sets `DB_CONNECTION=%s`%s.", conn, where)
+		if drv, ok := pdoDriver[conn]; ok && site.PHP != nil {
+			w("- %s", driverLine(site.PHP, drv, cmd))
+		}
+		if conn == "sqlsrv" {
+			if name, ok := odbcDriver(); ok {
+				w("- %s is installed, which `pdo_sqlsrv` needs to connect.", name)
+			} else {
+				w("- Microsoft's ODBC Driver for SQL Server isn't installed, so connections fail even with `pdo_sqlsrv` loaded. Ask the user to install it from %s (it needs administrator rights).", packages.ODBCDriverURL)
+			}
+		}
+	}
+	localMySQL := (conn == "mysql" || conn == "mariadb") && isLocal(env["DB_HOST"])
 	if m := st.MySQL; m != nil {
-		w("")
-		w("## Database (MySQL %s)", m.Build.Version)
-		w("")
-		w("- Host `127.0.0.1`, port `%d`, user `root`", m.Port)
+		w("- devstack's MySQL %s: host `127.0.0.1`, port `%d`, user `root`", m.Build.Version, m.Port)
+		if port := env["DB_PORT"]; localMySQL && port != "" && port != strconv.Itoa(m.Port) {
+			w("- `.env` has `DB_PORT=%s`, but devstack's MySQL listens on %d.", port, m.Port)
+		}
 		w("- Password: run `%s db creds`. Don't write it into committed files; `.env` is the place for it.", cmd)
 		w("- Create databases with any client, for example `CREATE DATABASE %s;`", strings.ReplaceAll(site.Slug, "-", "_"))
-		w("- Log: `%s`", filepath.Join(st.Logs, "mysql.log"))
+		w("- MySQL log: `%s`", filepath.Join(st.Logs, "mysql.log"))
+	} else if conn == "" || localMySQL {
+		w("- devstack's MySQL is turned off. Ask the user before turning it on or adding one.")
 	} else {
-		w("")
-		w("## Database")
-		w("")
-		w("MySQL is turned off in this stack. Ask before adding one.")
+		w("- devstack's MySQL is turned off. This project's database is elsewhere, so it doesn't need it.")
 	}
 
 	w("")
@@ -256,6 +299,88 @@ func Render(st *model.Stack, site model.Site, cli string) string {
 	w("- Don't install, download or upgrade PHP, nginx or MySQL yourself; ask the user to do it in devstack.")
 	w("- Ask before editing `stack.toml` or stopping the servers: other projects use them too.")
 	return b.String()
+}
+
+// pdoDriver is the PHP extension each Laravel DB_CONNECTION needs.
+var pdoDriver = map[string]string{
+	"mysql": "pdo_mysql", "mariadb": "pdo_mysql", "pgsql": "pdo_pgsql", "sqlite": "pdo_sqlite", "sqlsrv": "pdo_sqlsrv",
+}
+
+// odbcDriver names the installed ODBC Driver for SQL Server; tests replace it.
+var odbcDriver = winproc.ODBCSQLServer
+
+// downloadable lists the extensions devstack can download (sqlsrv, pdo_sqlsrv).
+var downloadable = sync.OnceValue(func() []string {
+	c, err := packages.Default()
+	if err != nil {
+		return nil
+	}
+	return c.ExtensionNames()
+})
+
+// driverLine says whether p loads drv, and how to get it when it doesn't.
+func driverLine(p *model.PHPPool, drv, cmd string) string {
+	if slices.ContainsFunc(p.Extensions, func(e string) bool { return model.ExtensionBase(e) == drv }) {
+		return fmt.Sprintf("PHP %s loads `%s`, the driver it needs.", p.Build.Version, drv)
+	}
+	fix := installHint(cmd, []string{drv})
+	if _, ok := model.ExtensionFile(p.Build, drv); ok {
+		fix = fmt.Sprintf(" `%s` has it: ask the user to add `%s` to php.extensions in `%s`, then reload.", p.ExtDir, drv, config.FileName)
+	} else if fix == "" {
+		fix = " Ask the user to add it to PHP."
+	}
+	return fmt.Sprintf("PHP %s doesn't load `%s`, so database calls fail with \"could not find driver\".%s", p.Build.Version, drv, fix)
+}
+
+// installHint is the sentence asking the user to download the extensions in
+// names that devstack can fetch, or "" when it can fetch none of them.
+func installHint(cmd string, names []string) string {
+	var get []string
+	for _, n := range names {
+		if b := model.ExtensionBase(n); slices.Contains(downloadable(), b) && !slices.Contains(get, b) {
+			get = append(get, b)
+		}
+	}
+	if len(get) == 0 {
+		return ""
+	}
+	them := "them"
+	if len(get) == 1 {
+		them = "it"
+	}
+	return fmt.Sprintf(" Ask the user to run `%s pkg install ext %s`, which downloads %s for every PHP version.", cmd, strings.Join(get, " "), them)
+}
+
+// readEnv reads KEY=value lines from a .env file; a missing file reads as empty.
+func readEnv(path string) map[string]string {
+	env := map[string]string{}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return env
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		line = strings.TrimPrefix(strings.TrimSpace(line), "export ")
+		k, v, ok := strings.Cut(line, "=")
+		if !ok || strings.HasPrefix(k, "#") {
+			continue
+		}
+		v = strings.TrimSpace(v)
+		if len(v) >= 2 && (v[0] == '"' || v[0] == '\'') && v[len(v)-1] == v[0] {
+			v = v[1 : len(v)-1]
+		} else if i := strings.Index(v, " #"); i >= 0 {
+			v = strings.TrimSpace(v[:i])
+		}
+		env[strings.TrimSpace(k)] = v
+	}
+	return env
+}
+
+func isLocal(host string) bool {
+	switch host {
+	case "", "127.0.0.1", "localhost", "::1":
+		return true
+	}
+	return false
 }
 
 // msysPath turns C:\a\b into /c/a/b for Git Bash.

@@ -12,6 +12,7 @@ import (
 
 	"github.com/harsha2805/devstack/internal/config"
 	"github.com/harsha2805/devstack/internal/discover"
+	"github.com/harsha2805/devstack/internal/model"
 	"github.com/harsha2805/devstack/internal/packages"
 	"github.com/harsha2805/devstack/internal/winproc"
 )
@@ -111,7 +112,7 @@ func FetchExtensions(ctx context.Context, root string, names []string, progress 
 // ExtensionStatus is one installable extension as the CLI and app show it.
 type ExtensionStatus struct {
 	Name    string   `json:"name"`
-	Enabled bool     `json:"enabled"`           // listed in php.extensions
+	Enabled bool     `json:"enabled"`           // listed in php.extensions, by name or Microsoft's ("sqlsrv_83_nts_x64")
 	Missing []string `json:"missing,omitempty"` // enabled, but PHP minors in bin/ that lack the DLL
 	ODBC    bool     `json:"odbc"`              // needs Microsoft's ODBC Driver for SQL Server
 }
@@ -139,10 +140,11 @@ func CheckExtensions(ctx context.Context, root string) ([]ExtensionStatus, ODBCS
 	builds := discover.Scan(ctx, []string{filepath.Join(root, "bin")}).Builds[discover.PHP]
 	var out []ExtensionStatus
 	for _, n := range cat.ExtensionNames() {
-		s := ExtensionStatus{Name: n, Enabled: slices.Contains(cfg.PHP.Extensions, n), ODBC: packages.NeedsODBC(n)}
+		enabled := slices.ContainsFunc(cfg.PHP.Extensions, func(e string) bool { return model.ExtensionBase(e) == n })
+		s := ExtensionStatus{Name: n, Enabled: enabled, ODBC: packages.NeedsODBC(n)}
 		if s.Enabled {
 			for _, b := range builds {
-				if !exists(filepath.Join(b.Dir, "ext", "php_"+n+".dll")) && !slices.Contains(s.Missing, b.Version.MajorMinor()) {
+				if _, ok := model.ExtensionFile(b, n); !ok && !slices.Contains(s.Missing, b.Version.MajorMinor()) {
 					s.Missing = append(s.Missing, b.Version.MajorMinor())
 				}
 			}

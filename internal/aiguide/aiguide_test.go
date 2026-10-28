@@ -134,6 +134,65 @@ func TestSync(t *testing.T) {
 	}
 }
 
+func TestMissingExtensions(t *testing.T) {
+	st, site := testStack(t)
+	site.PHP.ExtDir = filepath.Join(site.PHP.Build.Dir, "ext")
+	site.PHP.Extensions = []string{"curl", "mbstring"}
+	site.PHP.Missing = []string{"sqlsrv_83_nts_x64", "pdo_sqlsrv_83_nts_x64"}
+	guide := Render(st, site, "devstack")
+	for _, want := range []string{
+		"Build: NTS x64",
+		"but not loaded, because `" + site.PHP.ExtDir + "` has no DLL for them: sqlsrv_83_nts_x64, pdo_sqlsrv_83_nts_x64",
+		"`devstack pkg install ext sqlsrv pdo_sqlsrv`",
+	} {
+		if !strings.Contains(guide, want) {
+			t.Errorf("guide lacks %q", want)
+		}
+	}
+}
+
+func TestDatabaseFromEnv(t *testing.T) {
+	odbc, orig := "", odbcDriver
+	odbcDriver = func() (string, bool) { return odbc, odbc != "" }
+	t.Cleanup(func() { odbcDriver = orig })
+
+	st, site := testStack(t)
+	st.MySQL = nil
+	site.PHP.Extensions = []string{"pdo_mysql"}
+	env := "APP_NAME=x\n# DB_CONNECTION=mysql\nDB_CONNECTION=sqlsrv\nDB_HOST=\"sql.example.com\"\nDB_PORT=1433 # default\n"
+	os.WriteFile(filepath.Join(site.Dir, ".env"), []byte(env), 0o644)
+
+	guide := Render(st, site, "devstack")
+	for _, want := range []string{
+		"`DB_CONNECTION=sqlsrv` on `sql.example.com:1433`",
+		"doesn't load `pdo_sqlsrv`, so database calls fail",
+		"`devstack pkg install ext pdo_sqlsrv`",
+		"ODBC Driver for SQL Server isn't installed",
+		"This project's database is elsewhere",
+	} {
+		if !strings.Contains(guide, want) {
+			t.Errorf("guide lacks %q", want)
+		}
+	}
+	if strings.Contains(guide, "Ask the user before turning it on") {
+		t.Error("asks for MySQL that the project doesn't use")
+	}
+
+	odbc = "ODBC Driver 18 for SQL Server"
+	site.PHP.Extensions = []string{"pdo_sqlsrv_83_nts_x64"}
+	guide = Render(st, site, "devstack")
+	for _, want := range []string{"loads `pdo_sqlsrv`, the driver it needs", "ODBC Driver 18 for SQL Server is installed"} {
+		if !strings.Contains(guide, want) {
+			t.Errorf("guide lacks %q", want)
+		}
+	}
+
+	os.WriteFile(filepath.Join(site.Dir, ".env"), []byte("DB_CONNECTION=mysql\nDB_HOST=127.0.0.1\n"), 0o644)
+	if guide := Render(st, site, "devstack"); !strings.Contains(guide, "Ask the user before turning it on") {
+		t.Error("MySQL on this machine is off, but the guide doesn't say to ask")
+	}
+}
+
 func TestMsysPath(t *testing.T) {
 	if got := msysPath(`C:\devstack\bin\php\8.3.36`); got != "/c/devstack/bin/php/8.3.36" {
 		t.Fatal(got)

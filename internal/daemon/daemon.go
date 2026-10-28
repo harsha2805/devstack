@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -149,6 +150,7 @@ func (d *Daemon) startAll(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	d.logWarnings(nil, st.Warnings)
 	d.mu.Lock()
 	d.st, d.warnings = st, st.Warnings
 	d.www, d.scan = l.WWW, fingerprint(l.Sites)
@@ -249,9 +251,11 @@ func (d *Daemon) reload(ctx context.Context) ([]string, error) {
 	}
 
 	d.mu.Lock()
+	before := d.warnings
 	d.st, d.warnings, d.errs = st, st.Warnings, errs
 	d.www, d.scan = l.WWW, fingerprint(l.Sites)
 	d.mu.Unlock()
+	d.logWarnings(before, st.Warnings)
 	if len(errs) > 0 {
 		return actions, errors.New(strings.Join(errs, "\n"))
 	}
@@ -340,6 +344,16 @@ func randomHex(n int) string {
 	b := make([]byte, n)
 	rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+// logWarnings writes the warnings in now that weren't in before to
+// devstack.log, so a reload doesn't repeat ones already logged.
+func (d *Daemon) logWarnings(before, now []string) {
+	for _, w := range now {
+		if !slices.Contains(before, w) {
+			d.log.Printf("warning: %s", w)
+		}
+	}
 }
 
 // syncGuides keeps projects' AI guides in step with the stack (PHP version,
