@@ -42,16 +42,23 @@ the release and calls the website, which serves the new version within seconds. 
 The update notes in Settings → Updates are the changelog section's bold lead-ins (`- **Folder picker.** ...`);
 `-Notes` overrides them in the local flow below.
 
-### Repository secrets (once)
+### Secrets and protections (once)
 
-| Secret | Value |
+The secrets live in the `release` environment (Settings → Environments), which GitHub only lets run from `v*`
+tags, so no other workflow, branch or pull request can read them:
+
+| `release` environment secret | Value |
 |---|---|
 | `DEVSTACK_UPDATE_KEY` | the release key's PEM text (`%APPDATA%\devstack-release\update-signing-key.pem`) |
 | `RELEASE_HOOK_TOKEN` | a random token; the same value as `RELEASE_HOOK_TOKEN` in `website\.env.production` |
 
 ```powershell
-Get-Content -Raw "$env:APPDATA\devstack-release\update-signing-key.pem" | gh secret set DEVSTACK_UPDATE_KEY --repo harsha2805/devstack
+Get-Content -Raw "$env:APPDATA\devstack-release\update-signing-key.pem" | gh secret set DEVSTACK_UPDATE_KEY --env release --repo harsha2805/devstack
 ```
+
+Rulesets (Settings → Rules): `main` can't be force-pushed or deleted, and only admins can create, move or delete
+`v*` tags, the trigger for a signed release. Actions asks for approval before running workflows from outside
+contributors' pull requests, and the default workflow token is read-only.
 
 With the key in GitHub, anyone who can push a `v*` tag or change the workflow on `main` can sign an update that
 every installed devstack accepts. Keep two-factor authentication on, and don't give others write access lightly.

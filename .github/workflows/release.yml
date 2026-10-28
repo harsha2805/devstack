@@ -9,6 +9,10 @@
 # changelog.json, and tells the website (RELEASE_HOOK_TOKEN), which serves the
 # new feed and changelog from then on. Without the secret it stops at a draft,
 # and publish-release.ps1 signs and publishes from the maintainer's machine.
+#
+# Both secrets live in the "release" environment, which GitHub only lets run
+# from v* tags (and the tag ruleset lets only admins push those), so no other
+# workflow, branch or pull request can read the key.
 name: Release
 
 on:
@@ -22,9 +26,9 @@ jobs:
   release:
     runs-on: windows-latest
     timeout-minutes: 30
+    environment: release
     env:
       GH_TOKEN: ${{ github.token }}
-      SIGN: ${{ secrets.DEVSTACK_UPDATE_KEY != '' }}
     defaults:
       run:
         shell: pwsh
@@ -36,12 +40,16 @@ jobs:
           go-version-file: go.mod
 
       - name: Version from the tag
+        env:
+          KEY_PEM: ${{ secrets.DEVSTACK_UPDATE_KEY }}
         run: |
           $v = '${{ github.ref_name }}'.TrimStart('v')
           if ($v -notmatch '^\d+\.\d+\.\d+$') { throw "Tags must look like v1.2.3" }
           . .\release-lib.ps1
           $null = Get-UpdateNotes $v   # the changelog must describe it
           "VERSION=$v" >> $env:GITHUB_ENV
+          # Sign and publish here only when the release environment has the key.
+          "SIGN=$(if ($env:KEY_PEM) { 'true' } else { 'false' })" >> $env:GITHUB_ENV
 
       - name: Test
         run: go test ./...
