@@ -60,6 +60,62 @@ type Catalog struct {
 	Generated  time.Time   `json:"generated"`
 	Entries    []Entry     `json:"entries"`
 	Extensions []Extension `json:"extensions,omitempty"`
+	Composer   *Composer   `json:"composer,omitempty"`
+}
+
+// Composer is the composer.phar devstack's composer command runs.
+type Composer struct {
+	Version string `json:"version"`
+	URL     string `json:"url"`
+	SHA256  string `json:"sha256"`
+	Size    int64  `json:"size"`
+}
+
+func (c Composer) String() string { return "Composer " + c.Version }
+
+// ComposerDir is where composer.phar versions live under a bin root.
+func ComposerDir(binRoot string) string { return filepath.Join(binRoot, "composer") }
+
+// FindComposer returns the newest installed composer.phar under binRoot.
+func FindComposer(binRoot string) (string, bool) {
+	entries, _ := os.ReadDir(ComposerDir(binRoot))
+	var best discover.Version
+	path := ""
+	for _, e := range entries {
+		v, err := discover.ParseVersion(e.Name())
+		phar := filepath.Join(ComposerDir(binRoot), e.Name(), "composer.phar")
+		if _, serr := os.Stat(phar); err != nil || serr != nil {
+			continue
+		}
+		if path == "" || best.Less(v) {
+			best, path = v, phar
+		}
+	}
+	return path, path != ""
+}
+
+// InstallComposer downloads and verifies c into bin/composer/<version>/.
+func InstallComposer(ctx context.Context, binRoot string, c Composer, progress Progress) (string, error) {
+	if len(c.SHA256) != 64 {
+		return "", fmt.Errorf("%s: catalog entry has no sha256; refusing to install unverified files", c)
+	}
+	dir := filepath.Join(ComposerDir(binRoot), c.Version)
+	dest := filepath.Join(dir, "composer.phar")
+	if _, err := os.Stat(dest); err == nil {
+		return dest, fmt.Errorf("%s: %w (%s)", c, ErrInstalled, dest)
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	partial := dest + ".partial"
+	defer os.Remove(partial)
+	if err := download(ctx, c.String(), c.SHA256, c.Size, c.URL, partial, progress); err != nil {
+		return "", err
+	}
+	if err := os.Rename(partial, dest); err != nil {
+		return "", err
+	}
+	return dest, nil
 }
 
 // Extension is a PHP extension DLL that php.net's Windows builds don't bundle,

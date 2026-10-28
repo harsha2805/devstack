@@ -24,6 +24,7 @@ import (
 	"github.com/harsha2805/devstack/internal/config"
 	"github.com/harsha2805/devstack/internal/model"
 	"github.com/harsha2805/devstack/internal/packages"
+	"github.com/harsha2805/devstack/internal/shim"
 	"github.com/harsha2805/devstack/internal/winproc"
 )
 
@@ -197,8 +198,15 @@ func Render(st *model.Stack, site model.Site, cli string) string {
 		w("")
 		w("## PHP %s", p.Build.Version)
 		w("")
-		w("The site runs PHP %s (`php-cgi`). For command-line PHP and Composer use the same build with the same php.ini,", p.Build.Version)
-		w("not whatever `php` is on PATH:")
+		w("The site runs PHP %s (`php-cgi`). Command-line PHP and Composer must use the same build with the same php.ini.", p.Build.Version)
+		w("")
+		if dir, ok := shimsFirst(); ok {
+			w("devstack's `php` and `composer` (`%s`) come first on PATH and pick each site's PHP by folder, so here", dir)
+			w("plain `php artisan ...` and `composer install` already run PHP %s with its php.ini. Check with `php -v`.", p.Build.Version)
+			w("If it shows another version, the terminal was opened before devstack set that up; set it by hand:")
+		} else {
+			w("Not whatever `php` is on PATH: set it up in the terminal first.")
+		}
 		w("")
 		w("```powershell")
 		w("$env:Path = \"%s;\" + $env:Path", p.Build.Dir)
@@ -306,6 +314,17 @@ func Render(st *model.Stack, site model.Site, cli string) string {
 // pdoDriver is the PHP extension each Laravel DB_CONNECTION needs.
 var pdoDriver = map[string]string{
 	"mysql": "pdo_mysql", "mariadb": "pdo_mysql", "pgsql": "pdo_pgsql", "sqlite": "pdo_sqlite", "sqlsrv": "pdo_sqlsrv",
+}
+
+// shimsFirst reports whether devstack's php and composer shims come first on
+// the PATH new terminals get, and where they are; tests replace it.
+var shimsFirst = func() (string, bool) {
+	dir := shim.Dir()
+	if dir == "" {
+		return "", false
+	}
+	system, user := winproc.EnvPaths()
+	return dir, shim.CheckPath(dir, system, user).OK()
 }
 
 // odbcDrivers lists the installed ODBC Drivers for SQL Server; tests replace it.

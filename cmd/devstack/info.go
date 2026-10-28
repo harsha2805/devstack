@@ -306,6 +306,13 @@ func cmdDoctor(ctx context.Context, e *env, args []string) error {
 		ok("mysql %s, datadir %s", st.MySQL.Build.Version, st.MySQL.DataDir)
 	}
 	ok("%d site(s) in %s", len(st.Sites), st.WWW)
+	if s, has := control.ShimStatus(); has {
+		if s.OK() {
+			ok("php and composer in terminals run each site's PHP (%s)", s.Dir)
+		} else {
+			warn("%s Run `devstack shims fix`.", s.Problem())
+		}
+	}
 	if v, has := winproc.VCRuntime(); has {
 		ok("Visual C++ runtime %s", v)
 	} else {

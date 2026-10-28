@@ -17,6 +17,7 @@ import (
 
 	"github.com/harsha2805/devstack/internal/certs"
 	"github.com/harsha2805/devstack/internal/model"
+	"github.com/harsha2805/devstack/internal/shim"
 )
 
 // ensureCerts issues or renews site certificates before the config that
@@ -181,7 +182,28 @@ func Write(st *model.Stack) (Result, error) {
 	}
 	sort.Strings(res.Written)
 	sort.Strings(res.Removed)
+	if err := shim.Write(st.Root, ShimMap(st)); err != nil {
+		return res, fmt.Errorf("php shims: %w", err)
+	}
 	return res, nil
+}
+
+// ShimMap is what devstack's php and composer shims need from st: each PHP
+// version, its php.ini, and which sites use it.
+func ShimMap(st *model.Stack) shim.Map {
+	m := shim.Map{PHP: map[string]shim.Build{}}
+	for _, p := range st.PHP {
+		m.PHP[p.Key] = shim.Build{Version: p.Build.Version.String(), Exe: filepath.Join(p.Build.Dir, "php.exe"), INI: p.INIPath}
+	}
+	if st.DefaultPHP != nil {
+		m.Default = st.DefaultPHP.Key
+	}
+	for _, s := range st.Sites {
+		if s.PHP != nil {
+			m.Sites = append(m.Sites, shim.Site{Name: s.Slug, Dir: s.Dir, PHP: s.PHP.Key})
+		}
+	}
+	return m
 }
 
 // Dirs creates every runtime folder the generated configs expect to exist.

@@ -5,7 +5,22 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions
 The release scripts need a section for the version they build and take the in-app update notes from the
 bold lead-ins under it, so write each feature up here when it lands.
 
-## [0.2.2] — unreleased
+## [0.2.3] — unreleased
+
+### Added
+- **php and composer per site in every terminal.** devstack now installs its own `php` and `composer` commands,
+  first on PATH. They look at the folder you're in and run that site's PHP version with devstack's `php.ini`, so
+  `php artisan optimize`, `composer install` and `composer dump-autoload` match what the site is served with, with
+  no PATH switching. Outside every site they run the default PHP. `composer` runs a pinned, checksum-verified
+  Composer, downloaded the first time it's used. Projects linked into `www` (`mklink /J`) work too, and
+  `DEVSTACK_PHP=8.3` forces a version for one command.
+- **Terminal button.** Each site in the sites list has a terminal icon that opens PowerShell in the site's folder,
+  with its PHP ready. `devstack terminal <site>` does the same.
+- **PATH check.** If another PHP comes first on PATH (Laragon, XAMPP, Composer-Setup), the sites list says so and
+  **Fix** puts devstack's first; a PHP on the system PATH needs one administrator prompt. `devstack shims` and
+  `devstack doctor` report it, and `devstack shims fix` fixes it.
+
+## [0.2.2] — 2026-10-28
 
 ### Fixed
 - **The right ODBC driver.** With ODBC Driver 17 and 18 both installed, PHP's SQL Server extensions connect through

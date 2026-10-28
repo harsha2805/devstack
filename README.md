@@ -65,6 +65,8 @@ devstack db creds    # generated MySQL root password
 devstack dns on      # <site>.test addresses for every program (one admin prompt; off / status)
 devstack https on    # trusted HTTPS for every site (Windows asks once; off / status)
 devstack guide add   # AI guide for coding agents in the current site's folder (also: remove, show)
+devstack terminal hello   # PowerShell in a site's folder; php and composer run its PHP
+devstack shims       # is devstack's php first on PATH? (`shims fix` puts it there)
 devstack doctor
 devstack down
 ```
@@ -75,6 +77,25 @@ Servers are downloaded on demand from their publishers (windows.php.net, nginx.o
 against the SHA-256 pins in `internal/packages/catalog.json`. Maintainers refresh that file with
 `go run ./tools/catalog`. To reuse builds you already have, pass `init --bin D:\laragon\bin`. devstack runs
 alongside other local stacks, and `init` moves to free ports when 80 and 3306 are taken.
+
+## PHP and Composer in terminals
+
+`php` and `composer` in any terminal run the PHP of the site you're in, with devstack's `php.ini` and extensions,
+so `php artisan migrate` or `composer install` match what the site is served with:
+
+```powershell
+cd D:\devstack\www\shop; php -v     # PHP 8.5, because shop runs on 8.5
+cd ..log; composer install       # PHP 8.3 for blog
+$env:DEVSTACK_PHP = "8.4"; php -v   # force one version
+```
+
+Setup puts devstack's `shims` folder (`php.exe`, `composer.exe`) first on your PATH. They read the site list
+devstack writes on every reload, so changing a site's PHP in the app changes it in terminals too. `composer` runs
+a pinned Composer (SHA-256 checked), downloaded the first time you use it.
+
+Another PHP on the **system** PATH (Laragon, XAMPP, a Composer-Setup install) comes before every user PATH entry.
+The sites list then says so and **Fix** moves devstack's first (one administrator prompt); `devstack shims fix`
+does the same. The terminal icon on each site opens PowerShell there with the right PHP either way.
 
 ## .test addresses
 

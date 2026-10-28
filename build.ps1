@@ -34,4 +34,10 @@ if ($LASTEXITCODE) { throw "build devstack.exe failed" }
 go build -trimpath -ldflags "$ldflags -H windowsgui" -o $OutDir\devstack-app.exe .\cmd\devstack-app
 if ($LASTEXITCODE) { throw "build devstack-app.exe failed" }
 
+# The php/composer shim, twice under the names it answers to (package shim).
+New-Item -ItemType Directory -Force $OutDir\shims | Out-Null
+go build -trimpath -ldflags $ldflags -o $OutDir\shims\php.exe .\cmd\php-shim
+if ($LASTEXITCODE) { throw "build php-shim failed" }
+Copy-Item $OutDir\shims\php.exe $OutDir\shims\composer.exe -Force
+
 Get-ChildItem $OutDir\devstack*.exe | Select-Object Name, @{n='MB';e={[math]::Round($_.Length/1MB,1)}}

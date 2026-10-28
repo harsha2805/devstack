@@ -219,6 +219,25 @@ func TestDatabaseFromEnv(t *testing.T) {
 	}
 }
 
+func TestShimsInGuide(t *testing.T) {
+	orig := shimsFirst
+	t.Cleanup(func() { shimsFirst = orig })
+	st, site := testStack(t)
+
+	shimsFirst = func() (string, bool) { return `C:\devstack\shims`, true }
+	guide := Render(st, site, "devstack")
+	for _, want := range []string{"`C:\\devstack\\shims`) come first on PATH", "plain `php artisan ...` and `composer install` already run PHP 8.3.36", "PHPRC"} {
+		if !strings.Contains(guide, want) {
+			t.Errorf("guide lacks %q", want)
+		}
+	}
+
+	shimsFirst = func() (string, bool) { return "", false }
+	if guide := Render(st, site, "devstack"); strings.Contains(guide, "come first on PATH") || !strings.Contains(guide, "set it up in the terminal first") {
+		t.Error("guide claims shims that aren't set up")
+	}
+}
+
 func TestMsysPath(t *testing.T) {
 	if got := msysPath(`C:\devstack\bin\php\8.3.36`); got != "/c/devstack/bin/php/8.3.36" {
 		t.Fatal(got)

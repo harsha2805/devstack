@@ -6,6 +6,7 @@
 // PHP hashes come from php.net's releases.json. nginx and MySQL publish no
 // sha256, so their archives are downloaded once here and hashed, as are the
 // PECL extension builds (sqlsrv, pdo_sqlsrv) php.net's PHP zips don't bundle.
+// Composer's hash comes from getcomposer.org, next to the newest stable phar.
 // Entries whose URL is unchanged keep their previous hash (use -rehash to force).
 package main
 
@@ -115,7 +116,10 @@ func main() {
 		x.SHA256, x.Size = sum, size
 	}
 
-	c := packages.Catalog{Generated: time.Now().UTC().Truncate(time.Second), Entries: entries, Extensions: xs}
+	composer, err := composerEntry(ctx)
+	check(err)
+
+	c := packages.Catalog{Generated: time.Now().UTC().Truncate(time.Second), Entries: entries, Extensions: xs, Composer: composer}
 	b, err := json.MarshalIndent(c, "", "  ")
 	check(err)
 	check(os.WriteFile(*out, append(b, '\n'), 0o644))
@@ -219,6 +223,46 @@ func peclEntries(ctx context.Context, name string, php []packages.Entry) ([]pack
 		}
 	}
 	return out, nil
+}
+
+// composerEntry is the newest stable Composer 2 that isn't the 2.2 LTS line,
+// with the sha256 getcomposer.org publishes beside it, checked by download.
+func composerEntry(ctx context.Context) (*packages.Composer, error) {
+	body, err := get(ctx, "https://getcomposer.org/versions")
+	if err != nil {
+		return nil, err
+	}
+	var idx struct {
+		Stable []struct {
+			Path    string `json:"path"`
+			Version string `json:"version"`
+			LTS     bool   `json:"lts"`
+		} `json:"stable"`
+	}
+	if err := json.Unmarshal(body, &idx); err != nil {
+		return nil, fmt.Errorf("getcomposer.org/versions: %w", err)
+	}
+	for _, v := range idx.Stable {
+		if v.LTS {
+			continue
+		}
+		url := "https://getcomposer.org" + v.Path
+		sum, err := get(ctx, url+".sha256sum")
+		if err != nil {
+			return nil, err
+		}
+		want, _, _ := strings.Cut(strings.TrimSpace(string(sum)), " ")
+		log.Printf("hashing Composer %s ...", v.Version)
+		got, size, err := hashURL(ctx, []string{url})
+		if err != nil {
+			return nil, err
+		}
+		if !strings.EqualFold(got, want) {
+			return nil, fmt.Errorf("Composer %s: published hash %s != downloaded %s", v.Version, want, got)
+		}
+		return &packages.Composer{Version: v.Version, URL: url, SHA256: got, Size: size}, nil
+	}
+	return nil, fmt.Errorf("getcomposer.org/versions lists no stable release")
 }
 
 // nginxEntries takes the current mainline and stable zips from nginx.org's download page.

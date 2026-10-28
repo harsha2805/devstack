@@ -156,6 +156,8 @@ func (s *Server) routes() http.Handler {
 	api.HandleFunc("POST /api/packages/remove", s.handleRemove)
 	api.HandleFunc("POST /api/ext", s.handleExt)
 	api.HandleFunc("POST /api/open", s.handleOpen)
+	api.HandleFunc("POST /api/terminal", s.handleTerminal)
+	api.HandleFunc("POST /api/shims/fix", s.handleShimsFix)
 	api.HandleFunc("POST /api/settings", s.handleSettings)
 	api.HandleFunc("POST /api/update/check", s.handleUpdateCheck)
 	api.HandleFunc("POST /api/update/install", s.handleUpdateInstall)
@@ -268,6 +270,7 @@ type stateView struct {
 	HTTPS      *control.HTTPSStatus      `json:"https,omitempty"`
 	Extensions []control.ExtensionStatus `json:"extensions"`
 	ODBC       *control.ODBCStatus       `json:"odbc,omitempty"`
+	Shims      *shimsView                `json:"shims,omitempty"`
 }
 
 // plannedService describes what will run, for display while stopped.
@@ -324,6 +327,9 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 	}
 	if xs, odbc, err := control.CheckExtensions(r.Context(), root); err == nil {
 		v.Extensions, v.ODBC = xs, &odbc
+	}
+	if ss, ok := control.ShimStatus(); ok {
+		v.Shims = &shimsView{PathStatus: ss, OK: ss.OK(), Problem: ss.Problem()}
 	}
 	if l, err := stack.Load(r.Context(), root); err != nil {
 		v.Errors = append(v.Errors, err.Error())

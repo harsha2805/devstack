@@ -9,6 +9,7 @@ const ICONS = {
   play: '<path d="M5 3.5v9l7.5-4.5z" fill="currentColor"/>',
   stop: '<rect x="4" y="4" width="8" height="8" rx="1" fill="currentColor"/>',
   folder: '<path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h3l1.5 1.5h4.5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z" fill="none" stroke="currentColor" stroke-width="1.2"/>',
+  terminal: '<rect x="2" y="3" width="12" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="m4.8 6.3 2 1.7-2 1.7M8.5 10h2.7" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>',
   reload: '<path d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5v3h-3" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>',
   heart: '<path d="M8 13.5S2.5 10.2 2.5 6.3A2.8 2.8 0 0 1 8 5a2.8 2.8 0 0 1 5.5 1.3c0 3.9-5.5 7.2-5.5 7.2z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>',
   open: '<path d="M9 3h4v4M13 3 7.5 8.5M11 9.5V12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h2.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>',
@@ -187,9 +188,16 @@ function renderTabs() {
 }
 
 function renderSites() {
-  draw("sites", [S.sites, S.phps, S.default_php, S.www, S.running, S.dns], () => {
+  draw("sites", [S.sites, S.phps, S.default_php, S.www, S.running, S.dns, S.shims], () => {
     const el = $("#sites");
     const d = S.dns;
+    // php and composer in terminals pick each site's PHP only while devstack's shims come first on PATH.
+    const sh = S.shims;
+    const shimAsk = sh && !sh.ok && S.sites.length ? `<div class="ask">
+        <div class="grow"><div class="set-title">Terminals don't use each site's PHP yet</div>
+        <div class="set-desc">${esc(sh.problem)} ${sh.blocker_system ? "Fixing it puts devstack's php first on the system PATH; Windows asks for administrator approval once." : "Fixing it puts devstack's php first on your PATH."}
+        Terminals opened afterwards pick it up.</div></div>
+        <button class="btn small primary" id="shims-fix">Fix</button></div>` : "";
     const ask = d && !d.on && !d.asked && S.sites.length ? `<div class="ask">
         <div class="grow"><div class="set-title">Use ${esc(S.sites[0].slug)}.${esc(d.tld)} addresses?</div>
         <div class="set-desc">Right now sites answer at <span class="mono">name.localhost</span>, which only browsers and curl understand.
@@ -207,14 +215,15 @@ function renderSites() {
       for (const v of S.phps || []) opts.push(`<option value="${esc(v)}" ${site.pinned && site.php === v ? "selected" : ""}>PHP ${esc(v)}</option>`);
       return opts.join("");
     };
-    el.innerHTML = ask + `<table>
-      <thead><tr><th>Site</th><th>Address</th><th>PHP</th><th title="Tells AI coding agents how this site runs here">AI guide</th></tr></thead>
+    el.innerHTML = shimAsk + ask + `<table>
+      <thead><tr><th>Site</th><th>Address</th><th>PHP</th><th title="Tells AI coding agents how this site runs here">AI guide</th><th></th></tr></thead>
       <tbody>${S.sites.map((s, i) => `
         <tr>
           <td><button class="link site-name" data-folder="${i}" title="Open ${esc(s.dir)}">${esc(s.slug)}</button>${s.name !== s.slug ? `<div class="site-sub">${esc(s.name)}</div>` : ""}</td>
           <td><button class="link" data-url="${i}" title="${S.running ? `Open ${esc(s.url)} in your browser` : "Start the servers to open it"}">${esc(s.url.replace(/^http:\/\//, ""))}</button></td>
           <td><select data-php="${i}" aria-label="PHP version for ${esc(s.slug)}">${phpOptions(s)}</select></td>
           <td><label class="switch" title="${s.guide ? "Remove" : "Add"} the AI guide for ${esc(s.slug)}"><input type="checkbox" data-guide="${i}" ${s.guide ? "checked" : ""} aria-label="AI guide for ${esc(s.slug)}"><span></span></label></td>
+          <td class="tools"><button class="btn small ghost icon-only" data-terminal="${i}" title="Open a terminal in ${esc(s.slug)}: php and composer run PHP ${esc(s.php)}" aria-label="Open a terminal in ${esc(s.slug)}">${icon("terminal")}</button></td>
         </tr>`).join("")}
       </tbody></table>
       <p class="muted" style="margin:12px 0 0;font-size:12px">New folders in <span class="mono">${esc(S.www)}</span> are served within a few seconds while the servers run.</p>
@@ -222,6 +231,8 @@ function renderSites() {
         It writes <span class="mono">.devstack/ai-guide.md</span> (kept out of git) and a short pointer in <span class="mono">AGENTS.md</span> and <span class="mono">CLAUDE.md</span>. Your own text in those files is left alone.</p>`;
     el.querySelectorAll("[data-url]").forEach((b) => (b.onclick = () => open("url", S.sites[b.dataset.url].url)));
     el.querySelectorAll("[data-folder]").forEach((b) => (b.onclick = () => open("folder", S.sites[b.dataset.folder].dir)));
+    el.querySelectorAll("[data-terminal]").forEach((b) => (b.onclick = () => act("/api/terminal", { site: S.sites[b.dataset.terminal].slug }).catch(() => {})));
+    $("#shims-fix") && ($("#shims-fix").onclick = () => act("/api/shims/fix", {}).catch(() => {}));
     $("#dns-yes") && ($("#dns-yes").onclick = () => act("/api/dns", { on: true }).catch(() => {}));
     $("#dns-no") && ($("#dns-no").onclick = () => act("/api/dns/dismiss", {}, "You can turn it on later in Settings").catch(() => {}));
     el.querySelectorAll("[data-guide]").forEach((cb) => (cb.onchange = () => {

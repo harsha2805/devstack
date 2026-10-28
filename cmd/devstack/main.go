@@ -62,6 +62,8 @@ func init() {
 		{"https", "on | off | status | untrust", "trusted HTTPS for every site (Windows asks once)", false, cmdHTTPS},
 		{"guide", "add | remove | show [SITE]", "AI guide for coding agents in a site's folder", false, cmdGuide},
 		{"pkg", "list | install SERVER [VERSION] | remove SERVER VERSION | install/remove ext NAME...", "download nginx, PHP and MySQL builds, and extra PHP extensions (sqlsrv)", false, cmdPkg},
+		{"shims", "[status | fix]", "check that php and composer in terminals run each site's PHP", false, cmdShims},
+		{"terminal", "SITE", "open a terminal in a site's folder, with its PHP", false, cmdTerminal},
 		{"version", "", "print the version", false, cmdVersion},
 		{"daemon", "", "run the supervisor (started by `up`)", true, cmdDaemon},
 	}

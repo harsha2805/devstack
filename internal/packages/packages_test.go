@@ -196,3 +196,33 @@ func TestInstallExtensionTakesOnlyTheDLL(t *testing.T) {
 		t.Errorf("failed install left files: %v", entries)
 	}
 }
+
+func TestComposer(t *testing.T) {
+	c, _ := Default()
+	if c.Composer == nil || len(c.Composer.SHA256) != 64 || !strings.HasPrefix(c.Composer.URL, "https://getcomposer.org/") {
+		t.Fatalf("catalog Composer: %+v", c.Composer)
+	}
+
+	phar := []byte("<?php // composer")
+	srv := serve(t, map[string][]byte{"/composer.phar": phar})
+	bin := t.TempDir()
+	if _, ok := FindComposer(bin); ok {
+		t.Fatal("found Composer in an empty bin")
+	}
+	bad := Composer{Version: "2.9.0", URL: srv.URL + "/composer.phar", SHA256: strings.Repeat("0", 64)}
+	if _, err := InstallComposer(context.Background(), bin, bad, nil); err == nil {
+		t.Fatal("installed a phar with the wrong checksum")
+	}
+	if _, ok := FindComposer(bin); ok {
+		t.Fatal("a failed install left a composer.phar")
+	}
+	for _, v := range []string{"2.9.0", "2.10.3"} {
+		x := Composer{Version: v, URL: srv.URL + "/composer.phar", SHA256: sum(phar)}
+		if _, err := InstallComposer(context.Background(), bin, x, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if p, ok := FindComposer(bin); !ok || filepath.Base(filepath.Dir(p)) != "2.10.3" {
+		t.Errorf("FindComposer = %s, want the newest (2.10.3)", p)
+	}
+}

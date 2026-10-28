@@ -68,6 +68,9 @@ RestartApplications=no
 [Files]
 Source: "{#Bin}\devstack-app.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#Bin}\devstack.exe"; DestDir: "{app}"; Flags: ignoreversion
+; php and composer that run each site's PHP in terminals (package shim).
+Source: "{#Bin}\shims\php.exe"; DestDir: "{app}\shims"; Flags: ignoreversion
+Source: "{#Bin}\shims\composer.exe"; DestDir: "{app}\shims"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\devstack"; Filename: "{app}\devstack-app.exe"
@@ -188,10 +191,28 @@ begin
   RegWriteExpandStringValue(HKCU, EnvKey, 'Path', Path);
 end;
 
+{ Puts Dir first on the user PATH, so devstack's php and composer win over
+  other PHP folders there. (The system PATH still comes first; the app offers
+  to fix that.) }
+procedure PrependToPath(const Dir: String);
+var
+  Path: String;
+begin
+  RemoveFromPath(Dir);
+  if not RegQueryStringValue(HKCU, EnvKey, 'Path', Path) then
+    Path := '';
+  if Path <> '' then
+    Path := ';' + Path;
+  RegWriteExpandStringValue(HKCU, EnvKey, 'Path', Dir + Path);
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssPostInstall then
+  begin
     AddToPath(ExpandConstant('{app}'));
+    PrependToPath(ExpandConstant('{app}\shims'));
+  end;
 end;
 
 { ---- uninstall ---- }
@@ -237,6 +258,7 @@ begin
        (CompareText(Command, '"' + ExpandConstant('{app}\devstack-app.exe') + '" --tray') = 0) then
       RegDeleteValue(HKCU, RunKey, RunValue);
     RemoveFromPath(ExpandConstant('{app}'));
+    RemoveFromPath(ExpandConstant('{app}\shims'));
   end;
   if (CurUninstallStep = usPostUninstall) and (StackRoot <> '') and DirExists(StackRoot) and not UninstallSilent then
     MsgBox('devstack is removed. Your stack folder was kept, with your sites and databases:' + #13#10#13#10 +
