@@ -5,6 +5,14 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions
 The release scripts need a section for the version they build and take the in-app update notes from the
 bold lead-ins under it, so write each feature up here when it lands.
 
+## [0.2.6] — unreleased
+
+### Changed
+- **Apache License 2.0.** devstack moves from the MIT license to the Apache License 2.0. It is still free and open
+  source for any use; anyone who redistributes it, changed or not, keeps the `NOTICE` file crediting Harsha
+  (HoloStack) and says what they changed. The installer and portable zip now include `LICENSE.txt` and
+  `NOTICE.txt`. Releases up to 0.2.5 stay under MIT.
+
 ## [0.2.5] — 2026-10-28
 
 ### Changed

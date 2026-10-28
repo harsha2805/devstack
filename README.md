@@ -2,7 +2,7 @@
 
 [![Latest release](https://img.shields.io/github/v/release/harsha2805/devstack)](https://github.com/harsha2805/devstack/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/harsha2805/devstack/total)](https://github.com/harsha2805/devstack/releases)
-[![License: MIT](https://img.shields.io/github/license/harsha2805/devstack)](LICENSE)
+[![License: Apache 2.0](https://img.shields.io/github/license/harsha2805/devstack)](LICENSE)
 [![Sponsor](https://img.shields.io/github/sponsors/harsha2805?label=sponsor)](https://github.com/sponsors/harsha2805)
 
 A portable local web dev stack for Windows: Nginx/Apache, multiple PHP versions, MySQL, Redis, Mailpit,
@@ -178,5 +178,12 @@ publishers when you install them. Details: [devstack.holostack.in/privacy](https
 
 ## License
 
-[MIT](LICENSE). devstack downloads nginx (BSD), PHP (PHP License) and MySQL (GPLv2) from their publishers at run
-time; none of them are bundled.
+[Apache License 2.0](LICENSE), by Harsha ([HoloStack](https://holostack.in)). Use it, change it and ship it, in
+open or closed projects. If you redistribute devstack or a modified version, keep the [NOTICE](NOTICE) file with
+its credit and say what you changed. Releases up to 0.2.5 were published under the MIT license.
+
+The license covers the code, not the name: a fork you distribute should go by its own name and logo, not
+"devstack".
+
+devstack downloads nginx (BSD), PHP (PHP License) and MySQL (GPLv2) from their publishers at run time; none of
+them are bundled.

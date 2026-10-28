@@ -38,7 +38,7 @@ VersionInfoProductName=devstack
 ; Exactly the version build.ps1 writes into the exes.
 VersionInfoTextVersion={#AppVersion}
 VersionInfoProductTextVersion={#AppVersion}
-VersionInfoCopyright=Copyright (c) 2026 Harsha (HoloStack). MIT license.
+VersionInfoCopyright=Copyright (c) 2026 Harsha (HoloStack). Apache License 2.0.
 AppCopyright=Copyright (c) 2026 Harsha (HoloStack)
 ; With PrivilegesRequired=lowest, {autopf} is %LOCALAPPDATA%\Programs.
 DefaultDirName={autopf}\devstack
@@ -68,6 +68,9 @@ RestartApplications=no
 [Files]
 Source: "{#Bin}\devstack-app.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#Bin}\devstack.exe"; DestDir: "{app}"; Flags: ignoreversion
+; Apache License 2.0 and the credit it asks redistributions to keep.
+Source: "..\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
+Source: "..\NOTICE"; DestDir: "{app}"; DestName: "NOTICE.txt"; Flags: ignoreversion
 ; php and composer that run each site's PHP in terminals (package shim).
 Source: "{#Bin}\shims\php.exe"; DestDir: "{app}\shims"; Flags: ignoreversion
 Source: "{#Bin}\shims\composer.exe"; DestDir: "{app}\shims"; Flags: ignoreversion

@@ -45,7 +45,7 @@
             "ProductName": "devstack",
             "ProductVersion": "0.1.0",
             "CompanyName": "HoloStack",
-            "LegalCopyright": "Copyright (c) 2026 Harsha (HoloStack). MIT license."
+            "LegalCopyright": "Copyright (c) 2026 Harsha (HoloStack). Apache License 2.0."
           }
         }
       }

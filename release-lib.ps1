@@ -70,7 +70,7 @@ function Move-OldReleaseFiles([string]$Out, [string]$Version) {
 function New-ReleaseFiles([string]$Version, [string]$Bin, [string]$Out) {
     $setup = "devstack_setup_$Version.exe"
     $zip = "devstack_${Version}_portable.zip"
-    Compress-Archive -Path "$Bin\devstack-app.exe", "$Bin\devstack.exe", "$Bin\shims" -DestinationPath "$Out\$zip" -CompressionLevel Optimal -Force
+    Compress-Archive -Path "$Bin\devstack-app.exe", "$Bin\devstack.exe", "$Bin\shims", (Join-Path $PSScriptRoot LICENSE), (Join-Path $PSScriptRoot NOTICE) -DestinationPath "$Out\$zip" -CompressionLevel Optimal -Force
     $lines = foreach ($name in $setup, $zip) { "{0}  {1}" -f (Get-FileHash "$Out\$name" -Algorithm SHA256).Hash.ToLower(), $name }
     $lines -join "`n" | Set-Content "$Out\SHA256SUMS.txt" -Encoding ascii -NoNewline
 }
