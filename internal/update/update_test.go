@@ -146,6 +146,29 @@ func TestDownload(t *testing.T) {
 		t.Fatalf("got %q, progress %d", b, last)
 	}
 
+	if n := installerSize(context.Background(), srv.URL); n != int64(len(body)) {
+		t.Errorf("installerSize = %d, want %d", n, len(body))
+	}
+
+	// A streamed download with no Content-Length reports progress against
+	// the size Check found.
+	chunked := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.(http.Flusher).Flush()
+		w.Write(body)
+	}))
+	defer chunked.Close()
+	if n := installerSize(context.Background(), chunked.URL); n != 0 {
+		t.Errorf("installerSize without a length = %d, want 0", n)
+	}
+	i.URL, i.Size = chunked.URL, int64(len(body))
+	var total int64
+	if _, err := Download(context.Background(), i, t.TempDir(), func(_, n int64) { total = n }); err != nil {
+		t.Fatal(err)
+	}
+	if total != i.Size {
+		t.Errorf("progress total = %d, want %d", total, i.Size)
+	}
+
 	i.SHA256 = strings.Repeat("00", 32)
 	dir = t.TempDir()
 	if _, err := Download(context.Background(), i, dir, nil); !errors.Is(err, errIntegrity) {

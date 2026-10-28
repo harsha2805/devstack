@@ -35,6 +35,7 @@ type updateView struct {
 	Error     string `json:"error,omitempty"`
 	Version   string `json:"version,omitempty"` // the newer release, if any
 	Notes     string `json:"notes,omitempty"`
+	Size      int64  `json:"size,omitempty"` // the newer release's download size, if the server says
 }
 
 // updateViewLocked builds the dashboard's view; the caller holds s.mu.
@@ -45,7 +46,7 @@ func (s *Server) updateViewLocked() *updateView {
 		v.Checked = s.upd.checked.Format(time.RFC3339)
 	}
 	if a := s.upd.available; a != nil {
-		v.Version, v.Notes = a.Version, a.Notes
+		v.Version, v.Notes, v.Size = a.Version, a.Notes, a.Size
 	}
 	return v
 }

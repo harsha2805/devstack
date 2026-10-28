@@ -5,7 +5,15 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions
 The release scripts need a section for the version they build and take the in-app update notes from the
 bold lead-ins under it, so write each feature up here when it lands.
 
-## [0.2.3] — unreleased
+## [0.2.4] — 2026-10-28
+
+### Changed
+- **Update size up front.** When a new version is available, Settings says how big the download is, on the card
+  and on the Update now button. While it downloads, the bar shows how much is done out of the total. Steps with
+  nothing to measure, like stopping the servers or starting the installer, show a moving bar so the card never
+  looks stuck. A download server that doesn't send a size no longer shows a broken bar.
+
+## [0.2.3] — 2026-10-28
 
 ### Added
 - **php and composer per site in every terminal.** devstack now installs its own `php` and `composer` commands,

@@ -218,6 +218,10 @@ dl.kv dd { margin: 0; font-family: var(--mono); font-size: 12px; overflow-wrap: 
 /* Progress is drawn with scaleX so updates never trigger layout. */
 .bar-fill { height: 100%; width: 100%; background: var(--accent); transform: scaleX(0); transform-origin: left; transition: transform .2s ease; }
 @media (prefers-reduced-motion: reduce) { .bar-fill { transition: none; } }
+/* No size to measure against: a short segment slides across instead. */
+.bar-track.indeterminate .bar-fill { width: 30%; animation: bar-slide 1.4s ease-in-out infinite; }
+@keyframes bar-slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+@media (prefers-reduced-motion: reduce) { .bar-track.indeterminate .bar-fill { width: 100%; animation: breathe .9s ease-in-out infinite alternate; transform: none; } }
 
 /* ---- logs ---- */
 .logs-card { display: flex; flex-direction: column; gap: 10px; padding-bottom: 12px; }

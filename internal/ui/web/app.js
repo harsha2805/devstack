@@ -506,17 +506,23 @@ function renderUpdate() {
       text = `<div class="set-title">Development build</div><div class="set-desc">Builds without a release version don't update.</div>`;
     } else if (job && !job.finished) {
       const st = job.steps[job.steps.length - 1] || { label: "Preparing", done: 0, total: 0 };
-      const pct = st.total ? Math.min(100, Math.round((st.done / st.total) * 100)) : 0;
-      text = `<div class="set-title">${esc(st.label)}…</div>
-        ${st.total ? `<div class="bar-track update-bar"><div class="bar-fill" style="transform:scaleX(${pct / 100})"></div></div>
-        <div class="set-desc num">${size(st.done || 0)} / ${size(st.total)}</div>`
-        : `<div class="set-desc">devstack closes and reopens itself once the installer starts.</div>`}`;
+      // Steps without a size (stopping servers, starting the installer, a download
+      // the server didn't size) get a sliding loader instead of a fill.
+      const known = st.total > 0;
+      const pct = known ? Math.min(100, Math.round((st.done / st.total) * 100)) : 0;
+      const bar = known
+        ? `<div class="bar-track update-bar"><div class="bar-fill" style="transform:scaleX(${pct / 100})"></div></div>`
+        : `<div class="bar-track update-bar indeterminate"><div class="bar-fill" style="animation-delay:-${(Date.now() % 1400) / 1000}s"></div></div>`;
+      const desc = known ? `${size(st.done || 0)} of ${size(st.total)} · ${pct}%`
+        : st.done > 0 ? `${size(st.done)} downloaded`
+        : "devstack closes and reopens itself once the installer starts.";
+      text = `<div class="set-title">${esc(st.label)}…</div>${bar}<div class="set-desc num">${desc}</div>`;
     } else if (u.version) {
       text = `<div class="set-title">devstack ${esc(u.version)} is available</div>
         ${u.notes ? `<div class="set-desc notes">${esc(u.notes)}</div>` : ""}
         ${job && job.error ? `<div class="set-desc error-text">${esc(job.error)}</div>` : ""}
-        <div class="set-desc">${u.installed ? "Running servers stop for the update and start again afterwards." : "This copy isn't installed, so the download page opens."}</div>`;
-      action = `<button class="btn small primary" id="update-now">${u.installed ? "Update now" : "Download"}</button>`;
+        <div class="set-desc">${u.size ? `<span class="num">${size(u.size)}</span> download. ` : ""}${u.installed ? "Running servers stop for the update and start again afterwards." : "This copy isn't installed, so the download page opens."}</div>`;
+      action = `<button class="btn small primary" id="update-now">${u.installed ? "Update now" : "Download"}${u.size ? ` <span class="num">(${size(u.size)})</span>` : ""}</button>`;
     } else {
       const status = u.checking ? "Checking…" : u.error ? esc(u.error) : checked ? `You're up to date. Last checked ${esc(checked)}.` : "Not checked yet.";
       text = `<div class="set-title">devstack ${esc(S.version)}</div><div class="set-desc ${u.error && !u.checking ? "error-text" : ""}">${status}</div>`;

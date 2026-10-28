@@ -47,6 +47,10 @@ type Info struct {
 	SHA256  string `json:"sha256"`
 	Notes   string `json:"notes,omitempty"`
 	Page    string `json:"page,omitempty"`
+	// Size is the installer's size in bytes as the download server reports it,
+	// 0 when unknown. It isn't in the feed, so it's never signed or trusted:
+	// it only tells the user how big the download is.
+	Size int64 `json:"-"`
 }
 
 type feed struct {
@@ -209,7 +213,27 @@ func Check(ctx context.Context, current string) (*Info, error) {
 	if !Newer(i.Version, current) {
 		return nil, nil
 	}
+	i.Size = installerSize(ctx, i.URL)
 	return &i, nil
+}
+
+// installerSize asks the download server how big the installer is, so the
+// app can say before it downloads. 0 when the server won't say.
+func installerSize(ctx context.Context, u string) int64 {
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, u, nil)
+	if err != nil {
+		return 0
+	}
+	req.Header.Set("User-Agent", UserAgent)
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK || resp.ContentLength < 0 {
+		return 0
+	}
+	return resp.ContentLength
 }
 
 // Download fetches the installer into dir, verifying its sha256 before it
@@ -240,6 +264,11 @@ func Download(ctx context.Context, i Info, dir string, progress func(done, total
 	if err != nil {
 		return "", err
 	}
+	// A server that streams without a length still has the size from Check.
+	total := resp.ContentLength
+	if total <= 0 {
+		total = max(i.Size, 0)
+	}
 	h := sha256.New()
 	var done int64
 	buf := make([]byte, 64<<10)
@@ -253,7 +282,7 @@ func Download(ctx context.Context, i Info, dir string, progress func(done, total
 			}
 			done += int64(n)
 			if progress != nil {
-				progress(done, resp.ContentLength)
+				progress(done, total)
 			}
 		}
 		if rerr == io.EOF {
