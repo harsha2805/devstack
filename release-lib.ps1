@@ -120,6 +120,9 @@ function Send-ReleaseHook([string]$Version) {
         $line = Get-Content $envFile | Where-Object { $_ -match '^RELEASE_HOOK_TOKEN=(.+)$' } | Select-Object -First 1
         if ($line) { $token = ($line -replace '^RELEASE_HOOK_TOKEN=', '').Trim().Trim('"') }
     }
+    # A token pasted or piped through Windows PowerShell can pick up a BOM or a line
+    # break, and HTTP headers take printable ASCII only.
+    $token = $token -replace '[^\x21-\x7E]', ''
     if (-not $token) { Write-Warning "No RELEASE_HOOK_TOKEN: the website shows $Version within a day."; return }
     foreach ($try in 1..5) {
         try {
