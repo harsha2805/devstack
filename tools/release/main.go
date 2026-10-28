@@ -4,6 +4,8 @@
 //	go run ./tools/release keygen            create the key (once) and print the public key to pin
 //	go run ./tools/release check             confirm the key matches one in update.TrustedKeys
 //	go run ./tools/release sign latest.json  add "signature" and verify it as a released app will
+//	go run ./tools/release changelog CHANGELOG.md changelog.json
+//	                                         the changelog as JSON, for the website
 //
 // The private key never belongs in the repository. Default location:
 // %APPDATA%\devstack-release\update-signing-key.pem (override: DEVSTACK_UPDATE_KEY).
@@ -33,6 +35,9 @@ func main() {
 }
 
 func run(args []string) error {
+	if len(args) == 3 && args[0] == "changelog" {
+		return writeChangelog(args[1], args[2])
+	}
 	keyPath, err := keyFile()
 	if err != nil {
 		return err
@@ -101,7 +106,7 @@ func run(args []string) error {
 		fmt.Printf("Signed feed for %s: %s\n", i.Version, args[1])
 		return nil
 	}
-	return errors.New("usage: release keygen | check | sign <latest.json>")
+	return errors.New("usage: release keygen | check | sign <latest.json> | changelog <CHANGELOG.md> <out.json>")
 }
 
 func keyFile() (string, error) {

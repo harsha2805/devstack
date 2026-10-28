@@ -19,6 +19,14 @@
         @endif
         <a class="btn" href="{{ \App\Http\Controllers\SiteController::REPO }}">View the source</a>
       </div>
+      @php($zip = $release ? ($files["devstack_{$release['version']}_portable.zip"] ?? null) : null)
+      @php($sums = $files['SHA256SUMS.txt'] ?? null)
+      @if ($zip || $sums)
+        <p class="fine">Also:
+          @if ($zip)<a href="{{ $zip }}">Portable zip</a> (no installer: unzip and run <code>devstack-app.exe</code>)@endif
+          @if ($zip && $sums) · @endif
+          @if ($sums)<a href="{{ $sums }}">SHA-256 checksums</a>@endif</p>
+      @endif
       <p class="fine">Free and open source · Installs for your account, no administrator prompt · Windows 10/11, 64-bit
         @if ($release) · <a href="{{ route('changelog') }}">What's new in {{ $release['version'] }}</a>@endif</p>
       <p class="fine">devstack isn't code-signed, so Windows may say "Windows protected your PC" the first time: choose

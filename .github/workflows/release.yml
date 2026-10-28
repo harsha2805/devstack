@@ -1,11 +1,14 @@
-# Builds a release when a v1.2.3 tag is pushed (publish-release.ps1 pushes it)
-# and leaves it as a draft for publish-release.ps1 to check and publish.
+# Builds and publishes a release when a v1.2.3 tag is pushed
+# (publish-release.ps1 pushes it).
 #
 # The build runs on GitHub's own runners from the tagged commit, so anyone can
 # trace the files back to this repository's source. They aren't code-signed.
 #
-# The update feed (latest.json) is not made here: it is signed with the offline
-# release key, which never leaves the maintainer's machine.
+# With the DEVSTACK_UPDATE_KEY secret (the release key's PEM), the run signs
+# the update feed (latest.json), publishes the release with it and
+# changelog.json, and tells the website (RELEASE_HOOK_TOKEN), which serves the
+# new feed and changelog from then on. Without the secret it stops at a draft,
+# and publish-release.ps1 signs and publishes from the maintainer's machine.
 name: Release
 
 on:
@@ -13,7 +16,7 @@ on:
     tags: ['v*.*.*']
 
 permissions:
-  contents: write   # create the draft release
+  contents: write   # create the release
 
 jobs:
   release:
@@ -21,6 +24,7 @@ jobs:
     timeout-minutes: 30
     env:
       GH_TOKEN: ${{ github.token }}
+      SIGN: ${{ secrets.DEVSTACK_UPDATE_KEY != '' }}
     defaults:
       run:
         shell: pwsh
@@ -54,23 +58,57 @@ jobs:
           . .\release-lib.ps1
           New-Installer $env:VERSION dist\release\bin
 
-      - name: Zip and checksums
+      - name: Zip, checksums and changelog
         run: |
           . .\release-lib.ps1
           New-ReleaseFiles $env:VERSION dist\release\bin dist\release
           Get-Content dist\release\SHA256SUMS.txt
+          go run ./tools/release changelog CHANGELOG.md dist\release\changelog.json
+          if ($LASTEXITCODE) { throw "changelog.json failed" }
 
-      - name: Draft release
+      - name: Sign the update feed
+        if: env.SIGN == 'true'
+        env:
+          KEY_PEM: ${{ secrets.DEVSTACK_UPDATE_KEY }}
+        run: |
+          . .\release-lib.ps1
+          # The key exists on disk only for this step.
+          $env:DEVSTACK_UPDATE_KEY = Join-Path $env:RUNNER_TEMP "update-signing-key.pem"
+          Set-Content $env:DEVSTACK_UPDATE_KEY $env:KEY_PEM -NoNewline -Encoding ascii
+          try {
+            go run ./tools/release check
+            if ($LASTEXITCODE) { throw "DEVSTACK_UPDATE_KEY doesn't match a key the app trusts" }
+            Write-UpdateFeed $env:VERSION dist\release (Get-UpdateNotes $env:VERSION)
+          } finally {
+            Remove-Item $env:DEVSTACK_UPDATE_KEY -Force -ErrorAction SilentlyContinue
+          }
+
+      - name: Release
         run: |
           . .\release-lib.ps1
           $tag = '${{ github.ref_name }}'
-          $files = "dist\release\devstack_setup_$env:VERSION.exe", "dist\release\devstack_$($env:VERSION)_portable.zip", "dist\release\SHA256SUMS.txt"
+          $files = "dist\release\devstack_setup_$env:VERSION.exe", "dist\release\devstack_$($env:VERSION)_portable.zip",
+                   "dist\release\SHA256SUMS.txt", "dist\release\changelog.json"
+          if ($env:SIGN -eq 'true') { $files += "dist\release\latest.json" }
           Get-ReleaseBody $env:VERSION | Set-Content notes.md -Encoding utf8
           gh release view $tag *> $null
           if ($LASTEXITCODE -eq 0) {
-            # A re-run: replace the files of the draft that is already there.
+            # A re-run: replace the files of the release that is already there.
             gh release upload $tag @files --clobber
           } else {
             gh release create $tag @files --draft --verify-tag --title "devstack $env:VERSION" --notes-file notes.md
           }
           if ($LASTEXITCODE) { throw "gh failed" }
+          if ($env:SIGN -eq 'true') {
+            gh release edit $tag --draft=false --latest
+            if ($LASTEXITCODE) { throw "Publishing $tag failed" }
+          }
+
+      - name: Tell the website
+        if: env.SIGN == 'true'
+        env:
+          HOOK_TOKEN: ${{ secrets.RELEASE_HOOK_TOKEN }}
+        run: |
+          . .\release-lib.ps1
+          $env:RELEASE_HOOK_TOKEN = $env:HOOK_TOKEN
+          Send-ReleaseHook $env:VERSION

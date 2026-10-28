@@ -94,3 +94,42 @@ function Write-UpdateFeed([string]$Version, [string]$Out, [string]$Notes) {
 }
 
 # Throws unless every file carries a valid Authenticode signature.
+
+# Waits for the release workflow run of $Tag to finish and throws if it failed.
+function Wait-ReleaseBuild([string]$Tag) {
+    $id = $null
+    foreach ($i in 1..30) {
+        $id = cmd /c "gh run list --repo $ReleaseRepo --workflow release.yml --branch $Tag --limit 1 --json databaseId --jq .[0].databaseId 2>nul"
+        if ($id) { break }
+        Start-Sleep -Seconds 2
+    }
+    if (-not $id) { throw "GitHub hasn't started a build for $Tag. See https://github.com/$ReleaseRepo/actions/workflows/release.yml" }
+    Write-Host "Waiting for the build: https://github.com/$ReleaseRepo/actions/runs/$id"
+    cmd /c "gh run watch $id --repo $ReleaseRepo --exit-status --interval 15 >nul 2>&1"
+    if ($LASTEXITCODE) { throw "The build of $Tag failed: https://github.com/$ReleaseRepo/actions/runs/$id" }
+}
+
+# Tells the website a release is out (POST /hooks/release), so it fetches the
+# new feed and changelog from GitHub now rather than on its daily refresh. The
+# token is RELEASE_HOOK_TOKEN from the environment (GitHub's secret) or from
+# website\.env.production. Never fails the release: the site catches up anyway.
+function Send-ReleaseHook([string]$Version) {
+    $token = $env:RELEASE_HOOK_TOKEN
+    $envFile = Join-Path $PSScriptRoot "website\.env.production"
+    if (-not $token -and (Test-Path $envFile)) {
+        $line = Get-Content $envFile | Where-Object { $_ -match '^RELEASE_HOOK_TOKEN=(.+)$' } | Select-Object -First 1
+        if ($line) { $token = ($line -replace '^RELEASE_HOOK_TOKEN=', '').Trim().Trim('"') }
+    }
+    if (-not $token) { Write-Warning "No RELEASE_HOOK_TOKEN: the website shows $Version within a day."; return }
+    foreach ($try in 1..5) {
+        try {
+            $r = Invoke-RestMethod -Method Post "$ReleaseSite/hooks/release" -Headers @{ Authorization = "Bearer $token" } -TimeoutSec 30
+            if ($r.version -eq $Version) { Write-Host "The website now offers $Version." -ForegroundColor Green; return }
+            Write-Host "The website still sees $($r.version); GitHub may not list $Version yet."
+        } catch {
+            Write-Host "Telling the website, try ${try}: $($_.Exception.Message)"
+        }
+        Start-Sleep -Seconds (10 * $try)
+    }
+    Write-Warning "The website didn't confirm $Version. It picks it up within a day."
+}

@@ -27,26 +27,40 @@ release files move to `dist\release\old\<version>\`. These local files are never
 Released files are built by GitHub Actions, so anyone can trace them back to this repository. They aren't
 code-signed, so SmartScreen warns on first run ("More info", then "Run anyway"). Commit and push, then:
 
-1. `.\publish-release.ps1 -Version 0.2.0` tags the pushed commit `v0.2.0` and pushes the tag. GitHub builds the
-   release ([release.yml](../.github/workflows/release.yml)) in a few minutes, ending as a draft release.
-2. `.\publish-release.ps1 -Version 0.2.0` again, once the draft is there. It downloads the files into
-   `dist\release\`, checks them against `SHA256SUMS.txt`, writes and signs
-   `latest.json`, and publishes the release:
+`.\publish-release.ps1 -Version 0.2.0` tags the pushed commit `v0.2.0`, pushes the tag and waits. GitHub builds
+and tests it ([release.yml](../.github/workflows/release.yml)), signs `latest.json` with the release key, publishes
+the release and calls the website, which serves the new version within seconds. No website upload is needed.
 
-   | File | What |
-   |---|---|
-   | `devstack_setup_<version>.exe` | per-user installer (no admin), adds devstack to the user PATH |
-   | `devstack_<version>_portable.zip` | both exes, for people who don't want an installer |
-   | `SHA256SUMS.txt` | hashes of the two files above |
-   | `latest.json` | the update feed, signed (goes on the website, not the release) |
+| File on the release | What |
+|---|---|
+| `devstack_setup_<version>.exe` | per-user installer (no admin), adds devstack to the user PATH |
+| `devstack_<version>_portable.zip` | both exes and the php/composer shims, for people who don't want an installer |
+| `SHA256SUMS.txt` | hashes of the two files above |
+| `latest.json` | the update feed, signed; the website copies it to `/latest.json`, where the app reads it |
+| `changelog.json` | `CHANGELOG.md` as JSON, for the website's changelog page |
 
-   The update notes in Settings → Updates are the changelog section's bold lead-ins (`- **Folder picker.** ...`);
-   `-Notes` overrides them.
-3. `website\deploy.ps1` packages the website with the new `latest.json` and changelog; upload it as described in
-   [WEBSITE.md](WEBSITE.md). It only includes `latest.json` once the installer's GitHub URL is live, so installed
-   apps never see an update before its file exists.
+The update notes in Settings → Updates are the changelog section's bold lead-ins (`- **Folder picker.** ...`);
+`-Notes` overrides them in the local flow below.
 
-Installers live on GitHub Releases (free bandwidth, visible history); only `latest.json` is on the website.
+### Repository secrets (once)
+
+| Secret | Value |
+|---|---|
+| `DEVSTACK_UPDATE_KEY` | the release key's PEM text (`%APPDATA%\devstack-release\update-signing-key.pem`) |
+| `RELEASE_HOOK_TOKEN` | a random token; the same value as `RELEASE_HOOK_TOKEN` in `website\.env.production` |
+
+```powershell
+Get-Content -Raw "$env:APPDATA\devstack-release\update-signing-key.pem" | gh secret set DEVSTACK_UPDATE_KEY --repo harsha2805/devstack
+```
+
+With the key in GitHub, anyone who can push a `v*` tag or change the workflow on `main` can sign an update that
+every installed devstack accepts. Keep two-factor authentication on, and don't give others write access lightly.
+To sign only on this machine again, delete the `DEVSTACK_UPDATE_KEY` secret: the workflow then stops at a draft
+and `publish-release.ps1` signs, attaches `latest.json`, publishes and calls the website itself (it reads the
+token from `website\.env.production`).
+
+Without `RELEASE_HOOK_TOKEN` (or if the call fails) the website still picks the release up on its own within a day.
+Installers live on GitHub Releases (free bandwidth, visible history); the website only copies the feed.
 
 ## How updates work
 

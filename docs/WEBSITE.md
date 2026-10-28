@@ -3,10 +3,13 @@
 A small Laravel 13 app in `website/`: home page, changelog, `/download` and `/sponsor` redirects, and the app's update
 feed at `/latest.json`. It has no database and no Node build, so it runs on ordinary shared hosting.
 
-The home page shows how many times devstack was downloaded: the sum of GitHub's download counts for every
-release's installer and zip (in-app updates fetch the same installer, so they count too). It asks GitHub's API at
-most once an hour, keeps the last total in Laravel's file cache if GitHub can't be reached, and shows nothing until
-the first download. The README's badges show the same total from shields.io.
+Releases reach the site without an upload. `app/Support/Releases.php` reads GitHub's release list: the newest
+release's `latest.json` (copied to `public_html/latest.json` when it is newer, well formed and points at a GitHub
+download; the app checks its signature), its `changelog.json` for `/changelog`, every release's files (the
+portable zip and checksum links) and the download total (installers and zips; in-app updates count too). It asks
+at most once a day, and at once when the release workflow calls `POST /hooks/release` with `RELEASE_HOOK_TOKEN`.
+If GitHub can't be reached it keeps the last data in Laravel's file cache, and the copies `deploy.ps1` shipped
+cover a fresh install. The README's badges show the download total from shields.io.
 
 ## Run it locally
 
@@ -21,12 +24,14 @@ php artisan test
 Or let devstack serve it: link the folder into your stack's `www` (`mklink /J D:\devstack\www\devstack-web D:\devstack-development\website`)
 and open `https://devstack-web.test`.
 
-## Release order
+## Releases and deploys
 
-1. `.\publish-release.ps1 -Version x.y.z`, twice: the first run starts the signed GitHub build, the second
-   publishes it and writes `dist\release\latest.json` ([RELEASING.md](RELEASING.md)).
-2. `website\deploy.ps1`: builds `dist\website.zip`, including `latest.json` only once step 1's installer URL is live.
-3. Upload and extract the zip (below). Installed copies of devstack see the update within a day.
+A release is just `.\publish-release.ps1 -Version x.y.z` ([RELEASING.md](RELEASING.md)); the site updates itself.
+Deploy (below) only when the website's own code or design changes. `deploy.ps1` still bundles the current
+`latest.json` and changelog, so a fresh install has something to show before GitHub is first asked.
+
+`RELEASE_HOOK_TOKEN` in `website\.env.production` must match the repository secret of the same name. Without it
+the hook answers 404 and the site refreshes daily.
 
 ## Hosting layout
 
@@ -60,7 +65,8 @@ default). For a host that can point the web root at `public/`, use `-Layout publ
 1. Run `website\deploy.ps1`. It writes `dist\website.zip` with `devstack/` and `public_html/` inside.
 2. In the File Manager, open `domains/devstack.holostack.in/`, upload the zip there (next to `public_html`, not in
    it) and extract it, overwriting existing files.
-3. Make sure `devstack/storage/` and `devstack/bootstrap/cache/` are writable (755 folders is usual).
+3. Make sure `devstack/storage/` and `devstack/bootstrap/cache/` are writable (755 folders is usual), and that
+   PHP can write `public_html/latest.json` (it replaces it when a release is published).
 4. Delete the uploaded zip.
 5. Check `https://devstack.holostack.in/` and `https://devstack.holostack.in/latest.json`.
 

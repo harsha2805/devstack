@@ -28,6 +28,11 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    // POST /hooks/release (ReleaseHookController): the release workflow's token.
+    'release_hook' => [
+        'token' => env('RELEASE_HOOK_TOKEN'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

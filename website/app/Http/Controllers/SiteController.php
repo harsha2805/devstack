@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Support\Downloads;
+use App\Support\Releases;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
@@ -10,8 +10,8 @@ use Illuminate\View\View;
 /**
  * The devstack website. It has no database: the current release comes from
  * public/latest.json (the same signed feed the app reads) and the changelog
- * from resources/markdown/CHANGELOG.md. deploy.ps1 copies both in from the
- * repository before each upload.
+ * from the newest release's changelog.json, both kept current from GitHub by
+ * App\Support\Releases. deploy.ps1 ships copies of both, used until then.
  */
 class SiteController extends Controller
 {
@@ -23,18 +23,16 @@ class SiteController extends Controller
     {
         $release = $this->release();
 
-        return view('home', ['release' => $release, 'downloads' => $release ? Downloads::total() : null]);
+        return view('home', [
+            'release' => $release,
+            'downloads' => $release ? Releases::downloads() : null,
+            'files' => $release ? Releases::files($release['version']) : [],
+        ]);
     }
 
     public function changelog(): View
     {
-        // deploy.ps1 copies the changelog in; locally, read the repo's own.
-        $path = collect([resource_path('markdown/CHANGELOG.md'), base_path('../CHANGELOG.md')])->first(fn ($p) => is_file($p));
-        $markdown = $path ? file_get_contents($path) : '';
-        // The page has its own heading and intro; start at the first version.
-        $markdown = preg_replace('/\A.*?(?=^## )/ms', '', $markdown) ?? '';
-        // "## [0.1.0] — date" reads better on a web page without the brackets.
-        $markdown = preg_replace('/^## \[([^\]]+)\]/m', '## $1', $markdown) ?? '';
+        $markdown = $this->changelogMarkdown();
 
         return view('changelog', [
             'html' => Str::markdown($markdown, ['html_input' => 'escape', 'allow_unsafe_links' => false]),
@@ -50,9 +48,39 @@ class SiteController extends Controller
         return redirect()->away($release['url'] ?? self::REPO.'/releases');
     }
 
+    /** Short link for the newest portable zip. */
+    public function portable(): RedirectResponse
+    {
+        $release = $this->release();
+        $zip = $release ? (Releases::files($release['version'])["devstack_{$release['version']}_portable.zip"] ?? null) : null;
+
+        return redirect()->away($zip ?? self::REPO.'/releases');
+    }
+
     public function sponsor(): RedirectResponse
     {
         return redirect()->away(self::SPONSOR);
+    }
+
+    /**
+     * The changelog from the newest release's changelog.json; until GitHub has
+     * been asked, the copy deploy.ps1 ships (locally, the repo's own).
+     */
+    private function changelogMarkdown(): string
+    {
+        $versions = Releases::changelog();
+        if ($versions) {
+            return collect($versions)
+                ->map(fn ($v) => '## '.$v['version'].' — '.($v['date'] ?: 'unreleased')."\n\n".$v['markdown'])
+                ->implode("\n\n");
+        }
+        $path = collect([resource_path('markdown/CHANGELOG.md'), base_path('../CHANGELOG.md')])->first(fn ($p) => is_file($p));
+        $markdown = $path ? file_get_contents($path) : '';
+        // The page has its own heading and intro; start at the first version.
+        $markdown = preg_replace('/\A.*?(?=^## )/ms', '', $markdown) ?? '';
+
+        // "## [0.1.0] — date" reads better on a web page without the brackets.
+        return preg_replace('/^## \[([^\]]+)\]/m', '## $1', $markdown) ?? '';
     }
 
     /**
