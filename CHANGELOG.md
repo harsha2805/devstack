@@ -5,6 +5,13 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions
 The release scripts need a section for the version they build and take the in-app update notes from the
 bold lead-ins under it, so write each feature up here when it lands.
 
+## [0.2.5] — 2026-10-28
+
+### Changed
+- **Releases published in one step.** Each release is now built, tested, signed and published on GitHub from its
+  tagged source, and devstack.holostack.in follows within seconds, with links to the portable zip and the SHA-256
+  checksums. The app itself is the same as 0.2.4.
+
 ## [0.2.4] — 2026-10-28
 
 ### Changed
