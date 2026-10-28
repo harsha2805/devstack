@@ -35,8 +35,7 @@ VersionInfoVersion={#AppVersion}
 VersionInfoCompany=HoloStack
 VersionInfoDescription=devstack Setup
 VersionInfoProductName=devstack
-; Exactly the version build.ps1 writes into the exes: SignPath checks that
-; every file it signs carries the same product name and version.
+; Exactly the version build.ps1 writes into the exes.
 VersionInfoTextVersion={#AppVersion}
 VersionInfoProductTextVersion={#AppVersion}
 VersionInfoCopyright=Copyright (c) 2026 Harsha (HoloStack). MIT license.

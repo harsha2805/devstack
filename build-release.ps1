@@ -6,8 +6,8 @@
 .DESCRIPTION
   This build is unsigned and is never published. Released files come from the
   GitHub workflow (.github/workflows/release.yml), which builds the same way on
-  GitHub's runners and has them code-signed through SignPath; publish-release.ps1
-  starts it and then publishes its draft. See docs/RELEASING.md.
+  GitHub's runners; publish-release.ps1 starts it and then publishes its draft.
+  See docs/RELEASING.md.
 
   Previous release files are moved to dist\release\old\<version>.
 

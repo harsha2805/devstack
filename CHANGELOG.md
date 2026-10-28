@@ -36,9 +36,7 @@ bold lead-ins under it, so write each feature up here when it lands.
 ### Changed
 - **Current PHP builds.** PHP 8.2 to 8.5 now download php.net's rebuilt zips (`8.4.27-1` and so on). The PHP
   versions are the same.
-- **Signed releases.** Releases are now built by GitHub Actions from the tagged source and, once SignPath Foundation
-  accepts the project, code-signed, so Windows can name the publisher instead of warning about an unknown app.
-  The [code signing policy](https://devstack.holostack.in/code-signing) says how.
+- **Releases built on GitHub.** Releases are now built and tested by GitHub Actions from the tagged source.
 - **Publisher details.** `devstack.exe`, `devstack-app.exe` and the installer now carry the product name, version,
   publisher (HoloStack) and copyright in their file properties.
 - **Privacy statement.** Setup now says, before installing, exactly what devstack connects to: the daily update

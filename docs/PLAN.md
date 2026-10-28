@@ -402,6 +402,7 @@ Not yet tested: the in-app download from the real feed, since nothing is hosted 
 
 ### Open (owner decisions)
 
-- Code signing. Open source makes Certum's open-source certificate (low cost) or SignPath Foundation (free, signs
-  CI builds) the likely routes. Until then releases are unsigned and SmartScreen warns on first run.
+- Code signing. SignPath Foundation declined on 2026-10-28 until the project is better known; reapply later, or
+  buy Certum's open-source certificate (low cost). Until then releases are unsigned and SmartScreen warns on first
+  run.
 - License for the repository (needed before it is published as open source).

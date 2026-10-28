@@ -133,20 +133,11 @@ The **AI guide** switch on each site (or `devstack guide add`) fixes that:
 | `data\` | MySQL data, daemon state, `secrets.toml` |
 | `logs\` | `devstack.log`, `nginx-error.log`, `php-8.3-error.log`, `mysql.log`, `sites\*.access.log` |
 
-## Code signing policy
+## Downloads
 
-Free code signing provided by [SignPath.io](https://signpath.io), certificate by
-[SignPath Foundation](https://signpath.org).
-
-- **What is signed:** each release's installer and the two programs in it (`devstack-app.exe`, `devstack.exe`),
-  built and tested by GitHub Actions from a tagged commit of this repository
-  ([release.yml](.github/workflows/release.yml)). nginx, PHP and MySQL are never signed by devstack.
-- **Committers and reviewers:** [harsha2805](https://github.com/harsha2805). Changes from anyone else arrive as
-  pull requests and are reviewed before they are merged.
-- **Approvers:** [harsha2805](https://github.com/harsha2805) approves every signing request by hand.
-
-How releases are built and signed: [docs/SIGNING.md](docs/SIGNING.md). The same policy is on
-[devstack.holostack.in/code-signing](https://devstack.holostack.in/code-signing).
+Releases are built and tested by GitHub Actions from a tagged commit of this repository
+([release.yml](.github/workflows/release.yml)). They aren't code-signed, so Windows may show "Windows protected your
+PC" the first time: choose **More info → Run anyway**. Each release's `SHA256SUMS.txt` lists the files' hashes.
 
 ## Privacy
 

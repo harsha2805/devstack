@@ -24,14 +24,13 @@ release files move to `dist\release\old\<version>\`. These local files are never
 
 ## Publish
 
-Released files are built by GitHub Actions and code-signed through SignPath ([SIGNING.md](SIGNING.md)), so anyone
-can trace them back to this repository. Commit and push, then:
+Released files are built by GitHub Actions, so anyone can trace them back to this repository. They aren't
+code-signed, so SmartScreen warns on first run ("More info", then "Run anyway"). Commit and push, then:
 
 1. `.\publish-release.ps1 -Version 0.2.0` tags the pushed commit `v0.2.0` and pushes the tag. GitHub builds the
-   release ([release.yml](../.github/workflows/release.yml)); approve its two signing requests on signpath.io. The
-   build ends as a draft release.
+   release ([release.yml](../.github/workflows/release.yml)) in a few minutes, ending as a draft release.
 2. `.\publish-release.ps1 -Version 0.2.0` again, once the draft is there. It downloads the files into
-   `dist\release\`, checks them against `SHA256SUMS.txt` and checks their signatures, writes and signs
+   `dist\release\`, checks them against `SHA256SUMS.txt`, writes and signs
    `latest.json`, and publishes the release:
 
    | File | What |
@@ -42,7 +41,7 @@ can trace them back to this repository. Commit and push, then:
    | `latest.json` | the update feed, signed (goes on the website, not the release) |
 
    The update notes in Settings → Updates are the changelog section's bold lead-ins (`- **Folder picker.** ...`);
-   `-Notes` overrides them. Until SignPath is set up, `-AllowUnsigned` publishes an unsigned build.
+   `-Notes` overrides them.
 3. `website\deploy.ps1` packages the website with the new `latest.json` and changelog; upload it as described in
    [WEBSITE.md](WEBSITE.md). It only includes `latest.json` once the installer's GitHub URL is live, so installed
    apps never see an update before its file exists.

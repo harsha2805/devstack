@@ -1,10 +1,8 @@
 # Builds a release when a v1.2.3 tag is pushed (publish-release.ps1 pushes it)
 # and leaves it as a draft for publish-release.ps1 to check and publish.
 #
-# The build runs on GitHub's own runners from the tagged commit, which is what
-# lets SignPath confirm the files came from this repository's source. With the
-# SignPath settings below (docs/SIGNING.md) the exes and the installer are
-# code-signed; without them the build is the same, unsigned.
+# The build runs on GitHub's own runners from the tagged commit, so anyone can
+# trace the files back to this repository's source. They aren't code-signed.
 #
 # The update feed (latest.json) is not made here: it is signed with the offline
 # release key, which never leaves the maintainer's machine.
@@ -16,14 +14,12 @@ on:
 
 permissions:
   contents: write   # create the draft release
-  actions: read     # SignPath reads this run and its artifacts
 
 jobs:
   release:
     runs-on: windows-latest
-    timeout-minutes: 240   # signing waits for a person to approve each request
+    timeout-minutes: 30
     env:
-      SIGN: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
       GH_TOKEN: ${{ github.token }}
     defaults:
       run:
@@ -49,37 +45,6 @@ jobs:
       - name: Build the exes
         run: .\build.ps1 -Version $env:VERSION -OutDir dist\release\bin
 
-      - name: Upload the exes for signing
-        id: exes
-        if: env.SIGN == 'true'
-        uses: actions/upload-artifact@v5
-        with:
-          name: exes-unsigned
-          path: dist/release/bin/*.exe
-          if-no-files-found: error
-
-      - name: Sign the exes
-        if: env.SIGN == 'true'
-        uses: signpath/github-action-submit-signing-request@v1
-        with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
-          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
-          artifact-configuration-slug: exes
-          github-artifact-id: ${{ steps.exes.outputs.artifact-id }}
-          parameters: |
-            version: "${{ env.VERSION }}"
-          wait-for-completion-timeout-in-seconds: 7200
-          output-artifact-directory: dist/signed/exes
-
-      - name: Use the signed exes
-        if: env.SIGN == 'true'
-        run: |
-          . .\release-lib.ps1
-          Assert-Signed (Get-ChildItem dist\signed\exes\*.exe).FullName
-          Copy-Item dist\signed\exes\*.exe dist\release\bin -Force
-
       - name: Build the installer
         run: |
           if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
@@ -88,40 +53,6 @@ jobs:
           }
           . .\release-lib.ps1
           New-Installer $env:VERSION dist\release\bin
-          # A fixed name, so the SignPath configuration doesn't change per version.
-          New-Item -ItemType Directory -Force dist\unsigned | Out-Null
-          Copy-Item "dist\release\devstack_setup_$env:VERSION.exe" dist\unsigned\devstack_setup.exe
-
-      - name: Upload the installer for signing
-        id: setup
-        if: env.SIGN == 'true'
-        uses: actions/upload-artifact@v5
-        with:
-          name: installer-unsigned
-          path: dist/unsigned/devstack_setup.exe
-          if-no-files-found: error
-
-      - name: Sign the installer
-        if: env.SIGN == 'true'
-        uses: signpath/github-action-submit-signing-request@v1
-        with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
-          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
-          artifact-configuration-slug: installer
-          github-artifact-id: ${{ steps.setup.outputs.artifact-id }}
-          parameters: |
-            version: "${{ env.VERSION }}"
-          wait-for-completion-timeout-in-seconds: 7200
-          output-artifact-directory: dist/signed/setup
-
-      - name: Use the signed installer
-        if: env.SIGN == 'true'
-        run: |
-          . .\release-lib.ps1
-          Assert-Signed dist\signed\setup\devstack_setup.exe
-          Copy-Item dist\signed\setup\devstack_setup.exe "dist\release\devstack_setup_$env:VERSION.exe" -Force
 
       - name: Zip and checksums
         run: |

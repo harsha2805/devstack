@@ -7,6 +7,6 @@ Route::get('/', [SiteController::class, 'home'])->name('home');
 Route::get('/changelog', [SiteController::class, 'changelog'])->name('changelog');
 Route::get('/download', [SiteController::class, 'download'])->name('download');
 Route::get('/sponsor', [SiteController::class, 'sponsor'])->name('sponsor');
-Route::view('/code-signing', 'code-signing')->name('code-signing');
+Route::redirect('/code-signing', '/'); // linked from the 0.2.0 release notes
 Route::view('/privacy', 'privacy')->name('privacy');
 // /latest.json (the app's update feed) is a static file in public/.

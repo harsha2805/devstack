@@ -33,7 +33,7 @@ $(Get-ChangelogSection $Version)
 
 **Install:** download ``devstack_setup_$Version.exe`` below and run it. It installs for your account, with no administrator prompt.
 **Verify:** the SHA-256 of each file is in ``SHA256SUMS.txt``.
-**Code signing policy:** $ReleaseSite/code-signing
+**Not code-signed:** if Windows says "Windows protected your PC", choose More info, then Run anyway.
 "@
 }
 
@@ -94,10 +94,3 @@ function Write-UpdateFeed([string]$Version, [string]$Out, [string]$Notes) {
 }
 
 # Throws unless every file carries a valid Authenticode signature.
-function Assert-Signed([string[]]$Paths) {
-    foreach ($path in $Paths) {
-        $sig = Get-AuthenticodeSignature $path
-        if ($sig.Status -ne 'Valid') { throw "$path is not validly signed ($($sig.Status))" }
-        Write-Host ("Signed: {0} by {1}" -f (Split-Path $path -Leaf), $sig.SignerCertificate.GetNameInfo('SimpleName', $false))
-    }
-}

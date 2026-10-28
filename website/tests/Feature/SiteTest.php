@@ -69,16 +69,11 @@ class SiteTest extends TestCase
         $this->assertStringNotContainsString('build-release.ps1', $response->getContent(), 'maintainer notes above the first version should be dropped');
     }
 
-    public function test_code_signing_policy_and_privacy_pages(): void
+    public function test_privacy_page(): void
     {
-        // SignPath Foundation asks for this wording, linked from the home and download pages.
-        $this->get('/code-signing')->assertOk()
-            ->assertSee('Free code signing provided by', false)
-            ->assertSee('certificate by', false)
-            ->assertSee('Approvers');
         $this->get('/privacy')->assertOk()->assertSee('devstack.holostack.in/latest.json')->assertSee('Check for updates automatically');
-        $this->get('/')->assertSee('Code signing policy')->assertSee(route('privacy'), false)
-            ->assertSee('certificate by', false)->assertSee('SignPath Foundation');
+        $this->get('/')->assertSee(route('privacy'), false)->assertSee('Run anyway')->assertDontSee('SignPath');
+        $this->get('/code-signing')->assertRedirect('/');
     }
 
     public function test_sponsor_redirects_to_github_sponsors(): void
