@@ -5,7 +5,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions
 The release scripts need a section for the version they build and take the in-app update notes from the
 bold lead-ins under it, so write each feature up here when it lands.
 
-## [0.2.6] — 2026-10-30
+## [0.2.7] — 2026-10-30
 
 ### Added
 - **Projects outside www.** Sites > Add folder… serves a project from anywhere, such as `E:\clients\acme`, without
