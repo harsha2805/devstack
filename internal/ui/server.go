@@ -158,6 +158,8 @@ func (s *Server) routes() http.Handler {
 	api.HandleFunc("POST /api/packages/install", s.handleInstall)
 	api.HandleFunc("POST /api/packages/remove", s.handleRemove)
 	api.HandleFunc("POST /api/ext", s.handleExt)
+	api.HandleFunc("GET /api/phpini", s.handlePHPINI)
+	api.HandleFunc("POST /api/phpini", s.handlePHPINISave)
 	api.HandleFunc("POST /api/open", s.handleOpen)
 	api.HandleFunc("POST /api/terminal", s.handleTerminal)
 	api.HandleFunc("POST /api/shims/fix", s.handleShimsFix)

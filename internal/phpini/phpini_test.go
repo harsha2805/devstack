@@ -62,3 +62,26 @@ func TestFull(t *testing.T) {
 		t.Errorf("ExtName = %s", got)
 	}
 }
+
+func TestUnset(t *testing.T) {
+	got := Unset(sample, "memory_limit")
+	if !strings.Contains(got, ";memory_limit = 128M\n;memory_limit = 256M\n") {
+		t.Errorf("every active line should be commented out:\n%s", got)
+	}
+	if s := Settings(got); len(s) != 0 {
+		t.Errorf("Settings after Unset = %v", s)
+	}
+	if got := Set(got, "memory_limit", "1G"); !strings.Contains(got, "memory_limit = 1G\n;memory_limit = 256M") {
+		t.Errorf("Set after Unset should reuse the first line:\n%s", got)
+	}
+}
+
+func TestExtensionStates(t *testing.T) {
+	want := []Ext{{"curl", false}, {"gd", true}, {"exif", false}}
+	if got := ExtensionStates(sample); !slices.Equal(got, want) {
+		t.Errorf("ExtensionStates = %v, want %v", got, want)
+	}
+	if got := ExtensionStates(sample + "extension=curl\n"); !got[0].On {
+		t.Errorf("curl listed off and on should be on: %v", got)
+	}
+}

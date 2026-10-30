@@ -300,6 +300,53 @@ pre#log-text {
 .step .bar-track { grid-column: 2 / -1; }
 .step .amount { font-size: 11.5px; color: var(--text-3); }
 
+/* ---- php.ini settings sheet ---- */
+dialog.sheet {
+  padding: 0; border: 1px solid var(--border-strong); border-radius: 12px;
+  background: var(--card); color: var(--text);
+  width: min(780px, calc(100vw - 36px)); height: min(760px, calc(100vh - 36px)); max-height: none;
+}
+dialog.sheet[open] { display: flex; flex-direction: column; }
+dialog.sheet::backdrop { background: rgb(20 18 15 / .38); }
+.sheet-head { display: flex; align-items: center; gap: 8px; padding: 14px 16px 10px; }
+.sheet-head h2 { margin: 0; }
+.sheet-head .grow { flex: 1; min-width: 0; }
+.sheet-head .set-desc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sheet-search { padding: 0 16px 10px; border-bottom: 1px solid var(--border); }
+.sheet-search input { width: 100%; height: 32px; font: 13px var(--font); color: var(--text); background: var(--window);
+  border: 1px solid var(--border); border-radius: 6px; padding: 0 10px; }
+.sheet-search input:focus { outline: none; border-color: var(--accent); }
+.sheet-body { flex: 1; min-height: 0; overflow: auto; padding: 4px 16px 16px; }
+.sheet-foot { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--border); background: var(--subtle); border-radius: 0 0 12px 12px; }
+.sheet-foot .grow { flex: 1; min-width: 0; font-size: 12.5px; color: var(--text-2); }
+.sheet-foot .grow b { color: var(--text); }
+.sheet-foot.ask-save { background: var(--warn-soft); }
+.sheet-foot.ask-save .grow { color: var(--warn); }
+
+.ini-group h3 { font-size: 12px; font-weight: 600; color: var(--text-2); margin: 16px 0 2px; text-transform: uppercase; letter-spacing: .04em; }
+.ini-group .h-note { text-transform: none; letter-spacing: 0; }
+.ini-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 16px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--border); }
+.ini-row:last-child { border-bottom: 0; }
+.ini-label { font-weight: 600; }
+.ini-key { font: 11.5px var(--mono); color: var(--text-3); margin-left: 6px; font-weight: 400; }
+.ini-help { font-size: 12px; color: var(--text-3); }
+.ini-ctl { display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
+.ini-ctl input[type="text"] { width: 190px; font-family: var(--mono); font-size: 12.5px; }
+.ini-ctl select { max-width: 320px; }
+.ini-ctl input.short { width: 110px; }
+.ini-ctl input.bad, .ini-add input.bad { border-color: var(--danger); }
+.ini-note { grid-column: 1 / -1; font-size: 12px; }
+.ini-note.warn { color: var(--warn); }
+.ini-note.bad { color: var(--danger); }
+.ini-note.locked { color: var(--text-2); }
+.ini-row.changed .ini-label::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-right: 7px; vertical-align: 2px; }
+.ini-undo { font-size: 12px; }
+.ini-add { display: flex; gap: 6px; align-items: center; padding: 10px 0 0; }
+.ini-add input { font-family: var(--mono); font-size: 12.5px; }
+.ini-add input:first-child { width: 220px; }
+.ini-add input:nth-child(2) { flex: 1; min-width: 0; }
+.ini-empty { padding: 24px 0; text-align: center; color: var(--text-3); }
+
 /* ---- toast ---- */
 #toast {
   position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);

@@ -5,6 +5,23 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions
 The release scripts need a section for the version they build and take the in-app update notes from the
 bold lead-ins under it, so write each feature up here when it lands.
 
+## [0.3.0] — 2026-10-30
+
+### Added
+- **PHP settings without editing a text file.** Servers > php.ini now opens a settings form for that PHP version
+  instead of a 2,000-line file. The settings people change most are grouped and explained in plain words: showing
+  errors, upload and form limits, memory and time limits, the time zone, OPcache and sessions. Every extension in
+  that version's `ext` folder has an on/off switch with a line on what it's for, a search box finds any setting or
+  extension, and "More settings" lists everything else your php.ini sets and lets you add your own. Values are
+  checked as you type: sizes like `256M`, whole numbers, real time zones, and a warning when the form limit is
+  smaller than the upload limit. Nothing is written until you press Save, which stays greyed out until something
+  changes; closing with unsaved changes asks whether to save, discard or keep editing, and Undo puts any one setting
+  back. Saving restarts that PHP version right away and says so; with the servers stopped, `php` in terminals uses
+  the new settings at once and the servers use them when they start. A setting fixed by `[php.ini]` in `stack.toml`
+  is shown locked with the value that wins. The form edits the same file in place, comments and all: Open as text,
+  or the arrow button beside php.ini, opens it in your text editor, and if the file changes there while the form is
+  open, Save stops rather than overwrite it.
+
 ## [0.2.8] — 2026-10-30
 
 ### Changed

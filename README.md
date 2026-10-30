@@ -101,7 +101,8 @@ tray; "Stop servers and quit" ends everything. Choosing a folder that already ha
 
 - **Sites:** click a name to open its folder, an address to open it in the browser, pick its PHP version, switch
   its AI guide on, or open a terminal there with its PHP ready.
-- **Servers:** services, the database login, PHP extensions (SQL Server), and versions to install or remove.
+- **Servers:** services, each PHP version's settings and extensions (php.ini), the database login, SQL Server
+  extensions, and versions to install or remove.
 - **Logs** and **Settings:** start servers with the app, open at sign-in, `.test` addresses, HTTPS, updates.
 
 It is plain HTML/CSS/JS served on 127.0.0.1 behind a per-launch token and shown in a WebView2 window; without
@@ -214,7 +215,7 @@ The **AI guide** switch on each site (or `devstack guide add`) fixes that:
 | `[projects]` in `stack.toml` | project folders kept outside `www`, by the name each is served under |
 | `etc\` | generated config, rewritten on every render; don't edit |
 | `etc-custom\nginx\*.conf` | your own nginx config, included and never touched |
-| `etc-custom\php\8.3\php.ini` | the full php.ini of PHP 8.3, every extension listed; edit it freely (Servers > php.ini) |
+| `etc-custom\php\8.3\php.ini` | the full php.ini of PHP 8.3, every extension listed; change it in Servers > php.ini or edit it freely |
 | `data\` | MySQL data, daemon state, `secrets.toml` |
 | `logs\` | `devstack.log`, `nginx-error.log`, `php-8.3-error.log`, `mysql.log`, `sites\*.access.log` |
 
@@ -227,6 +228,12 @@ Sites on the same PHP version share one php.ini, as in Laragon or Herd. Change s
 | one site | `.user.ini` in the site's docroot (`public\` for Laravel) | within seconds, no reload |
 | every site on one PHP version | Servers > **php.ini** (`etc-custom\php\<version>\php.ini`) | PHP restarts when you save |
 | every PHP version | `[php.ini]` in `stack.toml` (wins over each version's php.ini) | after Reload |
+
+Servers > **php.ini** opens a settings form for that PHP version: errors, upload and memory limits, time zone,
+OPcache and sessions in plain words, a switch for every extension, and everything else the file sets. It checks
+values as you type (`256M`, a real time zone, a post limit at least as large as the upload limit), saves nothing
+until you press Save, asks before closing with unsaved changes, and restarts that PHP version when you save. It
+edits the same file in place, keeping your comments; the arrow button beside it opens the file as text instead.
 
 Each PHP version's php.ini is a whole php.ini, built the first time from PHP's own `php.ini-development` with
 devstack's development settings. Every extension in that version's `ext` folder is listed under "Dynamic

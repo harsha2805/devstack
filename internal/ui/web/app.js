@@ -332,11 +332,13 @@ function renderServers() {
           ${g.last_error && g.state !== "running" ? `<div class="err">${esc(g.last_error.split("\n")[0])}</div>` : ""}</div>
         <span class="mono muted num">:${esc(g.ports)}</span>
         <span class="state ${esc(g.state)}">${esc(g.state)}${g.restarts ? ` · ${g.restarts} restart${g.restarts === 1 ? "" : "s"}` : ""}</span>
-        ${g.name.startsWith("php-") ? `<button class="btn small ghost" data-phpini="${esc(g.name.slice(4))}" title="Open the php.ini of ${esc(label(g.name))}: every setting, and every extension (remove the ; in front of extension= to turn one on). Saving it restarts ${esc(label(g.name))}.">php.ini</button>` : ""}
+        ${g.name.startsWith("php-") ? `<button class="btn small ghost" data-phpini="${esc(g.name.slice(4))}" title="Change ${esc(label(g.name))}'s settings and extensions in a form. Saving restarts ${esc(label(g.name))}.">php.ini</button>
+          <button class="btn small ghost icon-only" data-phpini-text="${esc(g.name.slice(4))}" title="Open the php.ini of ${esc(label(g.name))} as text: every setting, and every extension (remove the ; in front of extension= to turn one on). Saving it restarts ${esc(label(g.name))}." aria-label="Open the php.ini of ${esc(label(g.name))} as text">${icon("open")}</button>` : ""}
         ${S.running ? `<button class="btn small ghost" data-restart="${esc(g.name)}" title="Restart ${esc(g.name)}">${icon("reload")}</button>` : ""}
       </div>`).join("")}</div>
       ${S.warnings.map((w) => `<div class="notice warn">${esc(w)}</div>`).join("")}`;
-    document.querySelectorAll("[data-phpini]").forEach((b) => (b.onclick = () => open("phpini", b.dataset.phpini)));
+    document.querySelectorAll("[data-phpini]").forEach((b) => (b.onclick = () => openINI(b.dataset.phpini)));
+    document.querySelectorAll("[data-phpini-text]").forEach((b) => (b.onclick = () => open("phpini", b.dataset.phpiniText)));
     document.querySelectorAll("[data-restart]").forEach((b) => (b.onclick = () => act("/api/restart", { unit: b.dataset.restart }, "Restarted " + b.dataset.restart).catch(() => {})));
   });
 
@@ -448,6 +450,425 @@ function extensionsGroup(job, busy) {
   return `<div class="pkg-group"><h3>PHP extensions <span class="h-note">Not in php.net's builds; downloaded from php.net's PECL builds for each PHP version and checked against a pinned SHA-256.</span></h3>
     <div class="rows">${rows}</div>${odbc}</div>`;
 }
+
+// ---- php.ini settings editor ----------------------------------------------------
+// A form over a PHP version's own php.ini (etc-custom\php\X.Y\php.ini). Nothing is
+// written until Save, and the server edits the lines in place, so the file stays
+// the same one the "as text" button opens.
+
+// INI_GROUPS are the settings beginners reach for. def is PHP's built-in default,
+// shown when the file doesn't set one.
+const INI_GROUPS = [
+  { title: "Errors", items: [
+    { key: "display_errors", type: "bool", label: "Show errors on the page", help: "Print PHP errors in the browser. Keep it on while developing.", def: "Off" },
+    { key: "error_reporting", type: "select", label: "Which problems to report", def: "E_ALL", options: [
+      ["E_ALL", "Everything (best while developing)"],
+      ["E_ALL & ~E_DEPRECATED", "Everything except deprecation notices"],
+      ["E_ALL & ~E_NOTICE & ~E_DEPRECATED", "Errors and warnings only"],
+      ["E_ERROR | E_PARSE", "Fatal errors only"]] },
+    { key: "display_startup_errors", type: "bool", label: "Show startup errors", help: "Problems PHP hits while starting, such as an extension that won't load.", def: "On" },
+    { key: "log_errors", type: "bool", label: "Write errors to the log", help: "To this PHP version's error log on the Logs tab.", def: "On" },
+  ] },
+  { title: "Uploads and forms", items: [
+    { key: "upload_max_filesize", type: "size", label: "Largest file upload", help: "Per file. Use K, M or G, like 64M.", def: "2M" },
+    { key: "post_max_size", type: "size", label: "Largest form submission", help: "The whole request, every file in it included. Keep it at least as large as the upload limit.", def: "8M" },
+    { key: "max_file_uploads", type: "int", label: "Files per upload", help: "How many files one form can send.", def: "20" },
+    { key: "max_input_vars", type: "int", label: "Form fields per request", help: "Raise it if big forms (WordPress menus, admin panels) lose fields.", def: "1000" },
+  ] },
+  { title: "Limits", items: [
+    { key: "memory_limit", type: "size", label: "Memory per request", help: "Like 512M or 1G. -1 means no limit.", def: "128M" },
+    { key: "max_execution_time", type: "int", label: "Time limit per request", help: "In seconds. 0 means no limit. php in a terminal has none.", def: "30" },
+    { key: "max_input_time", type: "int", label: "Time to receive a request", help: "In seconds, for slow uploads. -1 uses the time limit above.", def: "-1", signed: true },
+  ] },
+  { title: "Date and time", items: [
+    { key: "date.timezone", type: "tz", label: "Time zone", help: "What date() and now() use, like Asia/Kolkata or Europe/London.", def: "UTC" },
+  ] },
+  { title: "Speed (OPcache)", items: [
+    { key: "opcache.enable", type: "bool", label: "Cache compiled PHP", help: "Makes every request faster.", def: "1", num: true },
+    { key: "opcache.validate_timestamps", type: "bool", label: "Notice changed files", help: "Turn off only to test production speed: code edits then need a PHP restart.", def: "1", num: true },
+    { key: "opcache.revalidate_freq", type: "int", label: "Seconds between checks", help: "How often changed files are noticed. 0 notices them on the next request.", def: "2" },
+    { key: "opcache.memory_consumption", type: "int", label: "Cache size (MB)", help: "Raise it for very large projects.", def: "128" },
+  ] },
+  { title: "Sessions", items: [
+    { key: "session.gc_maxlifetime", type: "int", label: "Session lifetime", help: "Seconds of inactivity before a session can be cleaned up.", def: "1440" },
+    { key: "session.cookie_httponly", type: "bool", label: "Hide session cookies from JavaScript", def: "0", num: true },
+  ] },
+  { title: "Language", items: [
+    { key: "short_open_tag", type: "bool", label: "Allow <? short tags", help: "Old code sometimes uses <? instead of <?php.", def: "On" },
+    { key: "allow_url_fopen", type: "bool", label: "Open URLs like files", help: "Lets file_get_contents() fetch https:// addresses.", def: "On" },
+  ] },
+];
+const INI_KNOWN = new Set(INI_GROUPS.flatMap((g) => g.items.map((i) => i.key)));
+
+const EXT_INFO = {
+  bz2: "Read and write .bz2 archives", com_dotnet: "Windows COM and .NET objects", curl: "HTTP requests (APIs, Guzzle, Laravel's HTTP client)",
+  dba: "Berkeley-style key-value databases", enchant: "Spell checking", exif: "Photo metadata (camera, orientation)", ffi: "Call C libraries from PHP",
+  fileinfo: "Detect file types; Laravel needs it for uploads", ftp: "FTP client", gd: "Resize, crop and draw images", gettext: "Translations with gettext",
+  gmp: "Very large numbers", imap: "Read mailboxes over IMAP", intl: "Language, number and date formatting (Laravel, Symfony)", ldap: "LDAP and Active Directory",
+  mbstring: "UTF-8 strings; most frameworks need it", mysqli: "MySQL (WordPress, plain PHP)", odbc: "ODBC databases", openssl: "HTTPS and encryption; Composer needs it",
+  pdo_firebird: "Firebird through PDO", pdo_mysql: "MySQL through PDO (Laravel, Symfony)", pdo_odbc: "ODBC through PDO", pdo_pgsql: "PostgreSQL through PDO",
+  pdo_sqlite: "SQLite through PDO", pdo_sqlsrv: "Microsoft SQL Server through PDO", pgsql: "PostgreSQL", shmop: "Shared memory", snmp: "SNMP network monitoring",
+  soap: "SOAP web services", sockets: "Low-level network sockets", sodium: "Modern encryption (libsodium)", sqlite3: "SQLite", sqlsrv: "Microsoft SQL Server",
+  sysvshm: "System V shared memory", tidy: "Clean up and repair HTML", xsl: "XSLT transforms", zip: "Read and write .zip files; Composer needs it",
+};
+const extBase = (n) => n.replace(/_\d+_n?ts_x(64|86)$/, "");
+
+const isOn = (v) => /^(on|1|true|yes)$/i.test(String(v ?? "").trim());
+const SIZE_RE = /^(-1|\d+[KMG]?)$/i;
+const toBytes = (v) => {
+  const m = /^(\d+)([KMG]?)$/i.exec(String(v ?? "").trim());
+  return m ? +m[1] * 1024 ** " KMG".indexOf((m[2] || " ").toUpperCase()) : Infinity;
+};
+let TIMEZONES = [];
+try { TIMEZONES = Intl.supportedValuesOf("timeZone"); if (!TIMEZONES.includes("UTC")) TIMEZONES.unshift("UTC"); } catch {}
+
+// ed is the open editor: the file as read (orig*) and as edited (cur*).
+// A setting's value is null when the file doesn't set it.
+let ed = null;
+
+async function openINI(php) {
+  const dlg = $("#ini");
+  ed = { php, loading: true };
+  $("#ini-title").textContent = `PHP ${php} settings`;
+  $("#ini-path").textContent = "";
+  $("#ini-search").value = "";
+  $("#ini-body").innerHTML = '<div class="ini-empty">Loading…</div>';
+  drawFoot();
+  if (!dlg.open) dlg.showModal();
+  await loadINI();
+}
+
+async function loadINI() {
+  try {
+    const d = await api("/api/phpini?php=" + encodeURIComponent(ed.php));
+    const extras = d.order.filter((k) => !INI_KNOWN.has(k) && !d.owned.some((o) => o.toLowerCase() === k.toLowerCase()));
+    const keys = [...INI_KNOWN, ...extras];
+    const orig = Object.fromEntries(keys.map((k) => [k, d.settings[k] ?? null]));
+    const origExt = Object.fromEntries(d.extensions.map((x) => [x.name, x.on]));
+    ed = { php: ed.php, data: d, extras, orig, cur: { ...orig }, origExt, curExt: { ...origExt }, bad: new Set(), saved: "" };
+    $("#ini-path").textContent = d.path;
+    $("#ini-path").title = d.path;
+    drawINI();
+  } catch (e) {
+    ed = { php: ed.php, failed: e.message };
+    $("#ini-body").innerHTML = `<div class="notice error">${esc(e.message)}</div>`;
+  }
+  drawFoot();
+}
+
+// stackValue is what stack.toml [php.ini] sets key to, which wins over the file.
+function stackValue(key) {
+  const s = ed.data.stack || {};
+  const k = Object.keys(s).find((x) => x.toLowerCase() === key.toLowerCase());
+  return k === undefined ? undefined : s[k];
+}
+
+function iniControl(it) {
+  const k = esc(it.key), v = ed.cur[it.key], shown = v ?? it.def ?? "";
+  const locked = stackValue(it.key) !== undefined ? "disabled" : "";
+  const aria = `aria-label="${esc(it.label || it.key)}"`;
+  switch (it.type) {
+    case "bool":
+      return `<label class="switch"><input type="checkbox" data-ini="${k}" ${isOn(shown) ? "checked" : ""} ${locked} ${aria}><span></span></label>`;
+    case "select": {
+      const opts = [...it.options];
+      if (!opts.some(([val]) => val === shown)) opts.push([shown, shown]);
+      return `<select data-ini="${k}" ${locked} ${aria}>${opts.map(([val, txt]) => `<option value="${esc(val)}" ${val === shown ? "selected" : ""}>${esc(txt)}</option>`).join("")}</select>`;
+    }
+    case "tz":
+      return `<input type="text" data-ini="${k}" value="${esc(shown)}" list="ini-tz" spellcheck="false" ${locked} ${aria}>`;
+    default:
+      return `<input type="text" class="${it.type === "text" ? "" : "short"}" data-ini="${k}" value="${esc(shown)}" spellcheck="false" ${locked} ${aria}>`;
+  }
+}
+
+function iniRow(it) {
+  const sv = stackValue(it.key);
+  const words = [it.label, it.key, it.help].join(" ").toLowerCase();
+  return `<div class="ini-row" data-row="${esc(it.key)}" data-words="${esc(words)}">
+    <div><div class="ini-label">${esc(it.label || it.key)}${it.label ? `<span class="ini-key">${esc(it.key)}</span>` : ""}</div>
+      ${it.help ? `<div class="ini-help">${esc(it.help)}</div>` : ""}</div>
+    <div class="ini-ctl">${it.extra ? `<button class="btn small ghost icon-only" data-ini-remove="${esc(it.key)}" title="Turn ${esc(it.key)} off (PHP's default applies)" aria-label="Remove ${esc(it.key)}">${icon("cross")}</button>` : ""}
+      <button class="link ini-undo" data-ini-undo="${esc(it.key)}" hidden>Undo</button>${iniControl(it)}</div>
+    ${sv !== undefined ? `<div class="ini-note locked">stack.toml sets this to <span class="mono">${esc(sv)}</span> under [php.ini] for every PHP version, and that wins. Change it there.</div>` : ""}
+    <div class="ini-note" data-note="${esc(it.key)}" hidden></div>
+  </div>`;
+}
+
+function drawINI() {
+  const d = ed.data;
+  const exts = [...d.extensions].sort((a, b) => a.name.localeCompare(b.name));
+  const groups = INI_GROUPS.map((g) => `<div class="ini-group"><h3>${esc(g.title)}</h3>${g.items.map(iniRow).join("")}</div>`).join("");
+  const extRows = exts.map((x) => {
+    const info = EXT_INFO[extBase(x.name)] || "";
+    return `<div class="ini-row" data-ext-row="${esc(x.name)}" data-words="${esc((x.name + " " + info).toLowerCase())}">
+      <div><div class="ini-label mono">${esc(x.name)}</div>${info ? `<div class="ini-help">${esc(info)}</div>` : ""}</div>
+      <div class="ini-ctl"><button class="link ini-undo" data-ext-undo="${esc(x.name)}" hidden>Undo</button>
+        <label class="switch"><input type="checkbox" data-ext-on="${esc(x.name)}" ${x.on ? "checked" : ""} aria-label="${esc(x.name)} extension"><span></span></label></div>
+    </div>`;
+  }).join("");
+  const extras = ed.extras.map((k) => iniRow({ key: k, type: "text", extra: true })).join("");
+  $("#ini-body").innerHTML = `${groups}
+    <div class="ini-group" id="ini-exts"><h3>Extensions <span class="h-note">Every extension in PHP ${esc(ed.php)}'s ext folder</span></h3>${extRows || '<div class="ini-empty">No extensions found.</div>'}</div>
+    <div class="ini-group" id="ini-more"><h3>More settings <span class="h-note">Everything else your php.ini sets</span></h3>
+      <div id="ini-extras">${extras}</div>
+      <div class="ini-add"><input type="text" id="ini-add-key" placeholder="setting, like zend.assertions" spellcheck="false" aria-label="New setting name">
+        <input type="text" id="ini-add-val" placeholder="value" spellcheck="false" aria-label="New setting value">
+        <button class="btn small" id="ini-add">Add</button></div>
+      <div class="ini-note bad" id="ini-add-err" hidden></div></div>
+    <div class="ini-empty" id="ini-none" hidden>Nothing matches. Add it under More settings, or open the file as text.</div>
+    <datalist id="ini-tz">${TIMEZONES.map((z) => `<option value="${esc(z)}">`).join("")}</datalist>`;
+  wireINI($("#ini-body"));
+  $("#ini-add").onclick = addINISetting;
+  $("#ini-add-val").onkeydown = (e) => { if (e.key === "Enter") addINISetting(); };
+  checkINI();
+  filterINI();
+}
+
+function wireINI(root) {
+  const item = (key) => INI_GROUPS.flatMap((g) => g.items).find((i) => i.key === key) || { key, type: "text" };
+  root.querySelectorAll("[data-ini]").forEach((el) => {
+    const it = item(el.dataset.ini);
+    const update = () => {
+      if (it.type === "bool") {
+        const was = ed.orig[it.key] ?? it.def;
+        const numeric = it.num || /^[01]$/.test(String(was).trim());
+        ed.cur[it.key] = isOn(was) === el.checked ? ed.orig[it.key] // flipped back: no change
+          : el.checked ? (numeric ? "1" : "On") : (numeric ? "0" : "Off");
+      } else {
+        ed.cur[it.key] = el.value.trim();
+      }
+      checkINI();
+    };
+    el.addEventListener(it.type === "bool" || it.type === "select" ? "change" : "input", update);
+  });
+  root.querySelectorAll("[data-ini-undo]").forEach((b) => (b.onclick = () => {
+    const k = b.dataset.iniUndo;
+    ed.cur[k] = ed.orig[k];
+    if (ed.orig[k] === null && !INI_KNOWN.has(k)) { // a setting added here: take its row away
+      ed.extras = ed.extras.filter((x) => x !== k);
+      delete ed.cur[k]; delete ed.orig[k];
+      b.closest(".ini-row").remove();
+    } else {
+      const row = b.closest(".ini-row"), old = row.querySelector("[data-ini]");
+      (old.closest(".switch") || old).replaceWith(document.createRange().createContextualFragment(iniControl(item(k))));
+      wireINI(row);
+    }
+    checkINI();
+  }));
+  root.querySelectorAll("[data-ini-remove]").forEach((b) => (b.onclick = () => {
+    const k = b.dataset.iniRemove;
+    ed.cur[k] = null;
+    b.closest(".ini-row").querySelector("[data-ini]").value = "";
+    checkINI();
+  }));
+  root.querySelectorAll("[data-ext-on]").forEach((cb) => (cb.onchange = () => { ed.curExt[cb.dataset.extOn] = cb.checked; checkINI(); }));
+  root.querySelectorAll("[data-ext-undo]").forEach((b) => (b.onclick = () => {
+    const n = b.dataset.extUndo;
+    ed.curExt[n] = ed.origExt[n];
+    $(`#ini [data-ext-on="${CSS.escape(n)}"]`).checked = ed.origExt[n];
+    checkINI();
+  }));
+}
+
+function addINISetting() {
+  const key = $("#ini-add-key").value.trim(), val = $("#ini-add-val").value.trim();
+  const err = $("#ini-add-err");
+  const fail = (msg) => { err.textContent = msg; err.hidden = false; $("#ini-add-key").classList.add("bad"); };
+  err.hidden = true;
+  $("#ini-add-key").classList.remove("bad");
+  if (!/^[A-Za-z0-9_.\-]+$/.test(key)) return fail("A setting name is letters, digits, _ . and - only, like zend.assertions.");
+  if (/^(zend_)?extension$/i.test(key)) return fail("Turn extensions on and off in the Extensions list above.");
+  if (ed.data.owned.some((o) => o.toLowerCase() === key.toLowerCase())) return fail(`devstack sets ${key} itself, because it points into devstack's folders.`);
+  const have = Object.keys(ed.cur).find((k) => k.toLowerCase() === key.toLowerCase());
+  if (have !== undefined) {
+    const row = $(`#ini [data-row="${CSS.escape(have)}"]`);
+    err.textContent = `Your php.ini already sets ${have}: change it here.`;
+    err.hidden = false;
+    $("#ini-search").value = "";
+    filterINI();
+    row?.scrollIntoView({ block: "center" });
+    row?.querySelector("input, select")?.focus();
+    return;
+  }
+  ed.extras.push(key);
+  ed.orig[key] = null;
+  ed.cur[key] = val;
+  const frag = document.createRange().createContextualFragment(iniRow({ key, type: "text", extra: true }));
+  const row = frag.firstElementChild;
+  $("#ini-extras").append(row);
+  wireINI(row);
+  $("#ini-add-key").value = $("#ini-add-val").value = "";
+  checkINI();
+}
+
+// changes lists what differs from the file, for the footer and for Save.
+function iniChanges() {
+  const set = {}, unset = [], extensions = {};
+  for (const [k, v] of Object.entries(ed.cur)) {
+    if (v === ed.orig[k]) continue;
+    if (v === null || (v === "" && !INI_KNOWN.has(k))) { if (ed.orig[k] !== null) unset.push(k); }
+    else set[k] = v;
+  }
+  for (const [n, on] of Object.entries(ed.curExt)) if (on !== ed.origExt[n]) extensions[n] = on;
+  return { set, unset, extensions, count: Object.keys(set).length + unset.length + Object.keys(extensions).length };
+}
+
+// checkINI validates every value, marks changed rows and redraws the footer.
+function checkINI() {
+  ed.bad = new Set();
+  const note = (key, cls, msg) => {
+    const el = $(`#ini [data-note="${CSS.escape(key)}"]`);
+    if (!el) return;
+    el.className = "ini-note " + cls;
+    el.textContent = msg;
+    el.hidden = !msg;
+  };
+  for (const g of INI_GROUPS) for (const it of g.items) {
+    const v = ed.cur[it.key] ?? it.def;
+    let bad = "";
+    if (it.type === "size" && !SIZE_RE.test(v)) bad = "Use a number with K, M or G, like 256M.";
+    if (it.type === "int" && !(it.signed ? /^-?\d+$/ : /^\d+$/).test(v)) bad = "Use a whole number.";
+    if (it.type === "tz" && TIMEZONES.length && !TIMEZONES.includes(v)) bad = "Pick a time zone from the list, like Asia/Kolkata.";
+    $(`#ini [data-ini="${CSS.escape(it.key)}"]`)?.classList.toggle("bad", !!bad);
+    if (bad) ed.bad.add(it.key);
+    note(it.key, "bad", bad);
+  }
+  for (const k of ed.extras) {
+    const v = ed.cur[k];
+    note(k, "locked", v === null || v === "" ? "Off: PHP's default applies after you save." : "");
+  }
+  const eff = (k, d) => stackValue(k) ?? ed.cur[k] ?? d;
+  if (!ed.bad.has("post_max_size") && !ed.bad.has("upload_max_filesize")) {
+    const post = eff("post_max_size", "8M"), up = eff("upload_max_filesize", "2M");
+    const small = post !== "-1" && post !== "0" && toBytes(post) < toBytes(up);
+    note("post_max_size", "warn", small ? `Smaller than the upload limit (${up}), so uploads that big fail. Make it at least ${up}.` : "");
+  }
+  if (!ed.bad.has("opcache.validate_timestamps")) {
+    note("opcache.validate_timestamps", "warn", isOn(eff("opcache.validate_timestamps", "1")) ? "" : "Off: code you edit won't show up until PHP restarts.");
+  }
+  document.querySelectorAll("#ini [data-row]").forEach((row) => {
+    const k = row.dataset.row, changed = ed.cur[k] !== ed.orig[k];
+    row.classList.toggle("changed", changed);
+    row.querySelector("[data-ini-undo]").hidden = !changed;
+  });
+  document.querySelectorAll("#ini [data-ext-row]").forEach((row) => {
+    const n = row.dataset.extRow, changed = ed.curExt[n] !== ed.origExt[n];
+    row.classList.toggle("changed", changed);
+    row.querySelector("[data-ext-undo]").hidden = !changed;
+  });
+  if (iniChanges().count) ed.saved = "";
+  drawFoot();
+}
+
+function filterINI() {
+  const q = $("#ini-search").value.trim().toLowerCase();
+  let any = false;
+  document.querySelectorAll("#ini-body .ini-group").forEach((g) => {
+    let shown = 0;
+    g.querySelectorAll(".ini-row").forEach((r) => { const hit = !q || r.dataset.words.includes(q); r.hidden = !hit; shown += hit; });
+    const more = g.id === "ini-more";
+    g.hidden = !!q && !shown && !more;
+    any = any || shown > 0;
+  });
+  $("#ini-none") && ($("#ini-none").hidden = !q || any);
+}
+
+const phpRunning = () => S && S.running && S.groups.some((g) => g.name === "php-" + ed.php && g.state === "running");
+
+// drawFoot shows what Save will do, or asks about unsaved changes (ed.asking).
+function drawFoot() {
+  const f = $("#ini-foot");
+  f.classList.toggle("ask-save", !!ed?.asking);
+  if (!ed || ed.loading || ed.failed) {
+    f.innerHTML = `<div class="grow"></div><button class="btn" id="ini-done">Close</button>`;
+    $("#ini-done").onclick = () => closeINI(true);
+    return;
+  }
+  const ch = iniChanges();
+  if (ed.asking) {
+    f.innerHTML = `<div class="grow"><b>${ch.count} unsaved change${ch.count === 1 ? "" : "s"}.</b> Save before you ${ed.asking.what}?</div>
+      <button class="btn ghost" id="ini-keep">Keep editing</button>
+      <button class="btn" id="ini-discard">Discard</button>
+      <button class="btn primary" id="ini-save" ${ed.bad.size ? "disabled" : ""}>Save</button>`;
+    $("#ini-keep").onclick = () => { ed.asking = null; drawFoot(); };
+    $("#ini-discard").onclick = () => { const then = ed.asking.then; ed.asking = null; then(); };
+    $("#ini-save").onclick = async () => { const then = ed.asking.then; ed.asking = null; if (await saveINI()) then(); };
+    $("#ini-save").focus();
+    return;
+  }
+  let status;
+  if (ed.saving) status = "Saving…";
+  else if (ed.conflict) status = `<span class="error-text">php.ini was changed in another editor since you opened it here.</span> <button class="link" id="ini-reload">Load the new file</button> (your changes here are lost).`;
+  else if (ed.error) status = `<span class="error-text">${esc(ed.error)}</span>`;
+  else if (ed.bad.size) status = `<span class="error-text">Fix the highlighted value${ed.bad.size === 1 ? "" : "s"} to save.</span>`;
+  else if (ch.count) status = `<b>${ch.count} unsaved change${ch.count === 1 ? "" : "s"}.</b> ` + (phpRunning()
+    ? `Saving restarts PHP ${esc(ed.php)}, which takes a moment.`
+    : S && S.running ? `PHP ${esc(ed.php)} isn't running; saving tries to start it.` : "The servers are stopped: they use the changes when they start.");
+  else if (ed.saved) status = ed.saved;
+  else status = "Nothing is written until you press Save.";
+  f.innerHTML = `<div class="grow">${status}</div>
+    <button class="btn" id="ini-done">${ch.count ? "Cancel" : "Close"}</button>
+    <button class="btn primary" id="ini-save" ${!ch.count || ed.bad.size || ed.saving ? "disabled" : ""}>Save</button>`;
+  $("#ini-done").onclick = () => closeINI();
+  $("#ini-save").onclick = () => saveINI();
+  $("#ini-reload") && ($("#ini-reload").onclick = () => loadINI());
+}
+
+async function saveINI() {
+  const ch = iniChanges();
+  if (!ch.count || ed.bad.size) return !ch.count;
+  ed.saving = true; ed.error = ""; ed.conflict = false;
+  drawFoot();
+  const php = ed.php;
+  try {
+    const res = await api("/api/phpini", { php, rev: ed.data.rev, set: ch.set, unset: ch.unset, extensions: ch.extensions });
+    await loadINI();
+    ed.saved = res.error ? `<span class="error-text">Saved, but PHP ${esc(php)} didn't restart: ${esc(res.error.split("\n")[0])}</span> See the Logs tab.`
+      : res.running ? `Saved. ${res.actions.some((a) => a.includes("php-" + php)) ? `PHP ${esc(php)} restarted with the new settings.` : "Applied."}`
+      : "Saved. The servers use it when they start, and php in terminals uses it now.";
+    drawFoot();
+    poll(true);
+    return true;
+  } catch (e) {
+    ed.saving = false;
+    if (e.status === 409) ed.conflict = true; else ed.error = e.message;
+    drawFoot();
+    return false;
+  }
+}
+
+// closeINI closes the editor, asking first when there are unsaved changes.
+function closeINI(force) {
+  if (!force && ed?.data && iniChanges().count) {
+    ed.asking = { what: "close", then: () => closeINI(true) };
+    drawFoot();
+    return;
+  }
+  ed = null;
+  $("#ini").close();
+}
+
+function openINIText() {
+  const php = ed.php;
+  const go = () => { closeINI(true); open("phpini", php); };
+  if (ed?.data && iniChanges().count) {
+    ed.asking = { what: "open the file as text", then: go };
+    drawFoot();
+    return;
+  }
+  go();
+}
+
+$("#ini-close").innerHTML = icon("cross");
+$("#ini-text").innerHTML = icon("open") + "Open as text";
+$("#ini-text").title = "Open this php.ini in your text editor, comments and all";
+$("#ini-close").onclick = () => closeINI();
+$("#ini-text").onclick = openINIText;
+$("#ini").addEventListener("cancel", (e) => { e.preventDefault(); if (ed?.asking) { ed.asking = null; drawFoot(); } else closeINI(); });
+$("#ini-search").oninput = filterINI;
+// Back from editing the file as text: show what it says now, unless there are edits here to keep.
+window.addEventListener("focus", () => { if (ed?.data && !ed.saving && !iniChanges().count && $("#ini").open) loadINI(); });
 
 let logTimer, logFiles = [];
 async function renderLogs() {

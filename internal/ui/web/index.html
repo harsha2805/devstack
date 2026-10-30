@@ -73,6 +73,20 @@
   <div class="card setup-card" id="setup-card"></div>
 </div>
 
+<dialog id="ini" class="sheet" aria-labelledby="ini-title">
+  <header class="sheet-head">
+    <div class="grow">
+      <h2 id="ini-title">PHP settings</h2>
+      <div class="set-desc mono" id="ini-path"></div>
+    </div>
+    <button class="btn small" id="ini-text"></button>
+    <button class="btn small ghost icon-only" id="ini-close" aria-label="Close"></button>
+  </header>
+  <div class="sheet-search"><input type="search" id="ini-search" placeholder="Search settings and extensions" spellcheck="false" aria-label="Search settings and extensions"></div>
+  <div class="sheet-body" id="ini-body"></div>
+  <footer class="sheet-foot" id="ini-foot"></footer>
+</dialog>
+
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script src="app.js"></script>

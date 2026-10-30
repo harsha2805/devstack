@@ -207,3 +207,40 @@ func Disable(text string, match func(name string) bool) string {
 func AddOff(text, name string) string {
 	return Disable(Enable(text, name, false), func(n string) bool { return n == name })
 }
+
+// Unset turns key off by commenting out every active line for it, so PHP's
+// built-in default applies and the line stays in place to turn back on.
+func Unset(text, key string) string {
+	lines := Lines(text)
+	for i, l := range lines {
+		if k, _, c, ok := parse(l); ok && !c && strings.EqualFold(k, key) {
+			lines[i] = ";" + strings.TrimSpace(l)
+		}
+	}
+	return join(lines)
+}
+
+// Ext is an extension= line's name and whether it's on.
+type Ext struct {
+	Name string `json:"name"`
+	On   bool   `json:"on"`
+}
+
+// ExtensionStates lists every extension text names with extension=, on or
+// off, once each in file order. One listed both ways counts as on.
+func ExtensionStates(text string) []Ext {
+	var out []Ext
+	at := map[string]int{}
+	for _, e := range extLines(Lines(text)) {
+		if e.zend {
+			continue
+		}
+		if i, ok := at[e.name]; ok {
+			out[i].On = out[i].On || !e.commented
+			continue
+		}
+		at[e.name] = len(out)
+		out = append(out, Ext{e.name, !e.commented})
+	}
+	return out
+}
