@@ -14,6 +14,7 @@ import (
 	"github.com/harsha2805/devstack/internal/discover"
 	"github.com/harsha2805/devstack/internal/model"
 	"github.com/harsha2805/devstack/internal/packages"
+	"github.com/harsha2805/devstack/internal/phpini"
 	"github.com/harsha2805/devstack/internal/winproc"
 )
 
@@ -22,8 +23,9 @@ type ExtProgress func(x packages.Extension, done, total int64)
 
 // EnableExtensions turns on PHP extensions the catalog has (sqlsrv,
 // pdo_sqlsrv): it downloads each into every PHP version in devstack's bin/
-// that lacks it, adds the names to php.extensions in stack.toml, and reloads
-// the running stack so the PHP pools restart with them.
+// that lacks it, turns it on in each version's php.ini, adds the names to
+// php.extensions in stack.toml (what a new version's php.ini starts with), and
+// reloads the running stack so the PHP pools restart with them.
 func EnableExtensions(ctx context.Context, root string, names []string, progress ExtProgress) error {
 	cat, err := packages.Default()
 	if err != nil {
@@ -56,21 +58,27 @@ func EnableExtensions(ctx context.Context, root string, names []string, progress
 			return err
 		}
 	}
+	if err := setExtensionINIs(ctx, root, names, true); err != nil {
+		return err
+	}
 	return reloadIfRunning(ctx, root)
 }
 
-// DisableExtensions removes names from php.extensions and reloads. The DLLs
-// stay in place, so turning one back on needs no download.
+// DisableExtensions turns names off in every PHP version's php.ini, removes
+// them from php.extensions and reloads. The DLLs stay in place, so turning
+// one back on needs no download.
 func DisableExtensions(ctx context.Context, root string, names []string) error {
 	cfg, err := config.Load(root)
 	if err != nil {
 		return err
 	}
-	list := slices.DeleteFunc(slices.Clone(cfg.PHP.Extensions), func(e string) bool { return slices.Contains(names, e) })
-	if len(list) == len(cfg.PHP.Extensions) {
-		return nil
+	list := slices.DeleteFunc(slices.Clone(cfg.PHP.Extensions), func(e string) bool { return slices.Contains(names, model.ExtensionBase(e)) })
+	if len(list) != len(cfg.PHP.Extensions) {
+		if err := config.SetExtensions(root, list); err != nil {
+			return err
+		}
 	}
-	if err := config.SetExtensions(root, list); err != nil {
+	if err := setExtensionINIs(ctx, root, names, false); err != nil {
 		return err
 	}
 	return reloadIfRunning(ctx, root)
@@ -112,7 +120,7 @@ func FetchExtensions(ctx context.Context, root string, names []string, progress 
 // ExtensionStatus is one installable extension as the CLI and app show it.
 type ExtensionStatus struct {
 	Name    string   `json:"name"`
-	Enabled bool     `json:"enabled"`           // listed in php.extensions, by name or Microsoft's ("sqlsrv_83_nts_x64")
+	Enabled bool     `json:"enabled"`           // on in a PHP version's php.ini, or in php.extensions for a version that has none yet
 	Missing []string `json:"missing,omitempty"` // enabled, but PHP minors in bin/ that lack the DLL
 	ODBC    bool     `json:"odbc"`              // needs Microsoft's ODBC Driver for SQL Server
 }
@@ -139,8 +147,22 @@ func CheckExtensions(ctx context.Context, root string) ([]ExtensionStatus, ODBCS
 	}
 	builds := discover.Scan(ctx, []string{filepath.Join(root, "bin")}).Builds[discover.PHP]
 	var out []ExtensionStatus
+	// Each version's php.ini says what it loads; php.extensions speaks for a
+	// version that has none yet.
+	loads := make([][]string, len(builds))
+	for i, b := range builds {
+		loads[i] = cfg.PHP.Extensions
+		if data, err := os.ReadFile(filepath.Join(root, "etc-custom", "php", b.Version.MajorMinor(), "php.ini")); err == nil && phpini.Full(string(data)) {
+			loads[i] = phpini.Extensions(string(data))
+		}
+	}
+	if len(builds) == 0 {
+		loads = [][]string{cfg.PHP.Extensions}
+	}
 	for _, n := range cat.ExtensionNames() {
-		enabled := slices.ContainsFunc(cfg.PHP.Extensions, func(e string) bool { return model.ExtensionBase(e) == n })
+		enabled := slices.ContainsFunc(loads, func(l []string) bool {
+			return slices.ContainsFunc(l, func(e string) bool { return model.ExtensionBase(e) == n })
+		})
 		s := ExtensionStatus{Name: n, Enabled: enabled, ODBC: packages.NeedsODBC(n)}
 		if s.Enabled {
 			for _, b := range builds {

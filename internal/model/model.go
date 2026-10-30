@@ -1,6 +1,7 @@
 // Package model resolves config, discovered builds and sites into one concrete
 // Stack: absolute paths, chosen versions, ports. It does no I/O beyond checking
-// which PHP extension DLLs exist, so renderers and services can trust it.
+// which PHP extension DLLs exist and reading each PHP version's own php.ini,
+// so renderers and services can trust it.
 package model
 
 import (
@@ -16,6 +17,7 @@ import (
 
 	"github.com/harsha2805/devstack/internal/config"
 	"github.com/harsha2805/devstack/internal/discover"
+	"github.com/harsha2805/devstack/internal/phpini"
 	"github.com/harsha2805/devstack/internal/sites"
 )
 
@@ -59,7 +61,7 @@ type PHPPool struct {
 	Upstream    string // "php83", the nginx upstream name
 	Ports       []int
 	INIPath     string
-	CustomINI   string // etc-custom/php/X.Y/php.ini: the user's own settings, added to the end of INIPath
+	CustomINI   string // etc-custom/php/X.Y/php.ini: the user's full php.ini for this version, the base of INIPath
 	ExtDir      string
 	Extensions  []string // what php.ini loads: requested names resolved to the DLLs in ExtDir (see ExtensionFile)
 	Missing     []string // requested, but no DLL in ExtDir
@@ -233,7 +235,16 @@ func newPool(cfg config.Stack, st *Stack, b discover.Build) *PHPPool {
 		p.Ports = append(p.Ports, PHPPort(cfg.Ports.PHP, b.Version, i))
 	}
 	p.TS = ThreadSafe(b)
-	for _, e := range cfg.PHP.Extensions {
+	// The version's own php.ini decides its extensions. Until it exists (or
+	// while it's 0.2.7's short add-on file), php.extensions does, and the
+	// php.ini devstack creates from it starts with the same ones.
+	want := cfg.PHP.Extensions
+	if text := UserINI(p); phpini.Full(text) {
+		want = phpini.Extensions(text)
+	} else {
+		want = append(slices.Clone(want), phpini.Extensions(text)...)
+	}
+	for _, e := range want {
 		n, ok := ExtensionFile(b, e)
 		switch {
 		case !ok:
@@ -247,6 +258,15 @@ func newPool(cfg config.Stack, st *Stack, b discover.Build) *PHPPool {
 	}
 	p.Opcache = exists(filepath.Join(p.ExtDir, "php_opcache.dll"))
 	return p
+}
+
+// UserINI is the text of p's own php.ini, "" when there is none.
+func UserINI(p *PHPPool) string {
+	b, err := os.ReadFile(p.CustomINI)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimPrefix(string(b), string([]byte{0xEF, 0xBB, 0xBF})) // Notepad's UTF-8 BOM
 }
 
 func checkPorts(st *Stack) error {

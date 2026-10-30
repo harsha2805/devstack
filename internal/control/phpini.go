@@ -3,16 +3,17 @@ package control
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
+	"github.com/harsha2805/devstack/internal/model"
+	"github.com/harsha2805/devstack/internal/phpini"
+	"github.com/harsha2805/devstack/internal/render"
 	"github.com/harsha2805/devstack/internal/stack"
 )
 
-// CustomPHPINI is the path of the user's own php.ini for PHP version key
-// ("8.3"), created with a short how-to the first time. devstack adds it to the
-// end of the generated php.ini, and a running stack reloads when it's saved.
+// CustomPHPINI is the path of the php.ini for PHP version key ("8.3"), the
+// whole file with every extension listed, created the first time. A running
+// stack reloads when it's saved.
 func CustomPHPINI(ctx context.Context, root, key string) (string, error) {
 	l, err := stack.Load(ctx, root)
 	if l == nil || l.Stack == nil {
@@ -24,34 +25,46 @@ func CustomPHPINI(ctx context.Context, root, key string) (string, error) {
 			have = append(have, p.Key)
 			continue
 		}
-		if _, err := os.Stat(p.CustomINI); err == nil {
-			return p.CustomINI, nil
-		}
-		if err := os.MkdirAll(filepath.Dir(p.CustomINI), 0o755); err != nil {
-			return "", err
-		}
-		return p.CustomINI, os.WriteFile(p.CustomINI, []byte(strings.ReplaceAll(customINITemplate(key), "\n", "\r\n")), 0o644)
+		return p.CustomINI, writeUserINI(p)
 	}
 	return "", fmt.Errorf("devstack doesn't run PHP %s (it runs %s)", key, strings.Join(have, ", "))
 }
 
-func customINITemplate(key string) string {
-	return `; Your php.ini settings for PHP ` + key + `.
-;
-; devstack adds this file to the end of the php.ini it generates, so a setting
-; here wins over the default. Save it and PHP ` + key + ` restarts with it within
-; a few seconds while the servers run. Every site on PHP ` + key + ` gets it, and so
-; do php and composer in their terminals.
-;
-; For one site only, put a .user.ini file in that site's docroot (public\ for
-; Laravel) instead. For every PHP version, use [php.ini] in stack.toml.
-;
-; Remove the ; in front of a line to use it.
+func writeUserINI(p *model.PHPPool) error {
+	text, fresh := render.UserINI(p)
+	if !fresh {
+		return nil
+	}
+	return render.WriteUserINI(p, text)
+}
 
-;memory_limit = 1G
-;upload_max_filesize = 512M
-;post_max_size = 512M
-;max_execution_time = 300
-;date.timezone = "Asia/Kolkata"
-`
+// setExtensionINIs turns the named extensions on or off in the php.ini of
+// every PHP version root runs, so the app's switches and `devstack ext` do
+// what an edit by hand would. A version whose ext folder lacks the DLL is
+// left alone when turning on.
+func setExtensionINIs(ctx context.Context, root string, names []string, on bool) error {
+	l, err := stack.Load(ctx, root)
+	if l == nil || l.Stack == nil {
+		return err
+	}
+	for _, p := range l.Stack.PHP {
+		text, fresh := render.UserINI(p)
+		was := text
+		for _, n := range names {
+			if !on {
+				text = phpini.Disable(text, func(e string) bool { return model.ExtensionBase(e) == n })
+				continue
+			}
+			if f, ok := model.ExtensionFile(p.Build, n); ok {
+				text = phpini.Disable(text, func(e string) bool { return e != f && model.ExtensionBase(e) == n }) // one DLL per extension
+				text = phpini.Enable(text, f, false)
+			}
+		}
+		if fresh || text != was {
+			if err := render.WriteUserINI(p, text); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

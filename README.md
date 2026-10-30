@@ -209,12 +209,12 @@ The **AI guide** switch on each site (or `devstack guide add`) fixes that:
 
 | Path | What |
 |---|---|
-| `stack.toml` | the only config you edit |
+| `stack.toml` | the stack's config |
 | `www\<site>\` | projects; `.devstack.toml` inside one overrides docroot, PHP version, aliases |
 | `[projects]` in `stack.toml` | project folders kept outside `www`, by the name each is served under |
 | `etc\` | generated config, rewritten on every render; don't edit |
 | `etc-custom\nginx\*.conf` | your own nginx config, included and never touched |
-| `etc-custom\php\8.3\php.ini` | your own settings for every site on PHP 8.3, added to the end of the generated php.ini (Servers > php.ini) |
+| `etc-custom\php\8.3\php.ini` | the full php.ini of PHP 8.3, every extension listed; edit it freely (Servers > php.ini) |
 | `data\` | MySQL data, daemon state, `secrets.toml` |
 | `logs\` | `devstack.log`, `nginx-error.log`, `php-8.3-error.log`, `mysql.log`, `sites\*.access.log` |
 
@@ -226,7 +226,14 @@ Sites on the same PHP version share one php.ini, as in Laragon or Herd. Change s
 |---|---|---|
 | one site | `.user.ini` in the site's docroot (`public\` for Laravel) | within seconds, no reload |
 | every site on one PHP version | Servers > **php.ini** (`etc-custom\php\<version>\php.ini`) | PHP restarts when you save |
-| every PHP version | `[php.ini]` in `stack.toml` | after Reload |
+| every PHP version | `[php.ini]` in `stack.toml` (wins over each version's php.ini) | after Reload |
+
+Each PHP version's php.ini is a whole php.ini, built the first time from PHP's own `php.ini-development` with
+devstack's development settings. Every extension in that version's `ext` folder is listed under "Dynamic
+Extensions": remove the `;` in front of `extension=gd` to turn it on, add one to turn it off, and save. devstack
+sets `extension_dir`, `error_log`, the temp folders and `session.save_path` itself, since they point into its
+folders. `php.extensions` in `stack.toml` is what a PHP version's php.ini starts with. Delete the file to start
+over.
 
 `.user.ini` covers per-site settings like `memory_limit`, `upload_max_filesize`, `post_max_size` and
 `max_execution_time`. Extensions and opcache are set per PHP version.

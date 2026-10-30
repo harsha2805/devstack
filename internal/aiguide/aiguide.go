@@ -227,15 +227,15 @@ func Render(st *model.Stack, site model.Site, cli string) string {
 			flavor = "TS"
 		}
 		w("- Build: %s x64. Extension DLLs from anywhere else must be %s x64 builds for PHP %s.", flavor, flavor, p.Key)
-		w("- php.ini: `%s`, generated; don't edit it. Every site on PHP %s shares it.", p.INIPath, p.Key)
+		w("- php.ini: `%s`, generated from the files below; don't edit it. Every site on PHP %s shares it.", p.INIPath, p.Key)
 		w("  - For this site only (memory_limit, upload_max_filesize, post_max_size, max_execution_time, display_errors...), use a `.user.ini` in the docroot `%s`. PHP reads it within seconds; no reload. It can't load extensions.", site.Docroot)
-		w("  - For every site on PHP %s: `%s`, added to the end of the generated file. For every PHP version: `[php.ini]` in `%s`. Both affect other projects: ask before changing them.", p.Key, p.CustomINI, filepath.Join(st.Root, config.FileName))
+		w("  - For every site on PHP %s: `%s`, a full php.ini that lists every extension (`;extension=gd` is off; remove the `;` to turn it on). For every PHP version: `[php.ini]` in `%s`, which wins. Both affect other projects: ask before changing them.", p.Key, p.CustomINI, filepath.Join(st.Root, config.FileName))
 		if len(p.Extensions) > 0 {
 			w("- Extensions: %s", strings.Join(p.Extensions, ", "))
 		}
 		if len(p.Missing) > 0 {
-			w("- Requested in `%s` but not loaded, because `%s` has no DLL for them: %s. Code that needs them fails on this PHP.%s",
-				config.FileName, p.ExtDir, strings.Join(p.Missing, ", "), installHint(cmd, p.Missing))
+			w("- Turned on but not loaded, because `%s` has no DLL for them: %s. Code that needs them fails on this PHP.%s",
+				p.ExtDir, strings.Join(p.Missing, ", "), installHint(cmd, p.Missing))
 		}
 		w("- Errors: `%s`", filepath.Join(st.Logs, p.Name+"-error.log"))
 	}

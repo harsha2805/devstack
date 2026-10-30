@@ -111,9 +111,10 @@ func Files(st *model.Stack) (map[string][]byte, error) {
 	for _, p := range st.PHP {
 		data := struct {
 			*model.Stack
-			Pool   *model.PHPPool
-			Custom string
-		}{st, p, CustomINI(p)}
+			Pool  *model.PHPPool
+			User  string
+			Owned []string
+		}{st, p, userINI(p), Owned}
 		if err := add(p.INIPath, "php.ini", data); err != nil {
 			return nil, err
 		}
@@ -128,12 +129,12 @@ func Files(st *model.Stack) (map[string][]byte, error) {
 
 // CustomINI is the user's own php.ini for p's version, "" when there is none.
 func CustomINI(p *model.PHPPool) string {
-	b, err := os.ReadFile(p.CustomINI)
-	if err != nil {
-		return ""
-	}
-	b = bytes.TrimPrefix(b, []byte{0xEF, 0xBB, 0xBF}) // Notepad's UTF-8 BOM
-	return strings.TrimSpace(string(normalizeNewlines(b)))
+	return strings.TrimSpace(string(normalizeNewlines([]byte(model.UserINI(p)))))
+}
+
+func userINI(p *model.PHPPool) string {
+	text, _ := UserINI(p)
+	return strings.TrimSpace(text)
 }
 
 // Result says what a Write changed, relative to etc/.
@@ -149,6 +150,9 @@ func Write(st *model.Stack) (Result, error) {
 	var res Result
 	if err := ensureCerts(st); err != nil {
 		return res, err
+	}
+	if err := writeUserINIs(st); err != nil {
+		return res, fmt.Errorf("php.ini: %w", err)
 	}
 	files, err := Files(st)
 	if err != nil {

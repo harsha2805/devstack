@@ -28,9 +28,15 @@ func fixtureWith(t *testing.T, change func(*config.Stack)) *model.Stack {
 	for _, e := range []string{"curl", "mbstring", "pdo_mysql", "opcache"} {
 		os.WriteFile(filepath.Join(phpDir, "ext", "php_"+e+".dll"), nil, 0o644)
 	}
+	return resolve(t, root, change)
+}
+
+// resolve builds the fixture's stack from what's under root, as a reload does.
+func resolve(t *testing.T, root string, change func(*config.Stack)) *model.Stack {
+	t.Helper()
 	found := discover.Result{Builds: map[discover.Kind][]discover.Build{
 		discover.Nginx: {{Kind: discover.Nginx, Version: discover.Version{1, 30, 4}, Dir: filepath.Join(root, "bin", "nginx", "1.30")}},
-		discover.PHP:   {{Kind: discover.PHP, Version: discover.Version{8, 3, 36}, Dir: phpDir}},
+		discover.PHP:   {{Kind: discover.PHP, Version: discover.Version{8, 3, 36}, Dir: filepath.Join(root, "bin", "php", "8.3")}},
 		discover.MySQL: {{Kind: discover.MySQL, Version: discover.Version{8, 4, 3}, Dir: filepath.Join(root, "bin", "mysql", "8.4"), Flavor: "mysql"}},
 	}}
 	cfg := config.Default()
@@ -160,24 +166,87 @@ func TestHTTPS(t *testing.T) {
 	}
 }
 
-// The user's etc-custom/php/X.Y/php.ini goes at the end of the generated one,
-// after stack.toml's [php.ini], so its lines win. A BOM and CRLF from Notepad
-// don't leak into the result.
-func TestCustomPHPINI(t *testing.T) {
+// devstack builds each PHP version's php.ini in etc-custom from PHP's own
+// php.ini-development: devstack's settings, the extensions turned on, every
+// other DLL in ext listed but off. The generated php.ini is that file, then
+// stack.toml's [php.ini], then the paths devstack owns.
+func TestUserPHPINI(t *testing.T) {
 	st := fixture(t)
 	p := st.PHP[0]
-	os.MkdirAll(filepath.Dir(p.CustomINI), 0o755)
-	os.WriteFile(p.CustomINI, []byte("\xef\xbb\xbf; mine\r\nmemory_limit = 2G\r\n"), 0o644)
-	files, err := Files(st)
+	dev := "[PHP]\r\n;   extension=mysqli\r\nmemory_limit = 128M\r\n;extension=curl\r\n;extension=exif      ; Must be after mbstring\r\n" +
+		";extension=mbstring\r\n;zend_extension=opcache\r\n[Date]\r\n;date.timezone =\r\n"
+	os.WriteFile(filepath.Join(p.Build.Dir, "php.ini-development"), []byte(dev), 0o644)
+	os.WriteFile(filepath.Join(p.ExtDir, "php_zend_test.dll"), nil, 0o644)
+	if _, err := Write(st); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(p.CustomINI)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ini := string(files[p.INIPath])
-	toml, custom := strings.Index(ini, "memory_limit = 1G"), strings.Index(ini, "memory_limit = 2G")
-	if toml < 0 || custom < toml {
-		t.Errorf("custom php.ini should come after stack.toml's settings:\n%s", ini)
+	user := string(b)
+	for _, want := range []string{"\nmemory_limit = 512M\r\n", "\nextension=curl\r\n", "\n;extension=exif      ; Must", "\nextension=mbstring\r\n",
+		"\nzend_extension=opcache\r\n", "\nextension=pdo_mysql\r\n", "\ndate.timezone = UTC\r\n", ";   extension=mysqli"} {
+		if !strings.Contains(user, want) {
+			t.Errorf("php.ini lacks %q:\n%s", want, user)
+		}
 	}
-	if strings.Contains(ini, "\r\r") || strings.Contains(ini, "\xef\xbb\xbf") {
+	if strings.Contains(user, "zend_test") || strings.Contains(user, "\nextension=opcache") {
+		t.Errorf("test extensions or opcache listed as extensions:\n%s", user)
+	}
+	ini, _ := os.ReadFile(p.INIPath)
+	mine, toml, owned := strings.Index(string(ini), "memory_limit = 512M"), strings.Index(string(ini), "memory_limit = 1G"), strings.Index(string(ini), "extension_dir = ")
+	if mine < 0 || toml < mine || owned < toml {
+		t.Errorf("want the user's php.ini, then stack.toml, then devstack's paths:\n%s", ini)
+	}
+
+	// Turning an extension off in the file is what PHP gets, and the edit is
+	// kept.
+	os.WriteFile(p.CustomINI, []byte(strings.Replace(user, "\nextension=curl", "\n;extension=curl", 1)), 0o644)
+	st = reload(t, st)
+	if strings.Join(st.PHP[0].Extensions, ",") != "mbstring,pdo_mysql" {
+		t.Errorf("extensions = %v", st.PHP[0].Extensions)
+	}
+	if _, err := Write(st); err != nil {
+		t.Fatal(err)
+	}
+	if ini, _ := os.ReadFile(st.PHP[0].INIPath); strings.Contains(string(ini), "\nextension=curl") {
+		t.Error("curl still loaded")
+	}
+	if b, _ := os.ReadFile(p.CustomINI); !strings.Contains(string(b), "\n;extension=curl") {
+		t.Error("the user's edit was overwritten")
+	}
+}
+
+// 0.2.7's php.ini in etc-custom held a few settings to add; it becomes a whole
+// php.ini with those settings, and the old file is kept beside it. A BOM and
+// CRLF from Notepad don't leak into the result.
+func TestUserPHPINIFrom027(t *testing.T) {
+	st := fixture(t)
+	p := st.PHP[0]
+	os.MkdirAll(filepath.Dir(p.CustomINI), 0o755)
+	old := "; mine\r\n;post_max_size = 1G\r\nmemory_limit = 2G\r\n"
+	os.WriteFile(p.CustomINI, append([]byte{0xEF, 0xBB, 0xBF}, old...), 0o644)
+	if _, err := Write(reload(t, st)); err != nil {
+		t.Fatal(err)
+	}
+	user, _ := os.ReadFile(p.CustomINI)
+	for _, want := range []string{"\nmemory_limit = 2G\r\n", "\npost_max_size = 256M\r\n", "\nextension=curl\r\n"} {
+		if !strings.Contains(string(user), want) {
+			t.Errorf("php.ini lacks %q:\n%s", want, user)
+		}
+	}
+	if kept, _ := os.ReadFile(p.CustomINI + ".old"); string(kept) != old {
+		t.Errorf("php.ini.old = %q", kept)
+	}
+	ini, _ := os.ReadFile(p.INIPath)
+	if strings.Contains(string(ini), "\r\r") || strings.Contains(string(ini), "\xef\xbb\xbf") {
 		t.Error("BOM or doubled CR copied into php.ini")
 	}
+}
+
+// reload resolves st again, as a reload does after a file changes.
+func reload(t *testing.T, st *model.Stack) *model.Stack {
+	t.Helper()
+	return resolve(t, st.Root, nil)
 }

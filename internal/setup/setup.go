@@ -343,10 +343,13 @@ dns   = "off"
 default      = "{{.PHP}}"
 workers      = 4      # php-cgi processes per PHP version
 max_requests = 500    # each worker restarts after this many requests
+# What a PHP version's php.ini starts with. After that, its php.ini decides:
+# Servers > php.ini in the app (etc-custom\php\X.Y\php.ini).
 extensions   = [{{.Extensions}}]
 
 [php.ini]
-# Any php.ini setting. Quote keys that contain a dot.
+# Any php.ini setting, for every PHP version; wins over each version's php.ini.
+# Quote keys that contain a dot.
 # memory_limit = "1G"
 # "date.timezone" = "Asia/Kolkata"
 

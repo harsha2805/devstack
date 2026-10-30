@@ -332,7 +332,7 @@ function renderServers() {
           ${g.last_error && g.state !== "running" ? `<div class="err">${esc(g.last_error.split("\n")[0])}</div>` : ""}</div>
         <span class="mono muted num">:${esc(g.ports)}</span>
         <span class="state ${esc(g.state)}">${esc(g.state)}${g.restarts ? ` · ${g.restarts} restart${g.restarts === 1 ? "" : "s"}` : ""}</span>
-        ${g.name.startsWith("php-") ? `<button class="btn small ghost" data-phpini="${esc(g.name.slice(4))}" title="Open your php.ini for ${esc(label(g.name))}. Saving it restarts ${esc(label(g.name))} with your settings.">php.ini</button>` : ""}
+        ${g.name.startsWith("php-") ? `<button class="btn small ghost" data-phpini="${esc(g.name.slice(4))}" title="Open the php.ini of ${esc(label(g.name))}: every setting, and every extension (remove the ; in front of extension= to turn one on). Saving it restarts ${esc(label(g.name))}.">php.ini</button>` : ""}
         ${S.running ? `<button class="btn small ghost" data-restart="${esc(g.name)}" title="Restart ${esc(g.name)}">${icon("reload")}</button>` : ""}
       </div>`).join("")}</div>
       ${S.warnings.map((w) => `<div class="notice warn">${esc(w)}</div>`).join("")}`;

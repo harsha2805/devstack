@@ -5,6 +5,18 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions
 The release scripts need a section for the version they build and take the in-app update notes from the
 bold lead-ins under it, so write each feature up here when it lands.
 
+## [0.2.8] — 2026-10-30
+
+### Changed
+- **The php.ini button opens the whole php.ini.** Each PHP version now has a full php.ini of its own, made from
+  PHP's `php.ini-development` with devstack's settings, so every setting is there to change in place. Every
+  extension in that version's `ext` folder is listed under "Dynamic Extensions": remove the `;` in front of
+  `extension=gd` to turn it on, add one to turn it off, and save; that PHP version restarts with it within
+  seconds. The app's extension switches edit the same lines. devstack still sets the paths into its own folders
+  (`extension_dir`, `error_log`, temp folders, `session.save_path`), and `php.extensions` in `stack.toml` is now
+  what a PHP version's php.ini starts with. A short php.ini from 0.2.7 is turned into a full one with your
+  settings kept, and the old file is saved beside it as `php.ini.old`. Delete the file to start over.
+
 ## [0.2.7] — 2026-10-30
 
 ### Added
