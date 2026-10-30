@@ -21,6 +21,40 @@ func SetKey(root, section, key, literal string) error {
 	return editLines(root, func(lines []string) []string { return setLine(lines, section, key, literal) })
 }
 
+// AddProject lists dir in [projects] as name, replacing whatever name pointed
+// at. The folder is written with forward slashes, which TOML needs no escapes for.
+func AddProject(root, name, dir string) error {
+	if !ValidName(name) {
+		return fmt.Errorf("%q can't be a project name: use lowercase letters, digits and dashes", name)
+	}
+	return SetKey(root, "projects", name, fmt.Sprintf("%q", filepath.ToSlash(dir)))
+}
+
+// RemoveProject takes name out of [projects]. The folder itself is not touched.
+func RemoveProject(root, name string) error {
+	found := false
+	err := editLines(root, func(lines []string) []string {
+		keyRe := regexp.MustCompile(`^\s*("?)` + regexp.QuoteMeta(name) + `("?)\s*=`)
+		inSection := false
+		for i, l := range lines {
+			t := strings.TrimSpace(l)
+			if strings.HasPrefix(t, "[") {
+				inSection = t == "[projects]"
+				continue
+			}
+			if m := keyRe.FindStringSubmatch(l); inSection && m != nil && m[1] == m[2] {
+				found = true
+				return append(lines[:i], lines[i+1:]...)
+			}
+		}
+		return lines
+	})
+	if err == nil && !found {
+		err = fmt.Errorf("no project %q in %s", name, FileName)
+	}
+	return err
+}
+
 // SetExtensions sets php.extensions to names in root's stack.toml, replacing
 // the whole array even when it spans several lines.
 func SetExtensions(root string, names []string) error {

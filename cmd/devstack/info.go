@@ -305,7 +305,19 @@ func cmdDoctor(ctx context.Context, e *env, args []string) error {
 	if st.MySQL != nil {
 		ok("mysql %s, datadir %s", st.MySQL.Build.Version, st.MySQL.DataDir)
 	}
-	ok("%d site(s) in %s", len(st.Sites), st.WWW)
+	inWWW := 0
+	for _, s := range st.Sites {
+		if !s.Project {
+			inWWW++
+		}
+	}
+	ok("%d site(s) in %s", inWWW, st.WWW)
+	for _, p := range st.Projects {
+		ok("project %s in %s", p.Name, p.Dir)
+		for _, w := range control.LocationWarnings(p.Dir) {
+			warn("%s: %s", p.Name, w)
+		}
+	}
 	if s, has := control.ShimStatus(); has {
 		if s.OK() {
 			ok("php and composer in terminals run each site's PHP (%s)", s.Dir)

@@ -159,3 +159,25 @@ func TestHTTPS(t *testing.T) {
 		t.Errorf("URL = %s", got)
 	}
 }
+
+// The user's etc-custom/php/X.Y/php.ini goes at the end of the generated one,
+// after stack.toml's [php.ini], so its lines win. A BOM and CRLF from Notepad
+// don't leak into the result.
+func TestCustomPHPINI(t *testing.T) {
+	st := fixture(t)
+	p := st.PHP[0]
+	os.MkdirAll(filepath.Dir(p.CustomINI), 0o755)
+	os.WriteFile(p.CustomINI, []byte("\xef\xbb\xbf; mine\r\nmemory_limit = 2G\r\n"), 0o644)
+	files, err := Files(st)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ini := string(files[p.INIPath])
+	toml, custom := strings.Index(ini, "memory_limit = 1G"), strings.Index(ini, "memory_limit = 2G")
+	if toml < 0 || custom < toml {
+		t.Errorf("custom php.ini should come after stack.toml's settings:\n%s", ini)
+	}
+	if strings.Contains(ini, "\r\r") || strings.Contains(ini, "\xef\xbb\xbf") {
+		t.Error("BOM or doubled CR copied into php.ini")
+	}
+}

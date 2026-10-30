@@ -32,7 +32,7 @@ func TestSettler(t *testing.T) {
 func TestFingerprint(t *testing.T) {
 	base := []sites.Site{{Name: "app", Slug: "app", Docroot: `C:\www\app`}}
 	same := []sites.Site{{Name: "app", Slug: "app", Docroot: `C:\www\app`, Dir: `ignored`}}
-	if fingerprint(base) != fingerprint(same) {
+	if fingerprint(base, nil) != fingerprint(same, nil) {
 		t.Error("fields that don't affect config changed the fingerprint")
 	}
 	for name, changed := range map[string][]sites.Site{
@@ -43,7 +43,7 @@ func TestFingerprint(t *testing.T) {
 		"new site": append(base, sites.Site{Name: "b", Slug: "b", Docroot: `C:\www\b`}),
 		"removed":  nil,
 	} {
-		if fingerprint(changed) == fingerprint(base) {
+		if fingerprint(changed, nil) == fingerprint(base, nil) {
 			t.Errorf("%s: fingerprint unchanged", name)
 		}
 	}

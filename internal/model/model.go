@@ -48,6 +48,7 @@ type Stack struct {
 	MySQL      *MySQL // nil when disabled or not installed
 
 	Sites    []Site
+	Projects []sites.Project // everything in [projects], served or not (a folder can be gone)
 	Warnings []string
 }
 
@@ -58,6 +59,7 @@ type PHPPool struct {
 	Upstream    string // "php83", the nginx upstream name
 	Ports       []int
 	INIPath     string
+	CustomINI   string // etc-custom/php/X.Y/php.ini: the user's own settings, added to the end of INIPath
 	ExtDir      string
 	Extensions  []string // what php.ini loads: requested names resolved to the DLLs in ExtDir (see ExtensionFile)
 	Missing     []string // requested, but no DLL in ExtDir
@@ -222,6 +224,7 @@ func newPool(cfg config.Stack, st *Stack, b discover.Build) *PHPPool {
 		Name:        "php-" + key,
 		Upstream:    "php" + strings.ReplaceAll(key, ".", ""),
 		INIPath:     filepath.Join(st.Etc, "php", key, "php.ini"),
+		CustomINI:   filepath.Join(st.EtcCustom, "php", key, "php.ini"),
 		ExtDir:      filepath.Join(b.Dir, "ext"),
 		MaxRequests: cfg.PHP.MaxRequests,
 		INI:         cfg.PHP.INI,

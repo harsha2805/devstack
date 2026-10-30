@@ -34,9 +34,11 @@ func PortOwner(int) (int, error) { return 0, nil }
 
 func LongPath(p string) string { return p }
 
-func ShellOpen(string) error    { return errUnsupported }
-func MessageBox(string, string) {}
-func AllowForeground(int)       {}
+func ShellOpen(string) error            { return errUnsupported }
+func PickFolder(string) (string, error) { return "", errUnsupported }
+func NetworkDrive(string) bool          { return false }
+func MessageBox(string, string)         {}
+func AllowForeground(int)               {}
 
 var ErrDeclined = errors.New("the administrator prompt was declined")
 

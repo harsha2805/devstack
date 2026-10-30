@@ -5,9 +5,28 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions
 The release scripts need a section for the version they build and take the in-app update notes from the
 bold lead-ins under it, so write each feature up here when it lands.
 
-## [0.2.6] — unreleased
+## [0.2.6] — 2026-10-30
+
+### Added
+- **Projects outside www.** Sites > Add folder… serves a project from anywhere, such as `E:\clients\acme`, without
+  moving it into `www`. Pick the folder and it's live under its own name; devstack only asks for a name when
+  another site already has that one. A project gets everything a `www` site does: its own PHP
+  version, HTTPS, the AI guide, and `php` in its terminals. The list lives in `[projects]` in `stack.toml`, so it's
+  plain to see and edit. A project's name is kept for it, so a new folder in `www` can't take its address. If a
+  project's folder goes missing (a drive unplugged, the folder moved), it's paused and listed in Sites rather
+  than dropped, and it comes back by itself when the folder returns. devstack warns when a folder is on a network
+  drive, inside WSL or synced by OneDrive, which all make PHP slow. Removing a project only stops serving it: your
+  files stay where they are. From the command line: `devstack project add <folder> [--name N]`, `remove`, `list`.
+- **php.ini in one click.** Each PHP version on the Servers tab has a php.ini button. It opens your own php.ini for
+  that version (`etc-custom\php\8.3\php.ini`, created with examples the first time), which devstack adds to the end
+  of the php.ini it generates, so your settings win and survive every reload. Save it and that PHP version restarts
+  with them within seconds. Every site on that version gets them, and so do `php` and `composer` in its terminals.
 
 ### Changed
+- **Per-site PHP settings apply in seconds.** A `.user.ini` in a site's docroot is the way to change settings like
+  `memory_limit` or `upload_max_filesize` for one site, and edits to it now apply within 5 seconds instead of
+  PHP's default 5 minutes. The README and each site's AI guide explain which file to use for one site, one PHP
+  version or all of them.
 - **Apache License 2.0.** devstack moves from the MIT license to the Apache License 2.0. It is still free and open
   source for any use; anyone who redistributes it, changed or not, keeps the `NOTICE` file crediting Harsha
   (HoloStack) and says what they changed. The installer and portable zip now include `LICENSE.txt` and

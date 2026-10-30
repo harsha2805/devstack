@@ -35,6 +35,9 @@ type Stack struct {
 	Services Services `toml:"services"`
 	PHP      PHP      `toml:"php"`
 	Ports    Ports    `toml:"ports"`
+	// Projects are folders outside www, by the name they're served under:
+	// acme = "E:/clients/acme" serves acme.localhost and acme.<tld>.
+	Projects map[string]string `toml:"projects"`
 
 	// Root is the folder holding stack.toml. Not read from the file.
 	Root string `toml:"-"`
@@ -124,6 +127,7 @@ func Load(root string) (Stack, error) {
 
 var (
 	tldRe     = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
+	nameRe    = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
 	versionRe = regexp.MustCompile(`^\d+(\.\d+){0,2}$`)
 	extRe     = regexp.MustCompile(`^[a-z0-9_]+$`)
 )
@@ -172,6 +176,14 @@ func (c Stack) Validate() error {
 			bad("php.extensions", "%q is not an extension name (use \"curl\", not \"php_curl.dll\")", e)
 		}
 	}
+	for name, path := range c.Projects {
+		if !ValidName(name) {
+			bad("projects."+name, "a name must be lowercase letters, digits and dashes, like \"my-app\"")
+		}
+		if strings.TrimSpace(path) == "" {
+			bad("projects."+name, "needs a folder")
+		}
+	}
 	checkPort := func(key string, p int) {
 		if p < 1 || p > 65535 {
 			bad(key, "must be 1..65535, got %d", p)
@@ -185,6 +197,9 @@ func (c Stack) Validate() error {
 	}
 	return errors.Join(errs...)
 }
+
+// ValidName reports whether name can be a project name: a DNS label.
+func ValidName(name string) bool { return nameRe.MatchString(name) }
 
 // LoadSite reads dir/.devstack.toml. A missing file is not an error.
 func LoadSite(dir string) (Site, bool, error) {

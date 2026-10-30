@@ -354,4 +354,9 @@ extensions   = [{{.Extensions}}]
 http  = {{.HTTP}}
 mysql = {{.MySQLPort}}
 php   = {{.PHPBase}}          # PHP X.Y workers listen on php + X*100 + Y*10 + n (9000 -> 8.3 on 9830...)
+
+# Project folders kept outside www, by the name each is served under. Add them
+# from the app (Sites > Add folder) or with ` + "`devstack project add <folder>`" + `.
+# [projects]
+# acme = "E:/clients/acme"
 `))

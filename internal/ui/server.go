@@ -149,6 +149,9 @@ func (s *Server) routes() http.Handler {
 	api.HandleFunc("POST /api/restart", s.handleRestart)
 	api.HandleFunc("POST /api/site/php", s.handleSitePHP)
 	api.HandleFunc("POST /api/site/guide", s.handleSiteGuide)
+	api.HandleFunc("POST /api/project/pick", s.handlePickFolder)
+	api.HandleFunc("POST /api/project/add", s.handleProjectAdd)
+	api.HandleFunc("POST /api/project/remove", s.handleProjectRemove)
 	api.HandleFunc("POST /api/dns", s.handleDNS)
 	api.HandleFunc("POST /api/https", s.handleHTTPS)
 	api.HandleFunc("POST /api/dns/dismiss", s.handleDNSDismiss)
@@ -244,6 +247,7 @@ type siteView struct {
 	Dir     string   `json:"dir"`
 	Docroot string   `json:"docroot"`
 	Aliases []string `json:"aliases,omitempty"`
+	Project bool     `json:"project"` // listed in [projects], outside www
 }
 
 type stateView struct {
@@ -258,6 +262,7 @@ type stateView struct {
 	Groups     []control.Group           `json:"groups"`
 	Planned    []plannedService          `json:"planned"`
 	Sites      []siteView                `json:"sites"`
+	Unserved   []projectView             `json:"unserved"`
 	PHPs       []string                  `json:"phps"`
 	DefaultPHP string                    `json:"default_php"`
 	Errors     []string                  `json:"errors"`
@@ -297,7 +302,7 @@ type optionView struct {
 }
 
 func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
-	v := stateView{Version: s.Version, Phase: "stopped", Groups: []control.Group{}, Sites: []siteView{},
+	v := stateView{Version: s.Version, Phase: "stopped", Groups: []control.Group{}, Sites: []siteView{}, Unserved: []projectView{},
 		Errors: []string{}, Warnings: []string{}, Planned: []plannedService{}, Extensions: []control.ExtensionStatus{},
 		Links: map[string]string{"vc_redist": setup.VCRedistURL, "odbc": packages.ODBCDriverURL}}
 	s.mu.Lock()
@@ -390,12 +395,13 @@ func (s *Server) fillStack(v *stateView, st *model.Stack) {
 	}
 	for _, site := range st.Sites {
 		sv := siteView{Name: site.Name, Slug: site.Slug, URL: st.URL(site), Dir: site.Dir, Docroot: site.Docroot,
-			Aliases: site.Aliases, Pinned: site.Site.PHP != "", Guide: aiguide.Installed(site.Dir)}
+			Aliases: site.Aliases, Pinned: site.Site.PHP != "", Guide: aiguide.Installed(site.Dir), Project: site.Project}
 		if site.PHP != nil {
 			sv.PHP = site.PHP.Key
 		}
 		v.Sites = append(v.Sites, sv)
 	}
+	v.Unserved = unserved(st.Projects, v.Sites)
 }
 
 // installedPHP lists installed PHP minors, newest first.
@@ -920,11 +926,12 @@ func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
 	reply(w, map[string]any{"files": names, "text": text})
 }
 
-// handleOpen opens a site URL, a folder inside the stack, stack.toml, or a
-// known external link. Anything else is refused.
+// handleOpen opens a site URL, a folder inside the stack or a listed project,
+// stack.toml, a PHP version's own php.ini, or a known external link. Anything
+// else is refused.
 func (s *Server) handleOpen(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Kind   string `json:"kind"` // url, folder, config
+		Kind   string `json:"kind"` // url, folder, config, phpini
 		Target string `json:"target"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -940,7 +947,7 @@ func (s *Server) handleOpen(w http.ResponseWriter, r *http.Request) {
 		}
 	case "folder":
 		p := filepath.Clean(req.Target)
-		if root != "" && (p == root || strings.HasPrefix(strings.ToLower(p), strings.ToLower(root)+string(filepath.Separator))) {
+		if root != "" && (inside(p, root) || inProject(root, p)) {
 			if st, err := os.Stat(p); err == nil && st.IsDir() {
 				target = p
 			}
@@ -948,6 +955,15 @@ func (s *Server) handleOpen(w http.ResponseWriter, r *http.Request) {
 	case "config":
 		if root != "" {
 			target = filepath.Join(root, config.FileName)
+		}
+	case "phpini": // target is a PHP version, "8.3"
+		if root != "" {
+			p, err := control.CustomPHPINI(r.Context(), root, req.Target)
+			if err != nil {
+				replyErr(w, http.StatusBadRequest, err)
+				return
+			}
+			target = p
 		}
 	}
 	if target == "" {
@@ -959,6 +975,25 @@ func (s *Server) handleOpen(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	reply(w, nil)
+}
+
+func inside(p, base string) bool {
+	return p == base || strings.HasPrefix(strings.ToLower(p), strings.ToLower(base)+string(filepath.Separator))
+}
+
+// inProject reports whether p is a folder listed in root's [projects], or inside one.
+func inProject(root, p string) bool {
+	cfg, err := config.Load(root)
+	if err != nil {
+		return false
+	}
+	p = winproc.LongPath(p) // projects are stored as long paths; C:\USERS~1\... is the same folder
+	for _, pr := range stack.Projects(cfg) {
+		if inside(p, pr.Dir) {
+			return true
+		}
+	}
+	return false
 }
 
 func localURL(u string) bool {

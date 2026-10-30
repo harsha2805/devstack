@@ -111,8 +111,9 @@ func Files(st *model.Stack) (map[string][]byte, error) {
 	for _, p := range st.PHP {
 		data := struct {
 			*model.Stack
-			Pool *model.PHPPool
-		}{st, p}
+			Pool   *model.PHPPool
+			Custom string
+		}{st, p, CustomINI(p)}
 		if err := add(p.INIPath, "php.ini", data); err != nil {
 			return nil, err
 		}
@@ -123,6 +124,16 @@ func Files(st *model.Stack) (map[string][]byte, error) {
 		}
 	}
 	return out, nil
+}
+
+// CustomINI is the user's own php.ini for p's version, "" when there is none.
+func CustomINI(p *model.PHPPool) string {
+	b, err := os.ReadFile(p.CustomINI)
+	if err != nil {
+		return ""
+	}
+	b = bytes.TrimPrefix(b, []byte{0xEF, 0xBB, 0xBF}) // Notepad's UTF-8 BOM
+	return strings.TrimSpace(string(normalizeNewlines(b)))
 }
 
 // Result says what a Write changed, relative to etc/.

@@ -28,7 +28,7 @@ async function api(path, body) {
   };
   const r = await fetch(path, opts);
   const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(data.error || r.statusText);
+  if (!r.ok) throw Object.assign(new Error(data.error || r.statusText), { status: r.status, data });
   return data;
 }
 
@@ -177,8 +177,10 @@ function renderTabs() {
   draw("bar-actions", [tab, S.running, S.www], () => {
     const a = $("#bar-actions");
     if (tab === "sites") {
-      a.innerHTML = `<button class="btn" id="open-www">${icon("folder")}Open www folder</button>
+      a.innerHTML = `<button class="btn" id="add-project" title="Serve a project folder that lives outside www">${icon("folder")}Add folder…</button>
+        <button class="btn" id="open-www">${icon("folder")}Open www folder</button>
         <button class="btn" id="reload" ${S.running ? "" : "disabled"} title="Apply changes to stack.toml (sites in www are picked up on their own)">${icon("reload")}Reload</button>`;
+      $("#add-project").onclick = pickProject;
       $("#open-www").onclick = () => open("folder", S.www);
       $("#reload").onclick = () => act("/api/reload", {}, "Reloaded").catch(() => {});
     } else {
@@ -187,9 +189,62 @@ function renderTabs() {
   });
 }
 
+// adding is a folder picked with "Add folder…" whose own name can't be used
+// (another site has it), waiting for the user to pick another.
+let adding = null;
+async function pickProject() {
+  try {
+    const res = await api("/api/project/pick", {});
+    if (res.dir) await addProject(res.dir, "");
+  } catch (e) { toast(e.message, true); }
+}
+
+// addProject serves dir under name ("" = the folder's own name), and asks for
+// a name only when the server says that one is taken.
+async function addProject(dir, name) {
+  try {
+    const res = await api("/api/project/add", { dir, name });
+    adding = null;
+    renderSites();
+    if (res.warnings?.length) toast(`Added ${res.name}. ${res.warnings.join(" ")}`, true);
+    else toast(`Added ${res.name}`);
+  } catch (e) {
+    if (e.status !== 409) { toast(e.message, true); return; }
+    adding = { dir, name: e.data.suggestion || "", problem: e.message };
+    renderSites();
+    $("#add-name")?.select();
+  } finally {
+    poll(true);
+  }
+}
+
+function removeProject(name) {
+  if (!confirm(`Stop serving ${name}? The folder and your files stay where they are.`)) return;
+  act("/api/project/remove", { name }, `${name} is no longer served`).catch(() => {});
+}
+
 function renderSites() {
-  draw("sites", [S.sites, S.phps, S.default_php, S.www, S.running, S.dns, S.shims], () => {
+  draw("sites", [S.sites, S.unserved, S.phps, S.default_php, S.www, S.running, S.dns, S.shims, adding?.dir, adding?.problem], () => {
     const el = $("#sites");
+    const addAsk = adding ? `<div class="ask">
+        <div class="grow"><div class="set-title">Pick another name for this folder</div>
+        <div class="set-desc">${esc(adding.problem)}</div>
+        <div class="set-desc mono" title="${esc(adding.dir)}">${esc(adding.dir)}</div></div>
+        <label class="add-name"><input type="text" id="add-name" value="${esc(adding.name)}" spellcheck="false" aria-label="Name for the site"><span class="mono">.${esc(S.dns?.on ? S.dns.tld : "localhost")}</span></label>
+        <button class="btn small primary" id="add-yes">Add</button><button class="btn small ghost" id="add-no">Cancel</button></div>` : "";
+    const unserved = (S.unserved || []).map((p) => `<div class="notice warn unserved">
+        <span class="grow"><b>${esc(p.name)}</b> is not served: ${p.missing ? "its folder" : ""} <span class="mono">${esc(p.dir)}</span> ${p.missing ? "is missing (moved, or on a drive that isn't plugged in)." : "is already served under another name."}</span>
+        <button class="btn small ghost" data-unlist="${esc(p.name)}">Remove</button></div>`).join("");
+    const wire = () => {
+      if (adding) {
+        $("#add-name").oninput = (e) => (adding.name = e.target.value);
+        const add = () => addProject(adding.dir, adding.name.trim());
+        $("#add-name").onkeydown = (e) => { if (e.key === "Enter") add(); if (e.key === "Escape") $("#add-no").click(); };
+        $("#add-yes").onclick = add;
+        $("#add-no").onclick = () => { adding = null; renderSites(); };
+      }
+      el.querySelectorAll("[data-unlist]").forEach((b) => (b.onclick = () => removeProject(b.dataset.unlist)));
+    };
     const d = S.dns;
     // php and composer in terminals pick each site's PHP only while devstack's shims come first on PATH.
     const sh = S.shims;
@@ -205,9 +260,12 @@ function renderSites() {
         only <span class="mono">*.${esc(d.tld)}</span> lookups go to devstack, never other sites.</div></div>
         <button class="btn small primary" id="dns-yes">Turn on</button><button class="btn small ghost" id="dns-no">Not now</button></div>` : "";
     if (!S.sites.length) {
-      el.innerHTML = `<div class="empty"><p>No sites yet. Every folder in <span class="mono">${esc(S.www)}</span> becomes a site.</p>
-        <button class="btn" id="empty-open">${icon("folder")}Open www folder</button></div>`;
+      el.innerHTML = addAsk + unserved + `<div class="empty"><p>No sites yet. Every folder in <span class="mono">${esc(S.www)}</span> becomes a site,
+        and you can add folders from anywhere else.</p>
+        <button class="btn" id="empty-open">${icon("folder")}Open www folder</button> <button class="btn" id="empty-add">${icon("folder")}Add folder…</button></div>`;
       $("#empty-open").onclick = () => open("folder", S.www);
+      $("#empty-add").onclick = pickProject;
+      wire();
       return;
     }
     const phpOptions = (site) => {
@@ -215,20 +273,22 @@ function renderSites() {
       for (const v of S.phps || []) opts.push(`<option value="${esc(v)}" ${site.pinned && site.php === v ? "selected" : ""}>PHP ${esc(v)}</option>`);
       return opts.join("");
     };
-    el.innerHTML = shimAsk + ask + `<table>
+    el.innerHTML = addAsk + shimAsk + ask + unserved + `<table>
       <thead><tr><th>Site</th><th>Address</th><th>PHP</th><th title="Tells AI coding agents how this site runs here">AI guide</th><th></th></tr></thead>
       <tbody>${S.sites.map((s, i) => `
         <tr>
-          <td><button class="link site-name" data-folder="${i}" title="Open ${esc(s.dir)}">${esc(s.slug)}</button>${s.name !== s.slug ? `<div class="site-sub">${esc(s.name)}</div>` : ""}</td>
+          <td><button class="link site-name" data-folder="${i}" title="Open ${esc(s.dir)}">${esc(s.slug)}</button>${s.project ? `<div class="site-sub mono" title="Added from outside www">${esc(s.dir)}</div>` : s.name !== s.slug ? `<div class="site-sub">${esc(s.name)}</div>` : ""}</td>
           <td><button class="link" data-url="${i}" title="${S.running ? `Open ${esc(s.url)} in your browser` : "Start the servers to open it"}">${esc(s.url.replace(/^http:\/\//, ""))}</button></td>
           <td><select data-php="${i}" aria-label="PHP version for ${esc(s.slug)}">${phpOptions(s)}</select></td>
           <td><label class="switch" title="${s.guide ? "Remove" : "Add"} the AI guide for ${esc(s.slug)}"><input type="checkbox" data-guide="${i}" ${s.guide ? "checked" : ""} aria-label="AI guide for ${esc(s.slug)}"><span></span></label></td>
-          <td class="tools"><button class="btn small ghost icon-only" data-terminal="${i}" title="Open a terminal in ${esc(s.slug)}: php and composer run PHP ${esc(s.php)}" aria-label="Open a terminal in ${esc(s.slug)}">${icon("terminal")}</button></td>
+          <td class="tools">${s.project ? `<button class="btn small ghost icon-only" data-unlist="${esc(s.slug)}" title="Stop serving ${esc(s.slug)} (the folder is kept)" aria-label="Stop serving ${esc(s.slug)}">${icon("cross")}</button>` : ""}<button class="btn small ghost icon-only" data-terminal="${i}" title="Open a terminal in ${esc(s.slug)}: php and composer run PHP ${esc(s.php)}" aria-label="Open a terminal in ${esc(s.slug)}">${icon("terminal")}</button></td>
         </tr>`).join("")}
       </tbody></table>
-      <p class="muted" style="margin:12px 0 0;font-size:12px">New folders in <span class="mono">${esc(S.www)}</span> are served within a few seconds while the servers run.</p>
+      <p class="muted" style="margin:12px 0 0;font-size:12px">New folders in <span class="mono">${esc(S.www)}</span> are served within a few seconds while the servers run.
+        For a project kept somewhere else, use <b>Add folder…</b>.</p>
       <p class="muted" style="margin:6px 0 0;font-size:12px">AI guide: tells coding agents (Claude Code, Codex, Cursor, Copilot) this site's URL, PHP, database and logs.
         It writes <span class="mono">.devstack/ai-guide.md</span> (kept out of git) and a short pointer in <span class="mono">AGENTS.md</span> and <span class="mono">CLAUDE.md</span>. Your own text in those files is left alone.</p>`;
+    wire();
     el.querySelectorAll("[data-url]").forEach((b) => (b.onclick = () => open("url", S.sites[b.dataset.url].url)));
     el.querySelectorAll("[data-folder]").forEach((b) => (b.onclick = () => open("folder", S.sites[b.dataset.folder].dir)));
     el.querySelectorAll("[data-terminal]").forEach((b) => (b.onclick = () => act("/api/terminal", { site: S.sites[b.dataset.terminal].slug }).catch(() => {})));
@@ -272,9 +332,11 @@ function renderServers() {
           ${g.last_error && g.state !== "running" ? `<div class="err">${esc(g.last_error.split("\n")[0])}</div>` : ""}</div>
         <span class="mono muted num">:${esc(g.ports)}</span>
         <span class="state ${esc(g.state)}">${esc(g.state)}${g.restarts ? ` · ${g.restarts} restart${g.restarts === 1 ? "" : "s"}` : ""}</span>
+        ${g.name.startsWith("php-") ? `<button class="btn small ghost" data-phpini="${esc(g.name.slice(4))}" title="Open your php.ini for ${esc(label(g.name))}. Saving it restarts ${esc(label(g.name))} with your settings.">php.ini</button>` : ""}
         ${S.running ? `<button class="btn small ghost" data-restart="${esc(g.name)}" title="Restart ${esc(g.name)}">${icon("reload")}</button>` : ""}
       </div>`).join("")}</div>
       ${S.warnings.map((w) => `<div class="notice warn">${esc(w)}</div>`).join("")}`;
+    document.querySelectorAll("[data-phpini]").forEach((b) => (b.onclick = () => open("phpini", b.dataset.phpini)));
     document.querySelectorAll("[data-restart]").forEach((b) => (b.onclick = () => act("/api/restart", { unit: b.dataset.restart }, "Restarted " + b.dataset.restart).catch(() => {})));
   });
 

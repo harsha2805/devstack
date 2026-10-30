@@ -28,6 +28,7 @@ import (
 	"github.com/harsha2805/devstack/internal/model"
 	"github.com/harsha2805/devstack/internal/render"
 	"github.com/harsha2805/devstack/internal/services"
+	"github.com/harsha2805/devstack/internal/sites"
 	"github.com/harsha2805/devstack/internal/stack"
 	"github.com/harsha2805/devstack/internal/supervisor"
 	"github.com/harsha2805/devstack/internal/winproc"
@@ -53,7 +54,8 @@ type Daemon struct {
 	errs     []string
 	warnings []string
 	st       *model.Stack
-	www      string // watched folder and the fingerprint of its scan in st (see watch.go)
+	www      string // watched folder, the listed projects and the fingerprint of their scan in st (see watch.go)
+	projects []sites.Project
 	scan     string
 
 	dnsMu  sync.Mutex
@@ -153,7 +155,7 @@ func (d *Daemon) startAll(ctx context.Context) error {
 	d.logWarnings(nil, st.Warnings)
 	d.mu.Lock()
 	d.st, d.warnings = st, st.Warnings
-	d.www, d.scan = l.WWW, fingerprint(l.Sites)
+	d.www, d.projects, d.scan = l.WWW, l.Projects, fingerprint(l.Sites, st)
 	d.mu.Unlock()
 
 	var errs []string
@@ -253,7 +255,7 @@ func (d *Daemon) reload(ctx context.Context) ([]string, error) {
 	d.mu.Lock()
 	before := d.warnings
 	d.st, d.warnings, d.errs = st, st.Warnings, errs
-	d.www, d.scan = l.WWW, fingerprint(l.Sites)
+	d.www, d.projects, d.scan = l.WWW, l.Projects, fingerprint(l.Sites, st)
 	d.mu.Unlock()
 	d.logWarnings(before, st.Warnings)
 	if len(errs) > 0 {

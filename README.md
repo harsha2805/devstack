@@ -45,7 +45,7 @@
     <td width="50%" valign="top">
       <h3>📂 Drop a folder, get a site</h3>
       Every folder in <code>www</code> is served at <code>name.test</code> within seconds, subdomains included.
-      No hosts file, no vhost to write.
+      Projects kept elsewhere join with <b>Add folder</b>. No hosts file, no vhost to write.
     </td>
     <td width="50%" valign="top">
       <h3>🐘 PHP per project</h3>
@@ -117,6 +117,7 @@ devstack pkg install ext sqlsrv pdo_sqlsrv   # SQL Server for PHP (php.net build
 devstack up          # renders etc\ and starts everything in the background
 devstack status
 devstack sites       # URLs, e.g. http://hello.localhost:8080
+devstack project add E:\clients\acme   # serve a folder outside www, as acme (--name to pick; also: remove, list)
 devstack reload      # after editing stack.toml (folders in www\ are picked up on their own)
 devstack logs nginx -f
 devstack db creds    # generated MySQL root password
@@ -210,10 +211,25 @@ The **AI guide** switch on each site (or `devstack guide add`) fixes that:
 |---|---|
 | `stack.toml` | the only config you edit |
 | `www\<site>\` | projects; `.devstack.toml` inside one overrides docroot, PHP version, aliases |
+| `[projects]` in `stack.toml` | project folders kept outside `www`, by the name each is served under |
 | `etc\` | generated config, rewritten on every render; don't edit |
 | `etc-custom\nginx\*.conf` | your own nginx config, included and never touched |
+| `etc-custom\php\8.3\php.ini` | your own settings for every site on PHP 8.3, added to the end of the generated php.ini (Servers > php.ini) |
 | `data\` | MySQL data, daemon state, `secrets.toml` |
 | `logs\` | `devstack.log`, `nginx-error.log`, `php-8.3-error.log`, `mysql.log`, `sites\*.access.log` |
+
+### PHP settings
+
+Sites on the same PHP version share one php.ini, as in Laragon or Herd. Change settings at the level you need:
+
+| For | Where | Applies |
+|---|---|---|
+| one site | `.user.ini` in the site's docroot (`public\` for Laravel) | within seconds, no reload |
+| every site on one PHP version | Servers > **php.ini** (`etc-custom\php\<version>\php.ini`) | PHP restarts when you save |
+| every PHP version | `[php.ini]` in `stack.toml` | after Reload |
+
+`.user.ini` covers per-site settings like `memory_limit`, `upload_max_filesize`, `post_max_size` and
+`max_execution_time`. Extensions and opcache are set per PHP version.
 
 ## 🛠️ Build from source
 

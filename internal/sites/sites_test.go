@@ -56,7 +56,7 @@ func TestScan(t *testing.T) {
 	mk("broken")
 	write("nope = 1\n", "broken", ".devstack.toml")
 
-	got, warns, err := Scan(www)
+	got, warns, err := Scan(www, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,11 +100,68 @@ func TestScanFollowsJunctions(t *testing.T) {
 		t.Skipf("mklink /J: %v", err)
 	}
 	os.WriteFile(filepath.Join(www, "notes.txt"), []byte("x"), 0o644)
-	list, _, err := Scan(www)
+	list, _, err := Scan(www, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(list) != 1 || list[0].Slug != "linked-app" {
 		t.Fatalf("got %+v", list)
+	}
+}
+
+// Listed projects are served under their own name, which wins over a folder in
+// www; a missing folder is a warning, and a project linked into www is served once.
+func TestScanProjects(t *testing.T) {
+	www, outside := t.TempDir(), t.TempDir()
+	acme := filepath.Join(outside, "Acme Site")
+	os.MkdirAll(filepath.Join(acme, "public"), 0o755)
+	os.WriteFile(filepath.Join(acme, "public", "index.php"), []byte("<?php"), 0o644)
+	os.MkdirAll(filepath.Join(www, "acme"), 0o755) // wants the same name
+	os.MkdirAll(filepath.Join(www, "blog"), 0o755)
+
+	got, warns, err := Scan(www, []Project{
+		{Name: "acme", Dir: acme},
+		{Name: "gone", Dir: filepath.Join(outside, "gone")},
+		{Name: "again", Dir: acme},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bySlug := map[string]Site{}
+	for _, s := range got {
+		bySlug[s.Slug] = s
+	}
+	if len(got) != 3 {
+		t.Fatalf("got %d sites, want 3 (acme, acme-2, blog): %+v", len(got), got)
+	}
+	p := bySlug["acme"]
+	if !p.Project || p.Dir != acme || !p.HasIndex || filepath.Base(p.Docroot) != "public" {
+		t.Errorf("project not served as acme: %+v", p)
+	}
+	if s := bySlug["acme-2"]; s.Project || s.Name != "acme" {
+		t.Errorf("www/acme should step aside to acme-2: %+v", s)
+	}
+	if bySlug["blog"].Project {
+		t.Error("blog is in www, not a project")
+	}
+	if len(warns) != 3 { // gone, again, acme-2
+		t.Errorf("want 3 warnings, got %q", warns)
+	}
+}
+
+func TestScanProjectLinkedIntoWWW(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("junctions are Windows-only")
+	}
+	www, elsewhere := t.TempDir(), t.TempDir()
+	if err := exec.Command("cmd", "/c", "mklink", "/J", filepath.Join(www, "linked"), elsewhere).Run(); err != nil {
+		t.Skipf("mklink /J: %v", err)
+	}
+	list, _, err := Scan(www, []Project{{Name: "shop", Dir: elsewhere}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 1 || list[0].Slug != "shop" || !list[0].Project {
+		t.Fatalf("want only the project, got %+v", list)
 	}
 }

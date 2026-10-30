@@ -122,3 +122,43 @@ func TestSetExtensions(t *testing.T) {
 		}
 	}
 }
+
+func TestProjects(t *testing.T) {
+	root := writeStack(t, "www = \"www\"\n\n[ports]\nhttp = 8080 # web\n")
+	if err := AddProject(root, "acme", `E:\clients\Acme Site`); err != nil {
+		t.Fatal(err)
+	}
+	if err := AddProject(root, "blog", "D:/blog"); err != nil {
+		t.Fatal(err)
+	}
+	want := "www = \"www\"\n\n[ports]\nhttp = 8080 # web\n\n[projects]\nacme  = \"E:/clients/Acme Site\"\nblog  = \"D:/blog\"\n"
+	if got := readStack(t, root); got != want {
+		t.Fatalf("after add:\n%s\nwant:\n%s", got, want)
+	}
+	cfg, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Projects["acme"] != "E:/clients/Acme Site" || len(cfg.Projects) != 2 {
+		t.Errorf("loaded %v", cfg.Projects)
+	}
+	if err := AddProject(root, "Bad Name", "D:/x"); err == nil {
+		t.Error("a name that isn't a DNS label was accepted")
+	}
+	if err := RemoveProject(root, "acme"); err != nil {
+		t.Fatal(err)
+	}
+	if got := readStack(t, root); strings.Contains(got, "acme") || !strings.Contains(got, "blog") {
+		t.Errorf("after remove:\n%s", got)
+	}
+	if err := RemoveProject(root, "acme"); err == nil {
+		t.Error("removing a project that isn't listed should fail")
+	}
+}
+
+func TestProjectNameValidated(t *testing.T) {
+	root := writeStack(t, "[projects]\n\"My App\" = \"D:/x\"\n")
+	if _, err := Load(root); err == nil || !strings.Contains(err.Error(), "projects.My App") {
+		t.Errorf("want a projects error, got %v", err)
+	}
+}
