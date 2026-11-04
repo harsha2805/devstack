@@ -1,0 +1,1161 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-31T04:42:07+00:00",
+  "title": "Design System: devstack",
+  "extensions": {
+    "colorMeta": {
+      "rail": {
+        "role": "neutral",
+        "displayName": "Rail",
+        "canonical": "#24272B",
+        "oklch": "oklch(27.1% 0.009 256)",
+        "tonalRamp": [
+          "oklch(15% 0.002 256)",
+          "oklch(26% 0.004 256)",
+          "oklch(38% 0.005 256)",
+          "oklch(49% 0.007 256)",
+          "oklch(61% 0.008 256)",
+          "oklch(72% 0.007 256)",
+          "oklch(84% 0.005 256)",
+          "oklch(95% 0.004 256)"
+        ]
+      },
+      "rail-raised": {
+        "role": "neutral",
+        "displayName": "Rail Raised",
+        "canonical": "#32363C",
+        "oklch": "oklch(33.1% 0.012 258)",
+        "tonalRamp": [
+          "oklch(15% 0.003 258)",
+          "oklch(26% 0.005 258)",
+          "oklch(38% 0.008 258)",
+          "oklch(49% 0.010 258)",
+          "oklch(61% 0.012 258)",
+          "oklch(72% 0.010 258)",
+          "oklch(84% 0.007 258)",
+          "oklch(95% 0.005 258)"
+        ]
+      },
+      "rail-hover": {
+        "role": "neutral",
+        "displayName": "Rail Hover",
+        "canonical": "#2D3035",
+        "oklch": "oklch(30.8% 0.010 261)",
+        "tonalRamp": [
+          "oklch(15% 0.002 261)",
+          "oklch(26% 0.004 261)",
+          "oklch(38% 0.006 261)",
+          "oklch(49% 0.008 261)",
+          "oklch(61% 0.010 261)",
+          "oklch(72% 0.008 261)",
+          "oklch(84% 0.006 261)",
+          "oklch(95% 0.004 261)"
+        ]
+      },
+      "rail-line": {
+        "role": "neutral",
+        "displayName": "Rail Line",
+        "canonical": "#6E757E",
+        "oklch": "oklch(56.0% 0.016 255)",
+        "tonalRamp": [
+          "oklch(15% 0.004 255)",
+          "oklch(26% 0.007 255)",
+          "oklch(38% 0.010 255)",
+          "oklch(49% 0.013 255)",
+          "oklch(61% 0.016 255)",
+          "oklch(72% 0.013 255)",
+          "oklch(84% 0.010 255)",
+          "oklch(95% 0.007 255)"
+        ]
+      },
+      "rail-ink": {
+        "role": "neutral",
+        "displayName": "Rail Ink",
+        "canonical": "#ECEDEF",
+        "oklch": "oklch(94.6% 0.003 265)",
+        "tonalRamp": [
+          "oklch(15% 0.001 265)",
+          "oklch(26% 0.001 265)",
+          "oklch(38% 0.002 265)",
+          "oklch(49% 0.002 265)",
+          "oklch(61% 0.003 265)",
+          "oklch(72% 0.002 265)",
+          "oklch(84% 0.002 265)",
+          "oklch(95% 0.001 265)"
+        ]
+      },
+      "rail-mute": {
+        "role": "neutral",
+        "displayName": "Rail Mute",
+        "canonical": "#B4BAC2",
+        "oklch": "oklch(78.7% 0.013 256)",
+        "tonalRamp": [
+          "oklch(15% 0.003 256)",
+          "oklch(26% 0.006 256)",
+          "oklch(38% 0.008 256)",
+          "oklch(49% 0.011 256)",
+          "oklch(61% 0.013 256)",
+          "oklch(72% 0.010 256)",
+          "oklch(84% 0.008 256)",
+          "oklch(95% 0.005 256)"
+        ]
+      },
+      "rail-on": {
+        "role": "neutral",
+        "displayName": "Rail On",
+        "canonical": "#FFFFFF",
+        "oklch": "oklch(100.0% 0.000 90)",
+        "tonalRamp": [
+          "oklch(15% 0.000 90)",
+          "oklch(26% 0.000 90)",
+          "oklch(38% 0.000 90)",
+          "oklch(49% 0.000 90)",
+          "oklch(61% 0.000 90)",
+          "oklch(72% 0.000 90)",
+          "oklch(84% 0.000 90)",
+          "oklch(95% 0.000 90)"
+        ]
+      },
+      "ground": {
+        "role": "neutral",
+        "displayName": "Ground",
+        "canonical": "#F7F7F6",
+        "oklch": "oklch(97.6% 0.001 106)",
+        "tonalRamp": [
+          "oklch(15% 0.000 106)",
+          "oklch(26% 0.001 106)",
+          "oklch(38% 0.001 106)",
+          "oklch(49% 0.001 106)",
+          "oklch(61% 0.001 106)",
+          "oklch(72% 0.001 106)",
+          "oklch(84% 0.001 106)",
+          "oklch(95% 0.001 106)"
+        ]
+      },
+      "card": {
+        "role": "neutral",
+        "displayName": "Card",
+        "canonical": "#FFFFFF",
+        "oklch": "oklch(100.0% 0.000 90)",
+        "tonalRamp": [
+          "oklch(15% 0.000 90)",
+          "oklch(26% 0.000 90)",
+          "oklch(38% 0.000 90)",
+          "oklch(49% 0.000 90)",
+          "oklch(61% 0.000 90)",
+          "oklch(72% 0.000 90)",
+          "oklch(84% 0.000 90)",
+          "oklch(95% 0.000 90)"
+        ]
+      },
+      "subtle": {
+        "role": "neutral",
+        "displayName": "Subtle",
+        "canonical": "#EFEFED",
+        "oklch": "oklch(95.2% 0.003 106)",
+        "tonalRamp": [
+          "oklch(15% 0.001 106)",
+          "oklch(26% 0.001 106)",
+          "oklch(38% 0.002 106)",
+          "oklch(49% 0.002 106)",
+          "oklch(61% 0.003 106)",
+          "oklch(72% 0.002 106)",
+          "oklch(84% 0.002 106)",
+          "oklch(95% 0.001 106)"
+        ]
+      },
+      "hover": {
+        "role": "neutral",
+        "displayName": "Hover",
+        "canonical": "#E8E8E5",
+        "oklch": "oklch(93.0% 0.004 106)",
+        "tonalRamp": [
+          "oklch(15% 0.001 106)",
+          "oklch(26% 0.002 106)",
+          "oklch(38% 0.003 106)",
+          "oklch(49% 0.003 106)",
+          "oklch(61% 0.004 106)",
+          "oklch(72% 0.003 106)",
+          "oklch(84% 0.002 106)",
+          "oklch(95% 0.002 106)"
+        ]
+      },
+      "rule": {
+        "role": "neutral",
+        "displayName": "Rule",
+        "canonical": "#E2E3E0",
+        "oklch": "oklch(91.4% 0.004 122)",
+        "tonalRamp": [
+          "oklch(15% 0.001 122)",
+          "oklch(26% 0.002 122)",
+          "oklch(38% 0.003 122)",
+          "oklch(49% 0.003 122)",
+          "oklch(61% 0.004 122)",
+          "oklch(72% 0.003 122)",
+          "oklch(84% 0.003 122)",
+          "oklch(95% 0.002 122)"
+        ]
+      },
+      "rule-strong": {
+        "role": "neutral",
+        "displayName": "Rule Strong",
+        "canonical": "#C4C6C2",
+        "oklch": "oklch(82.4% 0.006 129)",
+        "tonalRamp": [
+          "oklch(15% 0.001 129)",
+          "oklch(26% 0.003 129)",
+          "oklch(38% 0.004 129)",
+          "oklch(49% 0.005 129)",
+          "oklch(61% 0.006 129)",
+          "oklch(72% 0.005 129)",
+          "oklch(84% 0.004 129)",
+          "oklch(95% 0.002 129)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#1C1E21",
+        "oklch": "oklch(23.4% 0.007 258)",
+        "tonalRamp": [
+          "oklch(15% 0.002 258)",
+          "oklch(26% 0.003 258)",
+          "oklch(38% 0.004 258)",
+          "oklch(49% 0.005 258)",
+          "oklch(61% 0.006 258)",
+          "oklch(72% 0.005 258)",
+          "oklch(84% 0.004 258)",
+          "oklch(95% 0.003 258)"
+        ]
+      },
+      "ink-2": {
+        "role": "neutral",
+        "displayName": "Ink 2",
+        "canonical": "#474B51",
+        "oklch": "oklch(41.1% 0.011 258)",
+        "tonalRamp": [
+          "oklch(15% 0.003 258)",
+          "oklch(26% 0.005 258)",
+          "oklch(38% 0.007 258)",
+          "oklch(49% 0.009 258)",
+          "oklch(61% 0.011 258)",
+          "oklch(72% 0.009 258)",
+          "oklch(84% 0.007 258)",
+          "oklch(95% 0.005 258)"
+        ]
+      },
+      "ink-3": {
+        "role": "neutral",
+        "displayName": "Ink 3",
+        "canonical": "#5C6168",
+        "oklch": "oklch(49.1% 0.013 257)",
+        "tonalRamp": [
+          "oklch(15% 0.003 257)",
+          "oklch(26% 0.006 257)",
+          "oklch(38% 0.008 257)",
+          "oklch(49% 0.011 257)",
+          "oklch(61% 0.013 257)",
+          "oklch(72% 0.010 257)",
+          "oklch(84% 0.008 257)",
+          "oklch(95% 0.005 257)"
+        ]
+      },
+      "safety-orange": {
+        "role": "primary",
+        "displayName": "Safety Orange",
+        "canonical": "#FF7A1A",
+        "oklch": "oklch(72.4% 0.187 49)",
+        "tonalRamp": [
+          "oklch(15% 0.047 49)",
+          "oklch(26% 0.082 49)",
+          "oklch(38% 0.118 49)",
+          "oklch(49% 0.153 49)",
+          "oklch(61% 0.185 49)",
+          "oklch(72% 0.149 49)",
+          "oklch(84% 0.113 49)",
+          "oklch(95% 0.078 49)"
+        ]
+      },
+      "safety-orange-hover": {
+        "role": "primary",
+        "displayName": "Safety Orange Hover",
+        "canonical": "#F26A06",
+        "oklch": "oklch(68.2% 0.188 46)",
+        "tonalRamp": [
+          "oklch(15% 0.047 46)",
+          "oklch(26% 0.083 46)",
+          "oklch(38% 0.119 46)",
+          "oklch(49% 0.155 46)",
+          "oklch(61% 0.186 46)",
+          "oklch(72% 0.150 46)",
+          "oklch(84% 0.114 46)",
+          "oklch(95% 0.079 46)"
+        ]
+      },
+      "on-orange": {
+        "role": "primary",
+        "displayName": "On Orange",
+        "canonical": "#1A1A1A",
+        "oklch": "oklch(21.8% 0.000 90)",
+        "tonalRamp": [
+          "oklch(15% 0.000 90)",
+          "oklch(26% 0.000 90)",
+          "oklch(38% 0.000 90)",
+          "oklch(49% 0.000 90)",
+          "oklch(61% 0.000 90)",
+          "oklch(72% 0.000 90)",
+          "oklch(84% 0.000 90)",
+          "oklch(95% 0.000 90)"
+        ]
+      },
+      "running-green": {
+        "role": "secondary",
+        "displayName": "Running Green",
+        "canonical": "#2E7D32",
+        "oklch": "oklch(52.3% 0.135 144)",
+        "tonalRamp": [
+          "oklch(15% 0.034 144)",
+          "oklch(26% 0.059 144)",
+          "oklch(38% 0.085 144)",
+          "oklch(49% 0.111 144)",
+          "oklch(61% 0.133 144)",
+          "oklch(72% 0.107 144)",
+          "oklch(84% 0.082 144)",
+          "oklch(95% 0.056 144)"
+        ]
+      },
+      "running-green-soft": {
+        "role": "secondary",
+        "displayName": "Running Green Soft",
+        "canonical": "#E5F1E6",
+        "oklch": "oklch(94.6% 0.019 148)",
+        "tonalRamp": [
+          "oklch(15% 0.005 148)",
+          "oklch(26% 0.009 148)",
+          "oklch(38% 0.012 148)",
+          "oklch(49% 0.016 148)",
+          "oklch(61% 0.019 148)",
+          "oklch(72% 0.015 148)",
+          "oklch(84% 0.012 148)",
+          "oklch(95% 0.008 148)"
+        ]
+      },
+      "running-green-rail": {
+        "role": "secondary",
+        "displayName": "Running Green Rail",
+        "canonical": "#7FD08A",
+        "oklch": "oklch(78.8% 0.127 147)",
+        "tonalRamp": [
+          "oklch(15% 0.032 147)",
+          "oklch(26% 0.056 147)",
+          "oklch(38% 0.080 147)",
+          "oklch(49% 0.104 147)",
+          "oklch(61% 0.125 147)",
+          "oklch(72% 0.101 147)",
+          "oklch(84% 0.077 147)",
+          "oklch(95% 0.053 147)"
+        ]
+      },
+      "failing-crimson": {
+        "role": "secondary",
+        "displayName": "Failing Crimson",
+        "canonical": "#B3261E",
+        "oklch": "oklch(50.1% 0.178 29)",
+        "tonalRamp": [
+          "oklch(15% 0.045 29)",
+          "oklch(26% 0.079 29)",
+          "oklch(38% 0.113 29)",
+          "oklch(49% 0.146 29)",
+          "oklch(61% 0.176 29)",
+          "oklch(72% 0.142 29)",
+          "oklch(84% 0.108 29)",
+          "oklch(95% 0.074 29)"
+        ]
+      },
+      "failing-crimson-soft": {
+        "role": "secondary",
+        "displayName": "Failing Crimson Soft",
+        "canonical": "#FBEAE8",
+        "oklch": "oklch(95.0% 0.019 26)",
+        "tonalRamp": [
+          "oklch(15% 0.005 26)",
+          "oklch(26% 0.008 26)",
+          "oklch(38% 0.012 26)",
+          "oklch(49% 0.015 26)",
+          "oklch(61% 0.019 26)",
+          "oklch(72% 0.015 26)",
+          "oklch(84% 0.011 26)",
+          "oklch(95% 0.008 26)"
+        ]
+      },
+      "failing-crimson-line": {
+        "role": "secondary",
+        "displayName": "Failing Crimson Line",
+        "canonical": "#F2A59D",
+        "oklch": "oklch(79.5% 0.093 26)",
+        "tonalRamp": [
+          "oklch(15% 0.023 26)",
+          "oklch(26% 0.041 26)",
+          "oklch(38% 0.059 26)",
+          "oklch(49% 0.076 26)",
+          "oklch(61% 0.092 26)",
+          "oklch(72% 0.074 26)",
+          "oklch(84% 0.056 26)",
+          "oklch(95% 0.039 26)"
+        ]
+      },
+      "failing-crimson-rail": {
+        "role": "secondary",
+        "displayName": "Failing Crimson Rail",
+        "canonical": "#FF9A90",
+        "oklch": "oklch(78.8% 0.123 26)",
+        "tonalRamp": [
+          "oklch(15% 0.031 26)",
+          "oklch(26% 0.054 26)",
+          "oklch(38% 0.077 26)",
+          "oklch(49% 0.101 26)",
+          "oklch(61% 0.121 26)",
+          "oklch(72% 0.098 26)",
+          "oklch(84% 0.075 26)",
+          "oklch(95% 0.051 26)"
+        ]
+      },
+      "starting-amber": {
+        "role": "secondary",
+        "displayName": "Starting Amber",
+        "canonical": "#8A5A00",
+        "oklch": "oklch(50.8% 0.108 73)",
+        "tonalRamp": [
+          "oklch(15% 0.027 73)",
+          "oklch(26% 0.048 73)",
+          "oklch(38% 0.068 73)",
+          "oklch(49% 0.089 73)",
+          "oklch(61% 0.107 73)",
+          "oklch(72% 0.086 73)",
+          "oklch(84% 0.066 73)",
+          "oklch(95% 0.045 73)"
+        ]
+      },
+      "starting-amber-soft": {
+        "role": "secondary",
+        "displayName": "Starting Amber Soft",
+        "canonical": "#FBF0D9",
+        "oklch": "oklch(95.8% 0.032 85)",
+        "tonalRamp": [
+          "oklch(15% 0.008 85)",
+          "oklch(26% 0.014 85)",
+          "oklch(38% 0.020 85)",
+          "oklch(49% 0.027 85)",
+          "oklch(61% 0.032 85)",
+          "oklch(72% 0.026 85)",
+          "oklch(84% 0.020 85)",
+          "oklch(95% 0.014 85)"
+        ]
+      },
+      "starting-amber-rail": {
+        "role": "secondary",
+        "displayName": "Starting Amber Rail",
+        "canonical": "#F5C35C",
+        "oklch": "oklch(84.2% 0.133 83)",
+        "tonalRamp": [
+          "oklch(15% 0.033 83)",
+          "oklch(26% 0.058 83)",
+          "oklch(38% 0.084 83)",
+          "oklch(49% 0.109 83)",
+          "oklch(61% 0.131 83)",
+          "oklch(72% 0.106 83)",
+          "oklch(84% 0.081 83)",
+          "oklch(95% 0.055 83)"
+        ]
+      },
+      "failing-slot-ink": {
+        "role": "neutral",
+        "displayName": "Failing Slot Ink",
+        "canonical": "#FFE3DF",
+        "oklch": "oklch(93.8% 0.031 27)",
+        "tonalRamp": [
+          "oklch(15% 0.008 27)",
+          "oklch(26% 0.014 27)",
+          "oklch(38% 0.020 27)",
+          "oklch(49% 0.026 27)",
+          "oklch(61% 0.031 27)",
+          "oklch(72% 0.025 27)",
+          "oklch(84% 0.019 27)",
+          "oklch(95% 0.013 27)"
+        ]
+      },
+      "failing-slot-hatch-a": {
+        "role": "neutral",
+        "displayName": "Failing Slot Hatch A",
+        "canonical": "#4D2622",
+        "oklch": "oklch(32.0% 0.060 27)",
+        "tonalRamp": [
+          "oklch(15% 0.015 27)",
+          "oklch(26% 0.026 27)",
+          "oklch(38% 0.038 27)",
+          "oklch(49% 0.049 27)",
+          "oklch(61% 0.059 27)",
+          "oklch(72% 0.047 27)",
+          "oklch(84% 0.036 27)",
+          "oklch(95% 0.025 27)"
+        ]
+      },
+      "failing-slot-hatch-b": {
+        "role": "neutral",
+        "displayName": "Failing Slot Hatch B",
+        "canonical": "#3F201D",
+        "oklch": "oklch(28.5% 0.049 26)",
+        "tonalRamp": [
+          "oklch(15% 0.012 26)",
+          "oklch(26% 0.021 26)",
+          "oklch(38% 0.031 26)",
+          "oklch(49% 0.040 26)",
+          "oklch(61% 0.048 26)",
+          "oklch(72% 0.039 26)",
+          "oklch(84% 0.030 26)",
+          "oklch(95% 0.020 26)"
+        ]
+      },
+      "rail-dark": {
+        "role": "neutral",
+        "displayName": "Rail (dark)",
+        "canonical": "#141517",
+        "oklch": "oklch(19.5% 0.004 264)",
+        "tonalRamp": [
+          "oklch(15% 0.001 264)",
+          "oklch(26% 0.002 264)",
+          "oklch(38% 0.003 264)",
+          "oklch(49% 0.004 264)",
+          "oklch(61% 0.004 264)",
+          "oklch(72% 0.003 264)",
+          "oklch(84% 0.003 264)",
+          "oklch(95% 0.002 264)"
+        ]
+      },
+      "rail-raised-dark": {
+        "role": "neutral",
+        "displayName": "Rail Raised (dark)",
+        "canonical": "#25282C",
+        "oklch": "oklch(27.5% 0.009 256)",
+        "tonalRamp": [
+          "oklch(15% 0.002 256)",
+          "oklch(26% 0.004 256)",
+          "oklch(38% 0.005 256)",
+          "oklch(49% 0.007 256)",
+          "oklch(61% 0.008 256)",
+          "oklch(72% 0.007 256)",
+          "oklch(84% 0.005 256)",
+          "oklch(95% 0.004 256)"
+        ]
+      },
+      "rail-hover-dark": {
+        "role": "neutral",
+        "displayName": "Rail Hover (dark)",
+        "canonical": "#1E2023",
+        "oklch": "oklch(24.3% 0.006 258)",
+        "tonalRamp": [
+          "oklch(15% 0.002 258)",
+          "oklch(26% 0.003 258)",
+          "oklch(38% 0.004 258)",
+          "oklch(49% 0.005 258)",
+          "oklch(61% 0.006 258)",
+          "oklch(72% 0.005 258)",
+          "oklch(84% 0.004 258)",
+          "oklch(95% 0.003 258)"
+        ]
+      },
+      "rail-line-dark": {
+        "role": "neutral",
+        "displayName": "Rail Line (dark)",
+        "canonical": "#5E656D",
+        "oklch": "oklch(50.3% 0.015 252)",
+        "tonalRamp": [
+          "oklch(15% 0.004 252)",
+          "oklch(26% 0.007 252)",
+          "oklch(38% 0.010 252)",
+          "oklch(49% 0.013 252)",
+          "oklch(61% 0.015 252)",
+          "oklch(72% 0.012 252)",
+          "oklch(84% 0.009 252)",
+          "oklch(95% 0.006 252)"
+        ]
+      },
+      "rail-ink-dark": {
+        "role": "neutral",
+        "displayName": "Rail Ink (dark)",
+        "canonical": "#E6E8EB",
+        "oklch": "oklch(93.0% 0.005 258)",
+        "tonalRamp": [
+          "oklch(15% 0.001 258)",
+          "oklch(26% 0.002 258)",
+          "oklch(38% 0.003 258)",
+          "oklch(49% 0.004 258)",
+          "oklch(61% 0.005 258)",
+          "oklch(72% 0.004 258)",
+          "oklch(84% 0.003 258)",
+          "oklch(95% 0.002 258)"
+        ]
+      },
+      "rail-mute-dark": {
+        "role": "neutral",
+        "displayName": "Rail Mute (dark)",
+        "canonical": "#A8AEB6",
+        "oklch": "oklch(74.9% 0.013 256)",
+        "tonalRamp": [
+          "oklch(15% 0.003 256)",
+          "oklch(26% 0.006 256)",
+          "oklch(38% 0.008 256)",
+          "oklch(49% 0.011 256)",
+          "oklch(61% 0.013 256)",
+          "oklch(72% 0.011 256)",
+          "oklch(84% 0.008 256)",
+          "oklch(95% 0.006 256)"
+        ]
+      },
+      "ground-dark": {
+        "role": "neutral",
+        "displayName": "Ground (dark)",
+        "canonical": "#1B1C1E",
+        "oklch": "oklch(22.6% 0.004 264)",
+        "tonalRamp": [
+          "oklch(15% 0.001 264)",
+          "oklch(26% 0.002 264)",
+          "oklch(38% 0.003 264)",
+          "oklch(49% 0.003 264)",
+          "oklch(61% 0.004 264)",
+          "oklch(72% 0.003 264)",
+          "oklch(84% 0.003 264)",
+          "oklch(95% 0.002 264)"
+        ]
+      },
+      "card-dark": {
+        "role": "neutral",
+        "displayName": "Card (dark)",
+        "canonical": "#232528",
+        "oklch": "oklch(26.4% 0.006 258)",
+        "tonalRamp": [
+          "oklch(15% 0.002 258)",
+          "oklch(26% 0.003 258)",
+          "oklch(38% 0.004 258)",
+          "oklch(49% 0.005 258)",
+          "oklch(61% 0.006 258)",
+          "oklch(72% 0.005 258)",
+          "oklch(84% 0.004 258)",
+          "oklch(95% 0.003 258)"
+        ]
+      },
+      "subtle-dark": {
+        "role": "neutral",
+        "displayName": "Subtle (dark)",
+        "canonical": "#2A2C30",
+        "oklch": "oklch(29.3% 0.008 264)",
+        "tonalRamp": [
+          "oklch(15% 0.002 264)",
+          "oklch(26% 0.003 264)",
+          "oklch(38% 0.005 264)",
+          "oklch(49% 0.006 264)",
+          "oklch(61% 0.008 264)",
+          "oklch(72% 0.006 264)",
+          "oklch(84% 0.005 264)",
+          "oklch(95% 0.003 264)"
+        ]
+      },
+      "hover-dark": {
+        "role": "neutral",
+        "displayName": "Hover (dark)",
+        "canonical": "#31343A",
+        "oklch": "oklch(32.4% 0.011 264)",
+        "tonalRamp": [
+          "oklch(15% 0.003 264)",
+          "oklch(26% 0.005 264)",
+          "oklch(38% 0.007 264)",
+          "oklch(49% 0.009 264)",
+          "oklch(61% 0.011 264)",
+          "oklch(72% 0.009 264)",
+          "oklch(84% 0.007 264)",
+          "oklch(95% 0.005 264)"
+        ]
+      },
+      "rule-dark": {
+        "role": "neutral",
+        "displayName": "Rule (dark)",
+        "canonical": "#34373B",
+        "oklch": "oklch(33.5% 0.008 256)",
+        "tonalRamp": [
+          "oklch(15% 0.002 256)",
+          "oklch(26% 0.004 256)",
+          "oklch(38% 0.005 256)",
+          "oklch(49% 0.007 256)",
+          "oklch(61% 0.008 256)",
+          "oklch(72% 0.007 256)",
+          "oklch(84% 0.005 256)",
+          "oklch(95% 0.003 256)"
+        ]
+      },
+      "rule-strong-dark": {
+        "role": "neutral",
+        "displayName": "Rule Strong (dark)",
+        "canonical": "#4A4E54",
+        "oklch": "oklch(42.2% 0.011 258)",
+        "tonalRamp": [
+          "oklch(15% 0.003 258)",
+          "oklch(26% 0.005 258)",
+          "oklch(38% 0.007 258)",
+          "oklch(49% 0.009 258)",
+          "oklch(61% 0.011 258)",
+          "oklch(72% 0.009 258)",
+          "oklch(84% 0.007 258)",
+          "oklch(95% 0.005 258)"
+        ]
+      },
+      "ink-dark": {
+        "role": "neutral",
+        "displayName": "Ink (dark)",
+        "canonical": "#ECEDEF",
+        "oklch": "oklch(94.6% 0.003 265)",
+        "tonalRamp": [
+          "oklch(15% 0.001 265)",
+          "oklch(26% 0.001 265)",
+          "oklch(38% 0.002 265)",
+          "oklch(49% 0.002 265)",
+          "oklch(61% 0.003 265)",
+          "oklch(72% 0.002 265)",
+          "oklch(84% 0.002 265)",
+          "oklch(95% 0.001 265)"
+        ]
+      },
+      "ink-2-dark": {
+        "role": "neutral",
+        "displayName": "Ink 2 (dark)",
+        "canonical": "#C5C9CE",
+        "oklch": "oklch(83.4% 0.008 254)",
+        "tonalRamp": [
+          "oklch(15% 0.002 254)",
+          "oklch(26% 0.004 254)",
+          "oklch(38% 0.005 254)",
+          "oklch(49% 0.007 254)",
+          "oklch(61% 0.008 254)",
+          "oklch(72% 0.007 254)",
+          "oklch(84% 0.005 254)",
+          "oklch(95% 0.003 254)"
+        ]
+      },
+      "ink-3-dark": {
+        "role": "neutral",
+        "displayName": "Ink 3 (dark)",
+        "canonical": "#A7ACB3",
+        "oklch": "oklch(74.3% 0.012 257)",
+        "tonalRamp": [
+          "oklch(15% 0.003 257)",
+          "oklch(26% 0.005 257)",
+          "oklch(38% 0.007 257)",
+          "oklch(49% 0.009 257)",
+          "oklch(61% 0.011 257)",
+          "oklch(72% 0.009 257)",
+          "oklch(84% 0.007 257)",
+          "oklch(95% 0.005 257)"
+        ]
+      },
+      "safety-orange-dark": {
+        "role": "primary",
+        "displayName": "Safety Orange (dark)",
+        "canonical": "#FF8A33",
+        "oklch": "oklch(74.9% 0.170 53)",
+        "tonalRamp": [
+          "oklch(15% 0.043 53)",
+          "oklch(26% 0.075 53)",
+          "oklch(38% 0.107 53)",
+          "oklch(49% 0.140 53)",
+          "oklch(61% 0.168 53)",
+          "oklch(72% 0.136 53)",
+          "oklch(84% 0.103 53)",
+          "oklch(95% 0.071 53)"
+        ]
+      },
+      "safety-orange-hover-dark": {
+        "role": "primary",
+        "displayName": "Safety Orange Hover (dark)",
+        "canonical": "#FF9D52",
+        "oklch": "oklch(78.3% 0.147 56)",
+        "tonalRamp": [
+          "oklch(15% 0.037 56)",
+          "oklch(26% 0.065 56)",
+          "oklch(38% 0.093 56)",
+          "oklch(49% 0.121 56)",
+          "oklch(61% 0.146 56)",
+          "oklch(72% 0.117 56)",
+          "oklch(84% 0.089 56)",
+          "oklch(95% 0.061 56)"
+        ]
+      },
+      "running-green-dark": {
+        "role": "secondary",
+        "displayName": "Running Green (dark)",
+        "canonical": "#74C47A",
+        "oklch": "oklch(75.0% 0.131 146)",
+        "tonalRamp": [
+          "oklch(15% 0.033 146)",
+          "oklch(26% 0.058 146)",
+          "oklch(38% 0.083 146)",
+          "oklch(49% 0.108 146)",
+          "oklch(61% 0.130 146)",
+          "oklch(72% 0.105 146)",
+          "oklch(84% 0.080 146)",
+          "oklch(95% 0.055 146)"
+        ]
+      },
+      "running-green-soft-dark": {
+        "role": "secondary",
+        "displayName": "Running Green Soft (dark)",
+        "canonical": "#213328",
+        "oklch": "oklch(30.2% 0.031 157)",
+        "tonalRamp": [
+          "oklch(15% 0.008 157)",
+          "oklch(26% 0.014 157)",
+          "oklch(38% 0.019 157)",
+          "oklch(49% 0.025 157)",
+          "oklch(61% 0.031 157)",
+          "oklch(72% 0.025 157)",
+          "oklch(84% 0.019 157)",
+          "oklch(95% 0.013 157)"
+        ]
+      },
+      "failing-crimson-dark": {
+        "role": "secondary",
+        "displayName": "Failing Crimson (dark)",
+        "canonical": "#F2877D",
+        "oklch": "oklch(73.7% 0.132 26)",
+        "tonalRamp": [
+          "oklch(15% 0.033 26)",
+          "oklch(26% 0.058 26)",
+          "oklch(38% 0.083 26)",
+          "oklch(49% 0.109 26)",
+          "oklch(61% 0.131 26)",
+          "oklch(72% 0.106 26)",
+          "oklch(84% 0.080 26)",
+          "oklch(95% 0.055 26)"
+        ]
+      },
+      "failing-crimson-soft-dark": {
+        "role": "secondary",
+        "displayName": "Failing Crimson Soft (dark)",
+        "canonical": "#3D2421",
+        "oklch": "oklch(29.1% 0.039 27)",
+        "tonalRamp": [
+          "oklch(15% 0.010 27)",
+          "oklch(26% 0.017 27)",
+          "oklch(38% 0.025 27)",
+          "oklch(49% 0.032 27)",
+          "oklch(61% 0.038 27)",
+          "oklch(72% 0.031 27)",
+          "oklch(84% 0.024 27)",
+          "oklch(95% 0.016 27)"
+        ]
+      },
+      "failing-crimson-line-dark": {
+        "role": "secondary",
+        "displayName": "Failing Crimson Line (dark)",
+        "canonical": "#7A3A33",
+        "oklch": "oklch(43.0% 0.091 28)",
+        "tonalRamp": [
+          "oklch(15% 0.023 28)",
+          "oklch(26% 0.040 28)",
+          "oklch(38% 0.057 28)",
+          "oklch(49% 0.075 28)",
+          "oklch(61% 0.090 28)",
+          "oklch(72% 0.072 28)",
+          "oklch(84% 0.055 28)",
+          "oklch(95% 0.038 28)"
+        ]
+      },
+      "starting-amber-dark": {
+        "role": "secondary",
+        "displayName": "Starting Amber (dark)",
+        "canonical": "#E9BA5C",
+        "oklch": "oklch(81.3% 0.124 83)",
+        "tonalRamp": [
+          "oklch(15% 0.031 83)",
+          "oklch(26% 0.055 83)",
+          "oklch(38% 0.078 83)",
+          "oklch(49% 0.102 83)",
+          "oklch(61% 0.123 83)",
+          "oklch(72% 0.099 83)",
+          "oklch(84% 0.075 83)",
+          "oklch(95% 0.052 83)"
+        ]
+      },
+      "starting-amber-soft-dark": {
+        "role": "secondary",
+        "displayName": "Starting Amber Soft (dark)",
+        "canonical": "#3A3020",
+        "oklch": "oklch(31.5% 0.030 79)",
+        "tonalRamp": [
+          "oklch(15% 0.008 79)",
+          "oklch(26% 0.013 79)",
+          "oklch(38% 0.019 79)",
+          "oklch(49% 0.025 79)",
+          "oklch(61% 0.030 79)",
+          "oklch(72% 0.024 79)",
+          "oklch(84% 0.018 79)",
+          "oklch(95% 0.013 79)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Page headings and the setup heading."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Site panel site name; 18px variant for the php.ini sheet title."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Server card names."
+      },
+      "title-small": {
+        "displayName": "Title small",
+        "purpose": "Section headings and the rail status word; 14px variant for php.ini groups."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Default reading text; site names at 13.5px 600."
+      },
+      "body-small": {
+        "displayName": "Body small",
+        "purpose": "Descriptions, hints, panel rows, controls in slots."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Button text, column headers, group and field labels; sentence case."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "Addresses, ports, versions, paths, ini keys, counts, logs."
+      }
+    },
+    "shadows": [
+      {
+        "name": "float",
+        "value": "0 10px 28px -12px rgb(20 22 26 / .28), 0 2px 6px -2px rgb(20 22 26 / .12)",
+        "purpose": "Menu, php.ini sheet, toast (light)."
+      },
+      {
+        "name": "float-dark",
+        "value": "0 12px 30px -12px rgb(0 0 0 / .6), 0 2px 6px -2px rgb(0 0 0 / .4)",
+        "purpose": "Menu, php.ini sheet, toast (dark)."
+      },
+      {
+        "name": "overlay-edge",
+        "value": "-14px 0 28px -18px rgb(20 22 26 / .45)",
+        "purpose": "Site panel only when it overlays the list under 900px."
+      },
+      {
+        "name": "selection-ring",
+        "value": "0 0 0 1px var(--ink)",
+        "purpose": "Thickens the selected site row's outline; not elevation."
+      },
+      {
+        "name": "sheet-backdrop",
+        "value": "rgb(20 22 26 / .45)",
+        "purpose": "Backdrop behind the php.ini sheet."
+      }
+    ],
+    "motion": [
+      {
+        "name": "breathe",
+        "value": ".8s ease-in-out infinite alternate (opacity .3 to 1)",
+        "purpose": "Starting/busy state mark."
+      },
+      {
+        "name": "switch",
+        "value": ".15s cubic-bezier(.2,.8,.2,1)",
+        "purpose": "Switch knob slide; track color .15s ease."
+      },
+      {
+        "name": "bar",
+        "value": "transform .2s ease",
+        "purpose": "Determinate progress fill."
+      },
+      {
+        "name": "bar-slide",
+        "value": "1.4s ease-in-out infinite",
+        "purpose": "Indeterminate progress; static 60% fill under reduced motion."
+      },
+      {
+        "name": "toast-fade",
+        "value": "opacity .18s ease",
+        "purpose": "Toast show and hide."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "panel-overlay",
+        "value": "max-width: 900px"
+      },
+      {
+        "name": "narrow-rail",
+        "value": "max-width: 860px"
+      },
+      {
+        "name": "window-min",
+        "value": "720px x 540px"
+      },
+      {
+        "name": "window-default",
+        "value": "1000px x 700px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Safety orange with dark text; the action to press first in its region.",
+      "html": "<div class=\"ds-root\"><button class=\"ds-btn ds-btn-primary\"><svg viewBox=\"0 0 16 16\" aria-hidden=\"true\"><path d=\"M8 3.5v9M3.5 8h9\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\"/></svg>Add site</button></div>",
+      "css": ".ds-root{--rail:#24272B;--rail-2:#32363C;--rail-hover:#2D3035;--rail-line:#6E757E;--rail-ink:#ECEDEF;--rail-mute:#B4BAC2;--rail-on:#FFFFFF;--ground:#F7F7F6;--card:#FFFFFF;--subtle:#EFEFED;--hover:#E8E8E5;--rule:#E2E3E0;--rule-strong:#C4C6C2;--ink:#1C1E21;--ink-2:#474B51;--ink-3:#5C6168;--act:#FF7A1A;--act-hover:#F26A06;--on-act:#1A1A1A;--ok:#2E7D32;--ok-rail:#7FD08A;--fail:#B3261E;--fail-soft:#FBEAE8;--fail-line:#F2A59D;--fail-rail:#FF9A90;--warn:#8A5A00;--focus:#1C1E21;--font:\"Segoe UI Variable Text\",\"Segoe UI\",system-ui,sans-serif;--display:\"Segoe UI Variable Display\",\"Segoe UI Variable Text\",\"Segoe UI\",system-ui,sans-serif;--mono:\"Cascadia Mono\",Consolas,ui-monospace,monospace;font:13px/1.45 var(--font);color:var(--ink)}.ds-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:30px;padding:0 12px;border-radius:4px;font:600 12.5px var(--font);white-space:nowrap;border:1px solid var(--rule-strong);background:var(--card);color:var(--ink);cursor:pointer}.ds-btn svg{width:14px;height:14px}.ds-btn:hover{background:var(--hover)}.ds-btn:focus-visible{outline:2px solid var(--focus);outline-offset:2px}.ds-btn-primary{background:var(--act);border-color:var(--act);color:var(--on-act)}.ds-btn-primary:hover{background:var(--act-hover);border-color:var(--act-hover)}"
+    },
+    {
+      "name": "Default Button",
+      "kind": "button",
+      "refersTo": "button",
+      "description": "Card-filled standard Windows button with a 14px line icon.",
+      "html": "<div class=\"ds-root\"><button class=\"ds-btn\"><svg viewBox=\"0 0 16 16\" aria-hidden=\"true\"><path d=\"M1.8 4.2c0-.6.4-1 1-1h3.4l1.4 1.6h5.6c.6 0 1 .4 1 1v6.4c0 .6-.4 1-1 1H2.8c-.6 0-1-.4-1-1z\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\"/></svg>Folder</button></div>",
+      "css": ".ds-root{--rail:#24272B;--rail-2:#32363C;--rail-hover:#2D3035;--rail-line:#6E757E;--rail-ink:#ECEDEF;--rail-mute:#B4BAC2;--rail-on:#FFFFFF;--ground:#F7F7F6;--card:#FFFFFF;--subtle:#EFEFED;--hover:#E8E8E5;--rule:#E2E3E0;--rule-strong:#C4C6C2;--ink:#1C1E21;--ink-2:#474B51;--ink-3:#5C6168;--act:#FF7A1A;--act-hover:#F26A06;--on-act:#1A1A1A;--ok:#2E7D32;--ok-rail:#7FD08A;--fail:#B3261E;--fail-soft:#FBEAE8;--fail-line:#F2A59D;--fail-rail:#FF9A90;--warn:#8A5A00;--focus:#1C1E21;--font:\"Segoe UI Variable Text\",\"Segoe UI\",system-ui,sans-serif;--display:\"Segoe UI Variable Display\",\"Segoe UI Variable Text\",\"Segoe UI\",system-ui,sans-serif;--mono:\"Cascadia Mono\",Consolas,ui-monospace,monospace;font:13px/1.45 var(--font);color:var(--ink)}.ds-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:30px;padding:0 12px;border-radius:4px;font:600 12.5px var(--font);white-space:nowrap;border:1px solid var(--rule-strong);background:var(--card);color:var(--ink);cursor:pointer}.ds-btn svg{width:14px;height:14px}.ds-btn:hover{background:var(--hover)}.ds-btn:focus-visible{outline:2px solid var(--focus);outline-offset:2px}"
+    },
+    {
+      "name": "Ghost Icon Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Row tools and icon-only actions; always aria-labelled.",
+      "html": "<div class=\"ds-root\"><button class=\"ds-btn ds-btn-ghost ds-btn-icon\" aria-label=\"Open in the browser\"><svg viewBox=\"0 0 16 16\" aria-hidden=\"true\"><g fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\"><circle cx=\"8\" cy=\"8\" r=\"5.8\"/><path d=\"M2.2 8h11.6M8 2.2c1.9 1.9 1.9 9.7 0 11.6M8 2.2c-1.9 1.9-1.9 9.7 0 11.6\"/></g></svg></button></div>",
+      "css": ".ds-root{--rail:#24272B;--rail-2:#32363C;--rail-hover:#2D3035;--rail-line:#6E757E;--rail-ink:#ECEDEF;--rail-mute:#B4BAC2;--rail-on:#FFFFFF;--ground:#F7F7F6;--card:#FFFFFF;--subtle:#EFEFED;--hover:#E8E8E5;--rule:#E2E3E0;--rule-strong:#C4C6C2;--ink:#1C1E21;--ink-2:#474B51;--ink-3:#5C6168;--act:#FF7A1A;--act-hover:#F26A06;--on-act:#1A1A1A;--ok:#2E7D32;--ok-rail:#7FD08A;--fail:#B3261E;--fail-soft:#FBEAE8;--fail-line:#F2A59D;--fail-rail:#FF9A90;--warn:#8A5A00;--focus:#1C1E21;--font:\"Segoe UI Variable Text\",\"Segoe UI\",system-ui,sans-serif;--display:\"Segoe UI Variable Display\",\"Segoe UI Variable Text\",\"Segoe UI\",system-ui,sans-serif;--mono:\"Cascadia Mono\",Consolas,ui-monospace,monospace;font:13px/1.45 var(--font);color:var(--ink)}.ds-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:30px;padding:0 12px;border-radius:4px;font:600 12.5px var(--font);white-space:nowrap;border:1px solid var(--rule-strong);background:var(--card);color:var(--ink);cursor:pointer}.ds-btn svg{width:14px;height:14px}.ds-btn:hover{background:var(--hover)}.ds-btn:focus-visible{outline:2px solid var(--focus);outline-offset:2px}.ds-btn-ghost{background:transparent;border-color:transparent;color:var(--ink-2)}.ds-btn-ghost:hover{background:var(--hover);color:var(--ink)}.ds-btn-icon{width:26px;height:26px;padding:0}"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Windows-style field with an ink-3 underline; focus turns the border ink and adds an inset underline.",
+      "html": "<div class=\"ds-root\"><input class=\"ds-input\" type=\"search\" placeholder=\"Find a site\"></div>",
+      "css": ".ds-root{--rail:#24272B;--rail-2:#32363C;--rail-hover:#2D3035;--rail-line:#6E757E;--rail-ink:#ECEDEF;--rail-mute:#B4BAC2;--rail-on:#FFFFFF;--ground:#F7F7F6;--card:#FFFFFF;--subtle:#EFEFED;--hover:#E8E8E5;--rule:#E2E3E0;--rule-strong:#C4C6C2;--ink:#1C1E21;--ink-2:#474B51;--ink-3:#5C6168;--act:#FF7A1A;--act-hover:#F26A06;--on-act:#1A1A1A;--ok:#2E7D32;--ok-rail:#7FD08A;--fail:#B3261E;--fail-soft:#FBEAE8;--fail-line:#F2A59D;--fail-rail:#FF9A90;--warn:#8A5A00;--focus:#1C1E21;--font:\"Segoe UI Variable Text\",\"Segoe UI\",system-ui,sans-serif;--display:\"Segoe UI Variable Display\",\"Segoe UI Variable Text\",\"Segoe UI\",system-ui,sans-serif;--mono:\"Cascadia Mono\",Consolas,ui-monospace,monospace;font:13px/1.45 var(--font);color:var(--ink)}.ds-input{font:13px var(--font);color:var(--ink);background:var(--card);border:1px solid var(--rule-strong);border-bottom-color:var(--ink-3);border-radius:4px;height:30px;padding:0 8px;width:190px}.ds-input::placeholder{color:var(--ink-3)}.ds-input:focus{outline:none;border-color:var(--ink);box-shadow:inset 0 -1px 0 var(--ink)}"
+    },
+    {
+      "name": "Rail Slots",
+      "kind": "custom",
+      "refersTo": "rail-slot",
+      "description": "Signature: one slot per server; filled running, outlined stopped, hatched failing.",
+      "html": "<div class=\"ds-root\"><div class=\"ds-rail\"><button class=\"ds-slot ds-on\"><i class=\"ds-mark\"></i><span>nginx</span><em>:80 :443</em></button><button class=\"ds-slot ds-bad\"><i class=\"ds-mark\"></i><span>PHP 8.4</span><em>restarting</em></button><button class=\"ds-slot\"><i class=\"ds-mark\"></i><span>MySQL 8.4</span><em>:3306</em></button></div></div>",
+      "css": ".ds-root{--rail:#24272B;--rail-2:#32363C;--rail-hover:#2D3035;--rail-line:#6E757E;--rail-ink:#ECEDEF;--rail-mute:#B4BAC2;--rail-on:#FFFFFF;--ground:#F7F7F6;--card:#FFFFFF;--subtle:#EFEFED;--hover:#E8E8E5;--rule:#E2E3E0;--rule-strong:#C4C6C2;--ink:#1C1E21;--ink-2:#474B51;--ink-3:#5C6168;--act:#FF7A1A;--act-hover:#F26A06;--on-act:#1A1A1A;--ok:#2E7D32;--ok-rail:#7FD08A;--fail:#B3261E;--fail-soft:#FBEAE8;--fail-line:#F2A59D;--fail-rail:#FF9A90;--warn:#8A5A00;--focus:#1C1E21;--font:\"Segoe UI Variable Text\",\"Segoe UI\",system-ui,sans-serif;--display:\"Segoe UI Variable Display\",\"Segoe UI Variable Text\",\"Segoe UI\",system-ui,sans-serif;--mono:\"Cascadia Mono\",Consolas,ui-monospace,monospace;font:13px/1.45 var(--font);color:var(--ink)}.ds-rail{background:var(--rail);padding:12px;display:flex;flex-direction:column;gap:6px;width:216px}.ds-slot{display:flex;align-items:center;gap:9px;height:34px;padding:0 10px;border:1.5px solid var(--rail-line);border-radius:5px;background:transparent;color:var(--rail-ink);font:12.5px var(--font);text-align:left;cursor:pointer;width:100%}.ds-slot:hover{border-color:var(--rail-mute)}.ds-slot:focus-visible{outline:2px solid var(--rail-on);outline-offset:2px}.ds-slot em{margin-left:auto;font:12px var(--mono);font-style:normal;color:var(--rail-mute)}.ds-mark{width:10px;height:10px;border-radius:50%;flex:none;border:1.5px solid var(--rail-mute)}.ds-on{background:var(--rail-2);border-color:transparent}.ds-on .ds-mark{background:var(--ok-rail);border:0}.ds-bad{border-color:var(--fail-rail);color:#FFE3DF;background:repeating-linear-gradient(135deg,#4D2622 0 5px,#3F201D 5px 10px)}.ds-bad em{color:#FFE3DF}.ds-bad .ds-mark{border-radius:2px;border-color:var(--fail-rail)}"
+    },
+    {
+      "name": "Rail Navigation",
+      "kind": "nav",
+      "refersTo": "nav-item",
+      "description": "Rail page nav; the current page is a white block with ink text.",
+      "html": "<div class=\"ds-root\"><nav class=\"ds-nav\"><button aria-current=\"page\"><svg viewBox=\"0 0 16 16\" aria-hidden=\"true\"><g fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\"><rect x=\"1.8\" y=\"2.8\" width=\"12.4\" height=\"10.4\" rx=\"1.5\"/><path d=\"M1.8 6h12.4\"/></g></svg>Sites<b>5</b></button><button><svg viewBox=\"0 0 16 16\" aria-hidden=\"true\"><path d=\"M5.5 4.5 2 8l3.5 3.5M10.5 4.5 14 8l-3.5 3.5\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>PHP<i></i></button></nav></div>",
+      "css": ".ds-root{--rail:#24272B;--rail-2:#32363C;--rail-hover:#2D3035;--rail-line:#6E757E;--rail-ink:#ECEDEF;--rail-mute:#B4BAC2;--rail-on:#FFFFFF;--ground:#F7F7F6;--card:#FFFFFF;--subtle:#EFEFED;--hover:#E8E8E5;--rule:#E2E3E0;--rule-strong:#C4C6C2;--ink:#1C1E21;--ink-2:#474B51;--ink-3:#5C6168;--act:#FF7A1A;--act-hover:#F26A06;--on-act:#1A1A1A;--ok:#2E7D32;--ok-rail:#7FD08A;--fail:#B3261E;--fail-soft:#FBEAE8;--fail-line:#F2A59D;--fail-rail:#FF9A90;--warn:#8A5A00;--focus:#1C1E21;--font:\"Segoe UI Variable Text\",\"Segoe UI\",system-ui,sans-serif;--display:\"Segoe UI Variable Display\",\"Segoe UI Variable Text\",\"Segoe UI\",system-ui,sans-serif;--mono:\"Cascadia Mono\",Consolas,ui-monospace,monospace;font:13px/1.45 var(--font);color:var(--ink)}.ds-nav{background:var(--rail);padding:12px;display:flex;flex-direction:column;gap:2px;width:216px}.ds-nav button{display:flex;align-items:center;gap:10px;height:34px;padding:0 10px;border-radius:5px;border:0;background:transparent;color:var(--rail-ink);font:600 13px var(--font);cursor:pointer;text-align:left}.ds-nav button:hover{background:var(--rail-hover)}.ds-nav button:focus-visible{outline:2px solid var(--rail-on);outline-offset:2px}.ds-nav svg{width:16px;height:16px;color:var(--rail-mute)}.ds-nav b{margin-left:auto;font:600 12px var(--mono);color:var(--rail-mute)}.ds-nav i{margin-left:auto;width:8px;height:8px;border-radius:50%;background:var(--fail-rail)}.ds-nav button[aria-current=page]{background:var(--rail-on);color:#1C1E21}.ds-nav button[aria-current=page] svg{color:#1C1E21}.ds-nav button[aria-current=page] b{color:#474B51}"
+    },
+    {
+      "name": "Site Row",
+      "kind": "card",
+      "refersTo": "site-row",
+      "description": "A site's slot: mark, name and mono address, PHP select; selected rows take an ink outline.",
+      "html": "<div class=\"ds-root ds-ground\"><div class=\"ds-site ds-sel\"><i class=\"ds-m ds-bad\"></i><div><b>blog</b><span>blog.test</span></div><select aria-label=\"PHP\"><option>PHP 8.4</option></select></div><div class=\"ds-site\"><i class=\"ds-m\"></i><div><b>shop</b><span>shop.test</span></div><select aria-label=\"PHP\"><option>Default (8.3)</option></select></div></div>",
+      "css": ".ds-root{--rail:#24272B;--rail-2:#32363C;--rail-hover:#2D3035;--rail-line:#6E757E;--rail-ink:#ECEDEF;--rail-mute:#B4BAC2;--rail-on:#FFFFFF;--ground:#F7F7F6;--card:#FFFFFF;--subtle:#EFEFED;--hover:#E8E8E5;--rule:#E2E3E0;--rule-strong:#C4C6C2;--ink:#1C1E21;--ink-2:#474B51;--ink-3:#5C6168;--act:#FF7A1A;--act-hover:#F26A06;--on-act:#1A1A1A;--ok:#2E7D32;--ok-rail:#7FD08A;--fail:#B3261E;--fail-soft:#FBEAE8;--fail-line:#F2A59D;--fail-rail:#FF9A90;--warn:#8A5A00;--focus:#1C1E21;--font:\"Segoe UI Variable Text\",\"Segoe UI\",system-ui,sans-serif;--display:\"Segoe UI Variable Display\",\"Segoe UI Variable Text\",\"Segoe UI\",system-ui,sans-serif;--mono:\"Cascadia Mono\",Consolas,ui-monospace,monospace;font:13px/1.45 var(--font);color:var(--ink)}.ds-ground{background:var(--ground);padding:12px}.ds-site{display:grid;grid-template-columns:10px minmax(0,1fr) 134px;gap:12px;align-items:center;min-height:50px;padding:6px 8px 6px 14px;margin-bottom:6px;background:var(--card);border:1.5px solid var(--rule);border-radius:5px;cursor:pointer}.ds-site:hover{border-color:var(--rule-strong)}.ds-sel,.ds-sel:hover{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}.ds-site b{display:block;font-size:13.5px;font-weight:600}.ds-site span{font:12px var(--mono);color:var(--ink-3)}.ds-site select{height:28px;font:12.5px var(--mono);color:var(--ink);background:var(--card);border:1px solid var(--rule-strong);border-bottom-color:var(--ink-3);border-radius:4px}.ds-site select:focus{outline:none;border-color:var(--ink);box-shadow:inset 0 -1px 0 var(--ink)}.ds-m{width:10px;height:10px;border-radius:50%;background:var(--ok)}.ds-m.ds-bad{border-radius:2px;border:1.5px solid var(--fail);background:repeating-linear-gradient(135deg,var(--fail) 0 1.5px,transparent 1.5px 3.5px)}"
+    },
+    {
+      "name": "Segmented Version Picker",
+      "kind": "chip",
+      "refersTo": "segmented-pressed",
+      "description": "Joined mono buttons; the pressed segment is ink.",
+      "html": "<div class=\"ds-root\"><div class=\"ds-seg\"><button>Default 8.3</button><button>8.3</button><button aria-pressed=\"true\">8.4</button></div></div>",
+      "css": ".ds-root{--rail:#24272B;--rail-2:#32363C;--rail-hover:#2D3035;--rail-line:#6E757E;--rail-ink:#ECEDEF;--rail-mute:#B4BAC2;--rail-on:#FFFFFF;--ground:#F7F7F6;--card:#FFFFFF;--subtle:#EFEFED;--hover:#E8E8E5;--rule:#E2E3E0;--rule-strong:#C4C6C2;--ink:#1C1E21;--ink-2:#474B51;--ink-3:#5C6168;--act:#FF7A1A;--act-hover:#F26A06;--on-act:#1A1A1A;--ok:#2E7D32;--ok-rail:#7FD08A;--fail:#B3261E;--fail-soft:#FBEAE8;--fail-line:#F2A59D;--fail-rail:#FF9A90;--warn:#8A5A00;--focus:#1C1E21;--font:\"Segoe UI Variable Text\",\"Segoe UI\",system-ui,sans-serif;--display:\"Segoe UI Variable Display\",\"Segoe UI Variable Text\",\"Segoe UI\",system-ui,sans-serif;--mono:\"Cascadia Mono\",Consolas,ui-monospace,monospace;font:13px/1.45 var(--font);color:var(--ink)}.ds-seg{display:flex;width:266px;border:1px solid var(--rule-strong);border-radius:4px;overflow:hidden}.ds-seg button{flex:1;padding:5px 4px;border:0;border-right:1px solid var(--rule-strong);background:var(--card);font:600 12px var(--mono);color:var(--ink-2);cursor:pointer}.ds-seg button:last-child{border-right:0}.ds-seg button:hover{background:var(--hover)}.ds-seg button:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}.ds-seg button[aria-pressed=true]{background:var(--ink);color:var(--card)}"
+    },
+    {
+      "name": "Switch",
+      "kind": "input",
+      "refersTo": "switch",
+      "description": "AI guide switch; on fills ink.",
+      "html": "<div class=\"ds-root\"><label class=\"ds-switch\"><input type=\"checkbox\" checked aria-label=\"AI guide\"><span></span></label></div>",
+      "css": ".ds-root{--rail:#24272B;--rail-2:#32363C;--rail-hover:#2D3035;--rail-line:#6E757E;--rail-ink:#ECEDEF;--rail-mute:#B4BAC2;--rail-on:#FFFFFF;--ground:#F7F7F6;--card:#FFFFFF;--subtle:#EFEFED;--hover:#E8E8E5;--rule:#E2E3E0;--rule-strong:#C4C6C2;--ink:#1C1E21;--ink-2:#474B51;--ink-3:#5C6168;--act:#FF7A1A;--act-hover:#F26A06;--on-act:#1A1A1A;--ok:#2E7D32;--ok-rail:#7FD08A;--fail:#B3261E;--fail-soft:#FBEAE8;--fail-line:#F2A59D;--fail-rail:#FF9A90;--warn:#8A5A00;--focus:#1C1E21;--font:\"Segoe UI Variable Text\",\"Segoe UI\",system-ui,sans-serif;--display:\"Segoe UI Variable Display\",\"Segoe UI Variable Text\",\"Segoe UI\",system-ui,sans-serif;--mono:\"Cascadia Mono\",Consolas,ui-monospace,monospace;font:13px/1.45 var(--font);color:var(--ink)}.ds-switch{position:relative;display:inline-block;width:36px;height:20px}.ds-switch input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer;z-index:1}.ds-switch span{position:absolute;inset:0;border-radius:10px;border:1px solid var(--ink-3);background:var(--card);transition:background-color .15s ease,border-color .15s ease}.ds-switch span::after{content:'';position:absolute;top:4px;left:4px;width:10px;height:10px;border-radius:50%;background:var(--ink-2);transition:transform .15s cubic-bezier(.2,.8,.2,1)}.ds-switch input:checked+span{background:var(--ink);border-color:var(--ink)}.ds-switch input:checked+span::after{background:var(--card);transform:translateX(16px)}.ds-switch input:focus-visible+span{outline:2px solid var(--focus);outline-offset:2px}"
+    },
+    {
+      "name": "Failing Banner",
+      "kind": "custom",
+      "refersTo": "alert-failing",
+      "description": "Above the page when a server fails: hatched mark, crimson name, mono error line, Restart as primary.",
+      "html": "<div class=\"ds-root\"><div class=\"ds-alert\"><i class=\"ds-hm\"></i><div class=\"ds-g\"><b>PHP 8.4</b> keeps stopping (3 restarts).<div class=\"ds-e\">php-cgi.exe exited with code 255</div></div><button class=\"ds-btn\">Log</button><button class=\"ds-btn ds-btn-primary\">Restart</button></div></div>",
+      "css": ".ds-root{--rail:#24272B;--rail-2:#32363C;--rail-hover:#2D3035;--rail-line:#6E757E;--rail-ink:#ECEDEF;--rail-mute:#B4BAC2;--rail-on:#FFFFFF;--ground:#F7F7F6;--card:#FFFFFF;--subtle:#EFEFED;--hover:#E8E8E5;--rule:#E2E3E0;--rule-strong:#C4C6C2;--ink:#1C1E21;--ink-2:#474B51;--ink-3:#5C6168;--act:#FF7A1A;--act-hover:#F26A06;--on-act:#1A1A1A;--ok:#2E7D32;--ok-rail:#7FD08A;--fail:#B3261E;--fail-soft:#FBEAE8;--fail-line:#F2A59D;--fail-rail:#FF9A90;--warn:#8A5A00;--focus:#1C1E21;--font:\"Segoe UI Variable Text\",\"Segoe UI\",system-ui,sans-serif;--display:\"Segoe UI Variable Display\",\"Segoe UI Variable Text\",\"Segoe UI\",system-ui,sans-serif;--mono:\"Cascadia Mono\",Consolas,ui-monospace,monospace;font:13px/1.45 var(--font);color:var(--ink)}.ds-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:30px;padding:0 12px;border-radius:4px;font:600 12.5px var(--font);white-space:nowrap;border:1px solid var(--rule-strong);background:var(--card);color:var(--ink);cursor:pointer}.ds-btn svg{width:14px;height:14px}.ds-btn:hover{background:var(--hover)}.ds-btn:focus-visible{outline:2px solid var(--focus);outline-offset:2px}.ds-btn-primary{background:var(--act);border-color:var(--act);color:var(--on-act)}.ds-btn-primary:hover{background:var(--act-hover);border-color:var(--act-hover)}.ds-alert{display:flex;align-items:center;gap:12px;padding:9px 10px 9px 12px;border-radius:5px;background:var(--fail-soft);border:1px solid var(--fail-line);color:var(--ink)}.ds-alert b{color:var(--fail)}.ds-g{flex:1;min-width:0}.ds-e{font:12px var(--mono);color:var(--ink-2)}.ds-hm{width:10px;height:10px;flex:none;border-radius:2px;border:1.5px solid var(--fail);background:repeating-linear-gradient(135deg,var(--fail) 0 1.5px,transparent 1.5px 3.5px)}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Shadow Board",
+    "overview": "devstack is a workshop tool board. Every server and every site has a slot on the board, and you read its state from the slot's shape: a filled slot is running, an empty outline is stopped, a hatched slot is failing, a dashed outline is a missing project. A two-second glance answers \"is everything there?\" before any color is read. Color confirms the shape. It never carries state alone.\n\nThe window is a native Windows app shown in WebView2: the standard title bar, Segoe UI Variable, standard control sizes (30px fields and buttons), and light and dark taken from Windows. A graphite rail runs the full height in both modes, carrying the overall status, one slot per server, and the page nav. The main pane is a near-white (or near-black) ground with white cards, ruled in 1.5px lines. It is dense and quiet, sized for fewer than ten sites, with addresses, ports, versions and paths set in Cascadia Mono. Safety orange appears only where there is something to press first.\n\nThe user rejected ornament: no stamps, postmarks or decorative marks. The direction also rejects the category default of a grey screen with one accent color and status pills. This app is the visual authority for devstack. The marketing site in `website/` still uses the older warm-neutral and terracotta look, and it should be brought in line with this system rather than the other way round.",
+    "keyCharacteristics": [
+      "State is carried by shape (filled, outline, hatched, dashed), and color confirms it.",
+      "A graphite rail runs the full height and stays dark in both themes.",
+      "Safety orange is kept for primary pressable actions, with dark text on it.",
+      "Cascadia Mono, with tabular numerals, sets every machine value.",
+      "Surfaces are flat and ruled. Shadow appears only on things that float.",
+      "Native Windows: Segoe UI Variable, standard control heights, theme follows the system."
+    ],
+    "rules": [
+      {
+        "name": "The Press-First Rule",
+        "body": "Safety orange fills only what the user should press first, or what is in progress or waiting on them (a progress fill, a changed-setting dot, an update dot). It is never used for text on the ground, for selection, for borders, or for decoration. Text on orange is always `on-orange`.",
+        "section": "colors"
+      },
+      {
+        "name": "The Ink Selects Rule",
+        "body": "Selection and \"on\" are shown in ink, not orange: the pressed segment, the selected log file, the checked switch, and the selected site's 1.5px ink outline.",
+        "section": "colors"
+      },
+      {
+        "name": "The State Hues Are Not Brand Rule",
+        "body": "Green, crimson and amber appear only when they report a state. They are never used for emphasis or category.",
+        "section": "colors"
+      },
+      {
+        "name": "The Mono Means Machine Rule",
+        "body": "Use Cascadia Mono for any value a machine produced or will parse (an address, port, version, path, ini key, count), and Segoe for anything a person reads as language. Don't use mono for decoration.",
+        "section": "typography"
+      },
+      {
+        "name": "The Two Weights Rule",
+        "body": "Use only 400 and 600. Hierarchy comes from size and ink step, not from more weights.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat Board Rule",
+        "body": "Nothing that sits on the board casts a shadow. If an element doesn't float over other content, it gets a border, not a shadow.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Slot Shape Rule",
+        "body": "State is drawn as shape: a filled circle or filled slot means running, an empty 1.5px outline means stopped, a 135° hatch inside a square-cornered outline means failing, a dashed outline means missing, and a pulsing ring means starting. Every new stateful thing must use one of these five shapes, so the meaning survives forced colors and color blindness.",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "Do make state readable from shape first (filled, outline, 135° hatch, dashed, pulse) and add the state hue second, so it still works in High Contrast.",
+      "Do keep safety orange for the one primary action per region and for progress or pending marks, always with `on-orange` text.",
+      "Do show selection and \"on\" in ink (pressed segment, checked switch, selected row outline, selected log file).",
+      "Do set addresses, ports, versions, paths, ini keys and counts in Cascadia Mono with tabular numerals.",
+      "Do use 1.5px outlines for slots and rows, 1px for control borders and dividers, and the 4/5/6/8px corner hierarchy.",
+      "Do keep the rail graphite in both themes, and use the `-rail` state tints on it.",
+      "Do draw icons as inline 16-unit line SVGs (1.2 to 1.6 stroke, `currentColor`) at 14px, or 16px in the nav, and give icon-only buttons an aria-label.",
+      "Do keep focus visible with the 2px outline, offset 2px."
+    ],
+    "donts": [
+      "Don't add stamps, postmarks, badges or other ornament to the board.",
+      "Don't report state with colored pills or with color alone. Use a mark shape plus a plain state word.",
+      "Don't use orange for selection, links, headings, borders or emphasis, and never put white text on it.",
+      "Don't give flat board elements (slots, rows, cards, banners) a shadow. Shadow means the element floats.",
+      "Don't add font weights beyond 400 and 600, or uppercase and letter-spaced labels.",
+      "Don't use Unicode glyphs or emoji as icons.",
+      "Don't carry the Segoe platform voice to surfaces outside the Windows app. It is there because this window must read as native Windows."
+    ]
+  }
+}

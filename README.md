@@ -99,11 +99,17 @@ Uninstalling keeps your stack folder with its sites and databases. Prefer no ins
 `devstack-app.exe` lives in the tray. Left-click opens the dashboard; closing the window keeps it running in the
 tray; "Stop servers and quit" ends everything. Choosing a folder that already has a `stack.toml` adopts that stack.
 
-- **Sites:** click a name to open its folder, an address to open it in the browser, pick its PHP version, switch
-  its AI guide on, or open a terminal there with its PHP ready.
-- **Servers:** services, each PHP version's settings and extensions (php.ini), the database login, SQL Server
-  extensions, and versions to install or remove.
-- **Logs** and **Settings:** start servers with the app, open at sign-in, `.test` addresses, HTTPS, updates.
+The sidebar always shows whether the servers run, with Start or Stop, and one slot per server: filled while it
+runs, an outline when stopped, hatched when it keeps crashing.
+
+- **Sites:** pick each site's PHP version and switch its AI guide on, or open it in the browser, its folder or a
+  terminal with its PHP ready. Click a site for its details: address, PHP, AI guide, database login and logs.
+- **PHP:** each installed version with the sites that use it, its settings and extensions (php.ini), its error log
+  and Restart; versions to install or remove, and the SQL Server extensions.
+- **Database:** the MySQL login (show or copy the generated password) and MySQL versions.
+- **Logs:** every server and site log, followed live.
+- **Settings:** `.test` addresses, HTTPS, start servers with the app, open at sign-in, updates, nginx and its
+  versions.
 
 It is plain HTML/CSS/JS served on 127.0.0.1 behind a per-launch token and shown in a WebView2 window; without
 WebView2 it opens in the browser.

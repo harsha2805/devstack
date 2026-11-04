@@ -17,6 +17,15 @@ const ICONS = {
   cross: '<path d="m4.5 4.5 7 7m0-7-7 7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
   ring: '<circle cx="8" cy="8" r="5" fill="none" stroke="currentColor" stroke-width="1.4"/>',
   spin: '<path d="M8 3a5 5 0 1 0 5 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><animateTransform attributeName="transform" type="rotate" from="0 8 8" to="360 8 8" dur=".9s" repeatCount="indefinite"/></path>',
+  globe: '<g fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="8" r="5.8"/><path d="M2.2 8h11.6M8 2.2c1.9 1.9 1.9 9.7 0 11.6M8 2.2c-1.9 1.9-1.9 9.7 0 11.6"/></g>',
+  copy: '<g fill="none" stroke="currentColor" stroke-width="1.2"><rect x="5.5" y="5.5" width="8" height="8" rx="1.3"/><path d="M3.5 10.5V3.8c0-.4.3-.8.8-.8h6.2"/></g>',
+  plus: '<path d="M8 3.5v9M3.5 8h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
+  chevron: '<path d="m4.5 6.5 3.5 3.5 3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>',
+  sites: '<g fill="none" stroke="currentColor" stroke-width="1.2"><rect x="1.8" y="2.8" width="12.4" height="10.4" rx="1.5"/><path d="M1.8 6h12.4"/></g>',
+  php: '<path d="M5.5 4.5 2 8l3.5 3.5M10.5 4.5 14 8l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>',
+  database: '<g fill="none" stroke="currentColor" stroke-width="1.2"><ellipse cx="8" cy="4" rx="5.2" ry="1.9"/><path d="M2.8 4v8c0 1 2.3 1.9 5.2 1.9s5.2-.9 5.2-1.9V4M2.8 8c0 1 2.3 1.9 5.2 1.9s5.2-.9 5.2-1.9"/></g>',
+  logs: '<path d="M3 4h10M3 8h10M3 12h6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>',
+  settings: '<g fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.8v1.8M8 12.4v1.8M1.8 8h1.8M12.4 8h1.8M3.6 3.6l1.3 1.3M11.1 11.1l1.3 1.3M3.6 12.4l1.3-1.3M11.1 4.9l1.3-1.3"/></g>',
 };
 const icon = (name, cls = "") => `<svg class="${cls}" viewBox="0 0 16 16" aria-hidden="true">${ICONS[name]}</svg>`;
 
@@ -56,15 +65,20 @@ async function act(path, body, okMsg) {
 }
 
 const open = (kind, target) => act("/api/open", { kind, target }).catch(() => {});
+const copy = (text, what) => navigator.clipboard.writeText(text).then(() => toast(`${what} copied`), () => toast("Couldn't copy", true));
 // Binary units, matching the CLI.
 const size = (n) => n >= 2 ** 30 ? (n / 2 ** 30).toFixed(1) + " GB" : n >= 2 ** 20 ? (n / 2 ** 20).toFixed(1) + " MB" : n >= 2 ** 10 ? (n / 2 ** 10).toFixed(0) + " KB" : n + " B";
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 // ---- state + rendering -------------------------------------------------------
 
 let S = null;
-const TABS = ["sites", "servers", "logs", "settings"];
-let tab = [location.hash.slice(1), localStorageGet("tab")].find((t) => TABS.includes(t)) || "sites";
-const drawn = {}; // section -> key of what is on screen
+const PAGES = ["sites", "php", "database", "logs", "settings"];
+// "servers" was the old combined tab; its first job, PHP, is the closest page.
+let page = [location.hash.slice(1), localStorageGet("page"), { servers: "php" }[localStorageGet("tab")]].find((p) => PAGES.includes(p)) || "sites";
+let selected = null; // the site shown in the side panel
+let query = "";      // the Sites find box
+const drawn = {};    // section -> key of what is on screen
 
 function localStorageGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
 function localStorageSet(k, v) { try { localStorage.setItem(k, v); } catch {} }
@@ -95,36 +109,65 @@ function render() {
   $("#setup").hidden = !setupMode;
   $("#dash").hidden = setupMode;
   if (setupMode) return renderSetup();
-  renderStrip();
-  renderTabs();
-  if (tab === "sites") renderSites();
-  if (tab === "servers") renderServers();
-  if (tab === "logs") renderLogs();
-  if (tab === "settings") renderSettings();
+  renderShell();
+  renderAlerts();
+  if (page === "sites") { renderSites(); renderPanel(); }
+  if (page === "php") renderPHP();
+  if (page === "database") renderDB();
+  if (page === "logs") renderLogs();
+  if (page === "settings") renderSettings();
+  finishInstallJob();
 }
+
+function go(p) {
+  page = p;
+  localStorageSet("page", p);
+  drawn.logsActive = false;
+  closeMenu();
+  render();
+}
+
+// ---- services ------------------------------------------------------------------
+
+const label = (name) => name.replace(/^php-/, "PHP ").replace(/^mysql$/, "MySQL");
+const short = (v) => String(v ?? "").split(".").slice(0, 2).join(".");
+// byRole orders services the way requests flow: web server, PHP, database.
+const role = (name) => name === "nginx" ? 0 : name.startsWith("php-") ? 1 : 2;
+const byRole = (list) => [...list].sort((a, b) => role(a.name) - role(b.name) || a.name.localeCompare(b.name));
+const services = () => byRole(S.running && S.groups.length
+  ? S.groups
+  : S.planned.map((p) => ({ name: p.name, version: p.version, ports: p.ports, state: "stopped", restarts: 0 })));
+const failing = (g) => g && (g.state === "failed" || g.state === "backoff");
+const moving = (g) => g && (g.state === "starting" || g.state === "stopping");
+const portText = (p) => p ? String(p).split(/[\s,]+/).filter(Boolean).map((x) => ":" + x).join(" ") : "";
+// mark is a slot's shape: "" filled (running), off, busy, bad (hatched).
+const mark = (g) => !g || !S.running || g.state === "stopped" ? "off" : failing(g) ? "bad" : moving(g) ? "busy" : g.state === "running" ? "" : "off";
+const stateWord = (g) => !S.running || !g || g.state === "stopped" ? "Stopped"
+  : g.state === "running" ? "Running" : g.state === "backoff" ? "Restarting after a crash" : g.state === "failed" ? "Failed"
+  : g.state === "starting" ? "Starting…" : g.state === "stopping" ? "Stopping…" : g.state;
+const stateCls = (g) => ({ "": "ok", off: "off", busy: "busy", bad: "bad" })[mark(g)];
+const phpGroup = (v) => S.groups.find((g) => g.name === "php-" + v);
+// logFor names the log a service writes its errors to.
+const logFor = (name) => name === "mysql" ? "mysql.log" : name + "-error.log";
 
 function overall() {
   const job = S.job && !S.job.finished ? S.job : null;
-  if (job) return { word: job.title.replace(/ servers$/, "").toUpperCase() + "…", color: "var(--warn)", busy: true };
-  if (!S.running) return { word: "STOPPED", color: "var(--text-3)" };
-  if (S.phase === "starting") return { word: "STARTING…", color: "var(--warn)", busy: true };
-  if (S.phase === "stopping") return { word: "STOPPING…", color: "var(--warn)", busy: true };
-  if (S.groups.some((g) => g.state !== "running")) return { word: "NEEDS ATTENTION", color: "var(--danger)" };
-  return { word: "RUNNING", color: "var(--live)", live: true };
+  if (job) return { word: job.title.replace(/ servers$/, "") + "…", cls: "busy" };
+  if (!S.running) return { word: "Stopped", cls: "" };
+  if (S.phase === "starting") return { word: "Starting…", cls: "busy" };
+  if (S.phase === "stopping") return { word: "Stopping…", cls: "busy" };
+  if (S.groups.some((g) => g.state !== "running")) return { word: "Needs attention", cls: "bad" };
+  return { word: "Running", cls: "" };
 }
 
-function renderStrip() {
+function renderShell() {
   const o = overall();
-  const strip = $("#strip");
-  strip.style.setProperty("--state", o.color);
-  strip.classList.toggle("live", !!o.live);
-  strip.classList.toggle("busy", !!o.busy);
+  $("#status").className = "status " + o.cls;
   $("#state-word").textContent = o.word;
 
-  const n = S.sites.length;
-  const sites = `${n} site${n === 1 ? "" : "s"}`;
-  let line;
+  const sites = plural(S.sites.length, "site");
   const job = S.job && !S.job.finished ? S.job : null;
+  let line;
   if (job) {
     const cur = [...job.steps].reverse().find((s) => s.state !== "pending");
     line = cur ? cur.label : "";
@@ -133,66 +176,87 @@ function renderStrip() {
   } else if (S.errors.length) {
     line = S.errors[0].split("\n")[0];
   } else if (S.running) {
-    line = `Serving ${sites} · ${S.root_url}`;
+    line = `Serving ${sites}` + (S.https?.on ? " · https" : "");
   } else {
-    line = `Start to serve ${sites} from ${S.www || S.root}`;
+    line = `${sites} ready to serve`;
   }
   $("#state-line").textContent = line;
   $("#state-line").title = line;
 
-  const services = byRole(S.running && S.groups.length
-    ? S.groups.map((g) => ({ name: g.name, version: g.version, state: g.state }))
-    : S.planned.map((p) => ({ name: p.name, version: p.version, state: "stopped" })));
-  draw("pills", services, () => {
-    $("#pills").innerHTML = services.map((s) =>
-      `<span class="pill ${esc(s.state)}" title="${esc(s.name)} ${esc(s.version)}: ${esc(s.state)}"><i></i>${esc(product(s.name))} ${esc(short(s.version))}</span>`).join("");
-  });
-
   const btn = $("#power");
   const busy = !!job || S.phase === "starting" || S.phase === "stopping";
   draw("power", [S.running, busy], () => {
-    btn.className = S.running ? "btn" : "btn primary";
-    btn.innerHTML = S.running ? icon("stop") + "Stop" : icon("play") + "Start";
+    btn.className = S.running ? "btn small" : "btn small primary";
+    btn.innerHTML = (S.running ? icon("stop") + '<span class="label">Stop</span>' : icon("play") + '<span class="label">Start</span>');
+    btn.setAttribute("aria-label", S.running ? "Stop the servers" : "Start the servers");
     btn.disabled = busy;
     btn.onclick = () => act(S.running ? "/api/stop" : "/api/start").catch(() => {});
   });
+
+  const svc = services();
+  draw("slots", [svc, S.running], () => {
+    $("#slots").innerHTML = svc.map((g) => {
+      const m = mark(g);
+      const right = m === "bad" ? (g.state === "backoff" ? "restarting" : "failed") : m === "busy" ? g.state : S.running && m === "" ? portText(g.ports) : short(g.version);
+      const name = g.name === "nginx" ? "nginx" : label(g.name) + (g.name.startsWith("php-") ? "" : " " + short(g.version));
+      const to = g.name.startsWith("php-") ? "php" : g.name === "mysql" ? "database" : "settings";
+      return `<button class="slot ${m === "" ? "on" : m}" data-goto="${to}" title="${esc(label(g.name))} ${esc(g.version)}: ${esc(stateWord(g))}">
+        <i class="mark"></i><span class="name">${esc(name)}</span><em>${esc(right)}</em></button>`;
+    }).join("");
+    $("#slots").querySelectorAll("[data-goto]").forEach((b) => (b.onclick = () => go(b.dataset.goto)));
+  });
+
+  const phpBad = S.running && S.groups.some((g) => g.name.startsWith("php-") && failing(g));
+  const dbBad = S.running && S.groups.some((g) => g.name === "mysql" && failing(g));
+  const update = !!(S.update && S.update.version);
+  draw("nav", [page, S.sites.length, phpBad, dbBad, update], () => {
+    const extra = { sites: `<span class="badge">${S.sites.length}</span>`, php: phpBad ? '<i class="dot" title="A PHP version isn\'t running"></i>' : "",
+      database: dbBad ? '<i class="dot" title="MySQL isn\'t running"></i>' : "", settings: update ? '<i class="dot update" title="Update available"></i>' : "" };
+    const names = { sites: "Sites", php: "PHP", database: "Database", logs: "Logs", settings: "Settings" };
+    document.querySelectorAll(".nav [data-page]").forEach((b) => {
+      const p = b.dataset.page;
+      b.innerHTML = icon(p) + `<span class="label">${names[p]}</span>` + (extra[p] || "");
+      b.setAttribute("aria-label", names[p] + (p === "settings" && update ? ", update available" : ""));
+      b.toggleAttribute("aria-current", p === page);
+      if (p === page) b.setAttribute("aria-current", "page");
+    });
+    document.querySelectorAll(".page").forEach((v) => v.classList.toggle("active", v.dataset.page === page));
+  });
 }
 
-const label = (name) => name.replace(/^php-/, "PHP ").replace(/^mysql$/, "MySQL");
-const product = (name) => name.startsWith("php-") ? "PHP" : name === "mysql" ? "MySQL" : name;
-const short = (v) => v.split(".").slice(0, 2).join(".");
-// byRole orders services the way requests flow: web server, PHP, database.
-const role = (name) => name === "nginx" ? 0 : name.startsWith("php-") ? 1 : 2;
-const byRole = (list) => [...list].sort((a, b) => role(a.name) - role(b.name) || a.name.localeCompare(b.name));
-
-function renderTabs() {
-  const update = S.update && S.update.version;
-  draw("tabs", [tab, update], () => {
-    document.querySelectorAll("#tabs button").forEach((b) => b.setAttribute("aria-selected", b.dataset.tab === tab));
-    const set = $('#tabs [data-tab="settings"]');
-    set.innerHTML = "Settings" + (update ? '<i class="tab-dot" title="Update available"></i>' : "");
-    set.setAttribute("aria-label", update ? "Settings, update available" : "Settings");
-    document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.dataset.view === tab));
-  });
-  draw("bar-actions", [tab, S.running, S.www], () => {
-    const a = $("#bar-actions");
-    if (tab === "sites") {
-      a.innerHTML = `<button class="btn" id="add-project" title="Serve a project folder that lives outside www">${icon("folder")}Add folder…</button>
-        <button class="btn" id="open-www">${icon("folder")}Open www folder</button>
-        <button class="btn" id="reload" ${S.running ? "" : "disabled"} title="Apply changes to stack.toml (sites in www are picked up on their own)">${icon("reload")}Reload</button>`;
-      $("#add-project").onclick = pickProject;
-      $("#open-www").onclick = () => open("folder", S.www);
-      $("#reload").onclick = () => act("/api/reload", {}, "Reloaded").catch(() => {});
-    } else {
-      a.innerHTML = "";
-    }
+// renderAlerts shows what is broken right now, above every page.
+function renderAlerts() {
+  const bad = S.running ? S.groups.filter(failing) : [];
+  const job = S.job && S.job.finished && S.job.error && !/^(Installing|Updating)/.test(S.job.title) ? S.job : null;
+  draw("alerts", [bad, S.sites.map((s) => [s.slug, s.php]), S.errors, job?.title, job?.error], () => {
+    const rows = bad.map((g) => {
+      const v = g.name.startsWith("php-") ? g.name.slice(4) : null;
+      const hit = v ? S.sites.filter((s) => s.php === v).map((s) => s.slug) : [];
+      const who = hit.length ? ` ${hit.slice(0, 4).join(", ")}${hit.length > 4 ? ` and ${hit.length - 4} more` : ""} ${hit.length === 1 ? "isn't" : "aren't"} answering.` : "";
+      const why = g.state === "backoff" ? ` keeps stopping${g.restarts ? ` (${plural(g.restarts, "restart")})` : ""}; devstack is trying again.` : ` stopped${g.restarts ? ` after ${plural(g.restarts, "restart")}` : ""}.`;
+      return `<div class="alert"><i class="mark bad"></i><div class="grow"><b>${esc(label(g.name))}</b>${esc(why)}${esc(who)}
+          ${g.last_error ? `<div class="muted mono" style="margin-top:2px">${esc(g.last_error.split("\n")[0])}</div>` : ""}</div>
+        <button class="btn small" data-log="${esc(logFor(g.name))}">Log</button>
+        <button class="btn small primary" data-restart="${esc(g.name)}">Restart</button></div>`;
+    });
+    for (const e of S.errors) rows.push(`<div class="alert"><i class="mark bad"></i><div class="grow">${esc(e.split("\n")[0])}</div>
+      <button class="btn small" data-log="devstack.log">Log</button></div>`);
+    if (job) rows.push(`<div class="alert"><i class="mark bad"></i><div class="grow"><b>${esc(job.title)} failed.</b> ${esc(job.error.split("\n")[0])}</div>
+      <button class="btn small ghost" id="job-dismiss">Dismiss</button></div>`);
+    $("#alerts").innerHTML = rows.join("");
+    $("#alerts").querySelectorAll("[data-restart]").forEach((b) => (b.onclick = () => act("/api/restart", { unit: b.dataset.restart }, "Restarted " + label(b.dataset.restart)).catch(() => {})));
+    $("#alerts").querySelectorAll("[data-log]").forEach((b) => (b.onclick = () => showLog(b.dataset.log)));
+    $("#job-dismiss") && ($("#job-dismiss").onclick = () => api("/api/job/dismiss", {}).then(() => poll(true)));
   });
 }
+
+// ---- sites ---------------------------------------------------------------------
 
 // adding is a folder picked with "Add folder…" whose own name can't be used
 // (another site has it), waiting for the user to pick another.
 let adding = null;
 async function pickProject() {
+  closeMenu();
   try {
     const res = await api("/api/project/pick", {});
     if (res.dir) await addProject(res.dir, "");
@@ -205,6 +269,7 @@ async function addProject(dir, name) {
   try {
     const res = await api("/api/project/add", { dir, name });
     adding = null;
+    selected = res.name || selected;
     renderSites();
     if (res.warnings?.length) toast(`Added ${res.name}. ${res.warnings.join(" ")}`, true);
     else toast(`Added ${res.name}`);
@@ -220,235 +285,375 @@ async function addProject(dir, name) {
 
 function removeProject(name) {
   if (!confirm(`Stop serving ${name}? The folder and your files stay where they are.`)) return;
+  if (selected === name) selected = null;
   act("/api/project/remove", { name }, `${name} is no longer served`).catch(() => {});
 }
 
+// siteMark is a site's slot shape: its PHP version's state while serving.
+function siteMark(s) {
+  if (!S.running) return ["off", "Not served while the servers are stopped"];
+  const g = phpGroup(s.php);
+  if (!g) return ["off", `PHP ${s.php} isn't running`];
+  if (failing(g)) return ["bad", `PHP ${s.php} isn't running, so this site isn't answering`];
+  if (moving(g)) return ["busy", stateWord(g)];
+  return ["", "Serving"];
+}
+
+const phpOptions = (site) => {
+  const opts = [`<option value="" ${site.pinned ? "" : "selected"}>Default (${esc(S.default_php)})</option>`];
+  for (const v of S.phps || []) opts.push(`<option value="${esc(v)}" ${site.pinned && site.php === v ? "selected" : ""}>PHP ${esc(v)}</option>`);
+  return opts.join("");
+};
+const host = (url) => url.replace(/^https?:\/\//, "").replace(/\/$/, "");
+
+function setPHP(s, php) {
+  return act("/api/site/php", { slug: s.slug, php }, `${s.slug} now uses ${php ? "PHP " + php : "the default PHP"}`).catch(() => {});
+}
+function setGuide(s, on) {
+  return act("/api/site/guide", { slug: s.slug, on }, on ? `Added the AI guide to ${s.slug}` : `Removed the AI guide from ${s.slug}`);
+}
+
 function renderSites() {
-  draw("sites", [S.sites, S.unserved, S.phps, S.default_php, S.www, S.running, S.dns, S.shims, adding?.dir, adding?.problem], () => {
+  $("#site-count").textContent = S.sites.length || "";
+  $("#reload").disabled = !S.running;
+  const marks = S.sites.map(siteMark);
+  draw("sites", [S.sites, S.unserved, S.phps, S.default_php, S.www, S.running, S.dns, S.shims, adding?.dir, adding?.problem, query, selected, marks], () => {
     const el = $("#sites");
-    const addAsk = adding ? `<div class="ask">
-        <div class="grow"><div class="set-title">Pick another name for this folder</div>
-        <div class="set-desc">${esc(adding.problem)}</div>
-        <div class="set-desc mono" title="${esc(adding.dir)}">${esc(adding.dir)}</div></div>
-        <label class="add-name"><input type="text" id="add-name" value="${esc(adding.name)}" spellcheck="false" aria-label="Name for the site"><span class="mono">.${esc(S.dns?.on ? S.dns.tld : "localhost")}</span></label>
-        <button class="btn small primary" id="add-yes">Add</button><button class="btn small ghost" id="add-no">Cancel</button></div>` : "";
-    const unserved = (S.unserved || []).map((p) => `<div class="notice warn unserved">
-        <span class="grow"><b>${esc(p.name)}</b> is not served: ${p.missing ? "its folder" : ""} <span class="mono">${esc(p.dir)}</span> ${p.missing ? "is missing (moved, or on a drive that isn't plugged in)." : "is already served under another name."}</span>
-        <button class="btn small ghost" data-unlist="${esc(p.name)}">Remove</button></div>`).join("");
-    const wire = () => {
-      if (adding) {
-        $("#add-name").oninput = (e) => (adding.name = e.target.value);
-        const add = () => addProject(adding.dir, adding.name.trim());
-        $("#add-name").onkeydown = (e) => { if (e.key === "Enter") add(); if (e.key === "Escape") $("#add-no").click(); };
-        $("#add-yes").onclick = add;
-        $("#add-no").onclick = () => { adding = null; renderSites(); };
-      }
-      el.querySelectorAll("[data-unlist]").forEach((b) => (b.onclick = () => removeProject(b.dataset.unlist)));
-    };
-    const d = S.dns;
+    const d = S.dns, sh = S.shims;
+    const todo = [];
     // php and composer in terminals pick each site's PHP only while devstack's shims come first on PATH.
-    const sh = S.shims;
-    const shimAsk = sh && !sh.ok && S.sites.length ? `<div class="ask">
-        <div class="grow"><div class="set-title">Terminals don't use each site's PHP yet</div>
-        <div class="set-desc">${esc(sh.problem)} ${sh.blocker_system ? "Fixing it puts devstack's php first on the system PATH; Windows asks for administrator approval once." : "Fixing it puts devstack's php first on your PATH."}
-        Terminals opened afterwards pick it up.</div></div>
-        <button class="btn small primary" id="shims-fix">Fix</button></div>` : "";
-    const ask = d && !d.on && !d.asked && S.sites.length ? `<div class="ask">
-        <div class="grow"><div class="set-title">Use ${esc(S.sites[0].slug)}.${esc(d.tld)} addresses?</div>
-        <div class="set-desc">Right now sites answer at <span class="mono">name.localhost</span>, which only browsers and curl understand.
-        With <span class="mono">.${esc(d.tld)}</span> addresses, PHP, Postman and terminals reach them too. Windows asks for administrator approval once;
-        only <span class="mono">*.${esc(d.tld)}</span> lookups go to devstack, never other sites.</div></div>
-        <button class="btn small primary" id="dns-yes">Turn on</button><button class="btn small ghost" id="dns-no">Not now</button></div>` : "";
+    if (sh && !sh.ok && S.sites.length) todo.push(`<div class="todo-item"><i class="mark off" style="margin-top:4px"></i><div class="grow"><b>Terminals don't use each site's PHP yet</b>
+      ${esc(sh.problem)} ${sh.blocker_system ? "Fixing it puts devstack's php first on the system PATH; Windows asks for administrator approval once." : "Fixing it puts devstack's php first on your PATH."}
+      Terminals opened afterwards pick it up.</div><div class="acts"><button class="btn small primary" id="shims-fix">Fix</button></div></div>`);
+    if (d && !d.on && !d.asked && S.sites.length) todo.push(`<div class="todo-item"><i class="mark off" style="margin-top:4px"></i><div class="grow"><b>Use ${esc(S.sites[0].slug)}.${esc(d.tld)} addresses?</b>
+      Sites answer at <span class="mono">name.localhost</span> now, which only browsers and curl understand. With <span class="mono">.${esc(d.tld)}</span> addresses
+      PHP, Postman and terminals reach them too. Windows asks for administrator approval once; only <span class="mono">*.${esc(d.tld)}</span> lookups go to devstack.</div>
+      <div class="acts"><button class="btn small primary" id="dns-yes">Turn on</button><button class="btn small ghost" id="dns-no">Not now</button></div></div>`);
+    const todoCard = todo.length ? `<div class="todo"><div class="todo-head"><b>Finish setting up</b><span class="muted">${plural(todo.length, "step")} left, each optional</span></div>${todo.join("")}</div>` : "";
+    const addAsk = adding ? `<div class="todo"><div class="todo-item"><i class="mark gone" style="margin-top:4px"></i><div class="grow"><b>Pick another name for this folder</b>
+        ${esc(adding.problem)}<div class="mono" title="${esc(adding.dir)}">${esc(adding.dir)}</div>
+        <label class="add-name"><input type="text" id="add-name" value="${esc(adding.name)}" spellcheck="false" aria-label="Name for the site"><span class="mono">.${esc(S.dns?.on ? S.dns.tld : "localhost")}</span></label></div>
+        <div class="acts"><button class="btn small primary" id="add-yes">Add</button><button class="btn small ghost" id="add-no">Cancel</button></div></div></div>` : "";
+
+    const gone = (S.unserved || []).map((p) => `<div class="site gone"><i class="mark gone" title="Not served"></i>
+        <div class="site-id"><span class="site-name">${esc(p.name)}</span><span class="site-url">${p.missing
+          ? `Folder missing: <span class="mono">${esc(p.dir)}</span>. It comes back by itself when the folder does (a drive plugged in, a folder moved back).`
+          : `Not served: <span class="mono">${esc(p.dir)}</span> is already served under another name.`}</span></div>
+        <button class="btn small ghost" data-unlist="${esc(p.name)}">Remove</button></div>`).join("");
+
+    let body;
     if (!S.sites.length) {
-      el.innerHTML = addAsk + unserved + `<div class="empty"><p>No sites yet. Every folder in <span class="mono">${esc(S.www)}</span> becomes a site,
+      body = `<div class="empty"><p>No sites yet. Every folder in <span class="mono">${esc(S.www)}</span> becomes a site,
         and you can add folders from anywhere else.</p>
-        <button class="btn" id="empty-open">${icon("folder")}Open www folder</button> <button class="btn" id="empty-add">${icon("folder")}Add folder…</button></div>`;
-      $("#empty-open").onclick = () => open("folder", S.www);
-      $("#empty-add").onclick = pickProject;
-      wire();
-      return;
+        <button class="btn" id="empty-open">${icon("folder")}Open www folder</button> <button class="btn" id="empty-add">${icon("plus")}Add folder…</button></div>`;
+    } else {
+      const q = query.trim().toLowerCase();
+      const shown = S.sites.map((s, i) => [s, i]).filter(([s]) => !q || [s.slug, s.name, s.url, s.dir].join(" ").toLowerCase().includes(q));
+      body = `<div class="site-head" aria-hidden="true"><span></span><span>Site</span><span>PHP</span><span>AI guide</span><span></span></div>` + shown.map(([s, i]) => {
+        const [m, why] = marks[i];
+        return `<div class="site ${selected === s.slug ? "selected" : ""}" data-row="${i}">
+          <i class="mark ${m}" title="${esc(why)}"></i>
+          <div class="site-id"><button class="site-name" data-select="${i}" aria-expanded="${selected === s.slug}" title="Show ${esc(s.slug)}'s details">${esc(s.slug)}</button>
+            <span class="site-url">${esc(host(s.url))}${s.project ? ` · <span class="from" title="Added from outside www">${esc(s.dir)}</span>` : s.name !== s.slug ? ` · <span class="from">${esc(s.name)}</span>` : ""}</span></div>
+          <select data-php="${i}" aria-label="PHP version for ${esc(s.slug)}">${phpOptions(s)}</select>
+          <label class="switch" title="AI guide for ${esc(s.slug)}: ${s.guide ? "on" : "off"}"><input type="checkbox" data-guide="${i}" ${s.guide ? "checked" : ""} aria-label="AI guide for ${esc(s.slug)}"><span></span></label>
+          <div class="tools">
+            <button class="btn small ghost icon-only" data-url="${i}" title="${S.running ? `Open ${esc(s.url)}` : "Start the servers to open it"}" aria-label="Open ${esc(s.slug)} in the browser">${icon("globe")}</button>
+            <button class="btn small ghost icon-only" data-folder="${i}" title="Open ${esc(s.dir)}" aria-label="Open ${esc(s.slug)}'s folder">${icon("folder")}</button>
+            <button class="btn small ghost icon-only" data-terminal="${i}" title="Terminal in ${esc(s.slug)}: php and composer run PHP ${esc(s.php)}" aria-label="Open a terminal in ${esc(s.slug)}">${icon("terminal")}</button>
+          </div></div>`;
+      }).join("") + (shown.length ? "" : `<div class="no-match">No site matches “${esc(query.trim())}”.</div>`);
     }
-    const phpOptions = (site) => {
-      const opts = [`<option value="" ${site.pinned ? "" : "selected"}>Default (${esc(S.default_php)})</option>`];
-      for (const v of S.phps || []) opts.push(`<option value="${esc(v)}" ${site.pinned && site.php === v ? "selected" : ""}>PHP ${esc(v)}</option>`);
-      return opts.join("");
-    };
-    el.innerHTML = addAsk + shimAsk + ask + unserved + `<table>
-      <thead><tr><th>Site</th><th>Address</th><th>PHP</th><th title="Tells AI coding agents how this site runs here">AI guide</th><th></th></tr></thead>
-      <tbody>${S.sites.map((s, i) => `
-        <tr>
-          <td><button class="link site-name" data-folder="${i}" title="Open ${esc(s.dir)}">${esc(s.slug)}</button>${s.project ? `<div class="site-sub mono" title="Added from outside www">${esc(s.dir)}</div>` : s.name !== s.slug ? `<div class="site-sub">${esc(s.name)}</div>` : ""}</td>
-          <td><button class="link" data-url="${i}" title="${S.running ? `Open ${esc(s.url)} in your browser` : "Start the servers to open it"}">${esc(s.url.replace(/^http:\/\//, ""))}</button></td>
-          <td><select data-php="${i}" aria-label="PHP version for ${esc(s.slug)}">${phpOptions(s)}</select></td>
-          <td><label class="switch" title="${s.guide ? "Remove" : "Add"} the AI guide for ${esc(s.slug)}"><input type="checkbox" data-guide="${i}" ${s.guide ? "checked" : ""} aria-label="AI guide for ${esc(s.slug)}"><span></span></label></td>
-          <td class="tools">${s.project ? `<button class="btn small ghost icon-only" data-unlist="${esc(s.slug)}" title="Stop serving ${esc(s.slug)} (the folder is kept)" aria-label="Stop serving ${esc(s.slug)}">${icon("cross")}</button>` : ""}<button class="btn small ghost icon-only" data-terminal="${i}" title="Open a terminal in ${esc(s.slug)}: php and composer run PHP ${esc(s.php)}" aria-label="Open a terminal in ${esc(s.slug)}">${icon("terminal")}</button></td>
-        </tr>`).join("")}
-      </tbody></table>
-      <p class="muted" style="margin:12px 0 0;font-size:12px">New folders in <span class="mono">${esc(S.www)}</span> are served within a few seconds while the servers run.
-        For a project kept somewhere else, use <b>Add folder…</b>.</p>
-      <p class="muted" style="margin:6px 0 0;font-size:12px">AI guide: tells coding agents (Claude Code, Codex, Cursor, Copilot) this site's URL, PHP, database and logs.
-        It writes <span class="mono">.devstack/ai-guide.md</span> (kept out of git) and a short pointer in <span class="mono">AGENTS.md</span> and <span class="mono">CLAUDE.md</span>. Your own text in those files is left alone.</p>`;
-    wire();
-    el.querySelectorAll("[data-url]").forEach((b) => (b.onclick = () => open("url", S.sites[b.dataset.url].url)));
-    el.querySelectorAll("[data-folder]").forEach((b) => (b.onclick = () => open("folder", S.sites[b.dataset.folder].dir)));
-    el.querySelectorAll("[data-terminal]").forEach((b) => (b.onclick = () => act("/api/terminal", { site: S.sites[b.dataset.terminal].slug }).catch(() => {})));
+    el.innerHTML = addAsk + todoCard + `<div class="site-list">${body}${gone}</div>` +
+      (S.sites.length ? `<p class="list-note">New folders in <span class="mono">${esc(S.www)}</span> are served within a few seconds while the servers run.</p>` : "");
+
+    if (adding) {
+      $("#add-name").oninput = (e) => (adding.name = e.target.value);
+      const add = () => addProject(adding.dir, adding.name.trim());
+      $("#add-name").onkeydown = (e) => { if (e.key === "Enter") add(); if (e.key === "Escape") $("#add-no").click(); };
+      $("#add-yes").onclick = add;
+      $("#add-no").onclick = () => { adding = null; renderSites(); };
+    }
+    $("#empty-open") && ($("#empty-open").onclick = () => open("folder", S.www));
+    $("#empty-add") && ($("#empty-add").onclick = pickProject);
     $("#shims-fix") && ($("#shims-fix").onclick = () => act("/api/shims/fix", {}).catch(() => {}));
     $("#dns-yes") && ($("#dns-yes").onclick = () => act("/api/dns", { on: true }).catch(() => {}));
     $("#dns-no") && ($("#dns-no").onclick = () => act("/api/dns/dismiss", {}, "You can turn it on later in Settings").catch(() => {}));
-    el.querySelectorAll("[data-guide]").forEach((cb) => (cb.onchange = () => {
-      const s = S.sites[cb.dataset.guide];
-      act("/api/site/guide", { slug: s.slug, on: cb.checked }, cb.checked ? `Added the AI guide to ${s.slug}` : `Removed the AI guide from ${s.slug}`)
-        .catch(() => (cb.checked = !cb.checked));
+    el.querySelectorAll("[data-unlist]").forEach((b) => (b.onclick = () => removeProject(b.dataset.unlist)));
+    el.querySelectorAll("[data-url]").forEach((b) => (b.onclick = () => open("url", S.sites[b.dataset.url].url)));
+    el.querySelectorAll("[data-folder]").forEach((b) => (b.onclick = () => open("folder", S.sites[b.dataset.folder].dir)));
+    el.querySelectorAll("[data-terminal]").forEach((b) => (b.onclick = () => act("/api/terminal", { site: S.sites[b.dataset.terminal].slug }).catch(() => {})));
+    el.querySelectorAll("[data-select]").forEach((b) => (b.onclick = () => select(S.sites[b.dataset.select].slug)));
+    // A click anywhere else on the row (not on one of its controls) selects it too.
+    el.querySelectorAll("[data-row]").forEach((r) => (r.onclick = (e) => {
+      if (!e.target.closest("button, select, label, input, a")) select(S.sites[r.dataset.row].slug);
     }));
-    el.querySelectorAll("[data-php]").forEach((sel) => (sel.onchange = () => {
-      const s = S.sites[sel.dataset.php];
-      act("/api/site/php", { slug: s.slug, php: sel.value }, `${s.slug} now uses ${sel.value ? "PHP " + sel.value : "the default PHP"}`).catch(() => {});
+    el.querySelectorAll("[data-guide]").forEach((cb) => (cb.onchange = () => setGuide(S.sites[cb.dataset.guide], cb.checked).catch(() => (cb.checked = !cb.checked))));
+    el.querySelectorAll("[data-php]").forEach((sel) => (sel.onchange = () => setPHP(S.sites[sel.dataset.php], sel.value)));
+  });
+}
+
+function select(slug) {
+  selected = selected === slug ? null : slug;
+  renderSites();
+  renderPanel();
+  if (selected) loadServerData(true);
+}
+
+// ---- site panel ------------------------------------------------------------------
+
+// Sample lines stand in for per-site errors in development builds only; the
+// feed that reads them from each site's logs comes in a later version.
+const SAMPLE_ERRORS = [
+  ["PHP Fatal error: Allowed memory size of 134217728 bytes exhausted", "app/Http/Kernel.php:88"],
+  ["PHP Warning: Undefined array key \"cart\"", "resources/views/cart.blade.php:42"],
+];
+
+function renderPanel() {
+  const panel = $("#panel");
+  const s = selected && S.sites.find((x) => x.slug === selected);
+  $(".sites-page").classList.toggle("with-panel", !!s);
+  if (!s) { selected = null; panel.hidden = true; drawn.panel = null; return; }
+  panel.hidden = false;
+  const [m, why] = siteMark(s);
+  const dev = !(S.update && S.update.release);
+  draw("panel", [s, S.phps, S.default_php, S.running, m, db, dev], () => {
+    const seg = [["", `Default ${S.default_php}`], ...(S.phps || []).map((v) => [v, v])].map(([v, text]) =>
+      `<button data-seg="${esc(v)}" aria-pressed="${(v === "" && !s.pinned) || (s.pinned && s.php === v)}">${esc(text)}</button>`).join("");
+    let dbHTML;
+    if (!db) dbHTML = '<div class="muted">Loading…</div>';
+    else if (!db.enabled) dbHTML = '<div class="muted">MySQL is turned off in stack.toml.</div>';
+    else if (!db.ready) dbHTML = '<div class="muted">A root password is generated the first time MySQL starts.</div>';
+    else dbHTML = `<dl class="kv"><dt>Host</dt><dd>${esc(db.host)}:${esc(db.port)}</dd><span></span><dt>User</dt><dd>${esc(db.user)}</dd><span></span>
+      <dt>Password</dt><dd>••••••••••</dd><span><button class="btn small ghost" id="p-pw">Copy</button></span></dl>`;
+    const errs = dev
+      ? `<div class="errors">${SAMPLE_ERRORS.map(([e, at]) => `<span class="e">${esc(e)}</span><br>in ${esc(at)}`).join("<br>")}</div>`
+      : `<div class="errors soon">Per-site errors are coming in a later version. Until then, PHP ${esc(s.php)}'s error log has them.</div>`;
+    $("#panel").innerHTML = `
+      <div class="panel-head"><div class="grow"><h2>${esc(s.slug)}</h2><div class="panel-path" title="${esc(s.dir)}">${esc(s.dir)}</div></div>
+        <button class="btn small ghost icon-only" id="p-close" aria-label="Close the details" title="Close (Esc)">${icon("cross")}</button></div>
+      <div class="panel-body">
+        <div>
+          <div class="addr"><div class="field"><span title="${esc(s.url)}">${esc(s.url)}</span>
+            <button class="btn small ghost icon-only" id="p-copy" aria-label="Copy the address" title="Copy the address">${icon("copy")}</button></div>
+            <button class="btn primary" id="p-open" ${S.running ? "" : `disabled title="Start the servers to open it"`}>Open</button></div>
+          <div class="hint"><i class="mark ${m}" style="vertical-align:-1px;margin-right:6px"></i>${esc(why)}</div>
+        </div>
+        <div class="row-btns">
+          <button class="btn small" id="p-folder">${icon("folder")}Folder</button>
+          <button class="btn small" id="p-term">${icon("terminal")}Terminal</button>
+          ${s.project ? `<button class="btn small ghost danger" id="p-remove">Stop serving</button>` : ""}
+        </div>
+        <div><div class="group-label">PHP version</div><div class="seg" role="group" aria-label="PHP version for ${esc(s.slug)}" title="php and composer in this site's terminal use it too">${seg}</div></div>
+        <div><div class="group-label">AI guide</div>
+          <label class="toggle-row" title="Writes .devstack/ai-guide.md (kept out of git) and a short pointer in AGENTS.md and CLAUDE.md. Your own text there is left alone."><span class="switch"><input type="checkbox" id="p-guide" ${s.guide ? "checked" : ""}><span></span></span>
+            ${s.guide ? "On: coding agents know this site's URL, PHP, database and logs." : "Off: tell coding agents how this site runs here."}</label>
+          </div>
+        <div><div class="group-label">Database <span class="muted" style="font-weight:400">shared by every site</span></div>${dbHTML}</div>
+        <div><div class="group-label">Recent errors ${dev ? '<span class="tag">sample</span>' : ""}</div>${errs}
+          <div class="row-btns" style="margin-top:8px">
+            <button class="link" id="p-errlog">PHP ${esc(s.php)} error log</button><span class="muted">·</span>
+            <button class="link" id="p-access">Access log</button></div></div>
+      </div>`;
+    $("#p-close").onclick = () => select(s.slug);
+    $("#p-copy").onclick = () => copy(s.url, "Address");
+    $("#p-open").onclick = () => open("url", s.url);
+    $("#p-folder").onclick = () => open("folder", s.dir);
+    $("#p-term").onclick = () => act("/api/terminal", { site: s.slug }).catch(() => {});
+    $("#p-remove") && ($("#p-remove").onclick = () => removeProject(s.slug));
+    $("#p-guide").onchange = (e) => setGuide(s, e.target.checked).catch(() => (e.target.checked = !e.target.checked));
+    $("#p-pw") && ($("#p-pw").onclick = () => copy(db.password, "Password"));
+    $("#p-errlog").onclick = () => showLog(logFor("php-" + s.php));
+    $("#p-access").onclick = () => showLog(`sites/${s.slug}.access.log`);
+    $("#panel").querySelectorAll("[data-seg]").forEach((b) => (b.onclick = () => {
+      if (b.getAttribute("aria-pressed") === "true") return;
+      setPHP(s, b.dataset.seg);
     }));
   });
 }
+
+// ---- PHP, Database ---------------------------------------------------------------
 
 let packages = null, db = null, packagesFor = "";
-async function loadServerData() {
+async function loadServerData(onlyIfMissing) {
+  if (onlyIfMissing && db && packages) return;
   try {
     [packages, db] = await Promise.all([api("/api/packages"), api("/api/db")]);
-    drawn.packages = drawn.db = null;
-    renderServers();
+    drawn.packages = drawn.php = drawn.db = drawn.settings = drawn.panel = null;
+    render();
   } catch (e) { toast(e.message, true); }
 }
-
-function renderServers() {
-  // Refresh package and DB info when the tab opens or a job finishes.
+// ensureServerData refreshes package and DB info when a page needs it or a job finishes.
+function ensureServerData() {
   const marker = [S.running, S.job ? S.job.title + S.job.finished : ""].join("|");
   if (packagesFor !== marker) { packagesFor = marker; loadServerData(); }
+}
 
-  const rows = byRole(S.running && S.groups.length
-    ? S.groups
-    : S.planned.map((p) => ({ name: p.name, version: p.version, ports: p.ports, state: "stopped", restarts: 0 })));
-  draw("services", rows, () => {
-    $("#services").innerHTML = `<div class="rows">${rows.map((g) => `
-      <div class="row">
-        <span class="svc-dot ${esc(g.state)}"></span>
-        <div class="grow"><b>${esc(label(g.name))}</b> <span class="muted num">${esc(g.version)}</span>
-          ${g.last_error && g.state !== "running" ? `<div class="err">${esc(g.last_error.split("\n")[0])}</div>` : ""}</div>
-        <span class="mono muted num">:${esc(g.ports)}</span>
-        <span class="state ${esc(g.state)}">${esc(g.state)}${g.restarts ? ` · ${g.restarts} restart${g.restarts === 1 ? "" : "s"}` : ""}</span>
-        ${g.name.startsWith("php-") ? `<button class="btn small ghost" data-phpini="${esc(g.name.slice(4))}" title="Change ${esc(label(g.name))}'s settings and extensions in a form. Saving restarts ${esc(label(g.name))}.">php.ini</button>
-          <button class="btn small ghost icon-only" data-phpini-text="${esc(g.name.slice(4))}" title="Open the php.ini of ${esc(label(g.name))} as text: every setting, and every extension (remove the ; in front of extension= to turn one on). Saving it restarts ${esc(label(g.name))}." aria-label="Open the php.ini of ${esc(label(g.name))} as text">${icon("open")}</button>` : ""}
-        ${S.running ? `<button class="btn small ghost" data-restart="${esc(g.name)}" title="Restart ${esc(g.name)}">${icon("reload")}</button>` : ""}
-      </div>`).join("")}</div>
-      ${S.warnings.map((w) => `<div class="notice warn">${esc(w)}</div>`).join("")}`;
-    document.querySelectorAll("[data-phpini]").forEach((b) => (b.onclick = () => openINI(b.dataset.phpini)));
-    document.querySelectorAll("[data-phpini-text]").forEach((b) => (b.onclick = () => open("phpini", b.dataset.phpiniText)));
-    document.querySelectorAll("[data-restart]").forEach((b) => (b.onclick = () => act("/api/restart", { unit: b.dataset.restart }, "Restarted " + b.dataset.restart).catch(() => {})));
+const installJob = () => S.job && S.job.title.startsWith("Installing") ? S.job : null;
+const jobBusy = () => !!(S.job && !S.job.finished);
+
+// versionRows lists the catalog's builds of one kind: in use, installed, or to install.
+function versionRows(kind) {
+  if (!packages) return '<div class="rows"><div class="rowi muted">Loading…</div></div>';
+  const job = installJob(), busy = jobBusy();
+  const rows = packages.filter((p) => p.kind === kind).map((p) => {
+    const installing = job && job.title === `Installing ${p.kind} ${p.version}` && !job.finished;
+    const step = installing && job.steps[0];
+    let action;
+    if (installing) {
+      const pct = step && step.total ? Math.round((step.done / step.total) * 100) : 0;
+      action = `<div class="progress"><div class="bar-track"><div class="bar-fill" style="transform:scaleX(${pct / 100})"></div></div><div class="muted num">${pct}% of ${size(p.size)}</div></div>`;
+    } else if (p.in_use) {
+      action = '<span class="in-use"><i class="mark"></i>In use</span>';
+    } else if (p.installed) {
+      action = `<button class="btn small ghost danger" data-remove="${esc(p.kind)}|${esc(p.version)}" ${busy ? "disabled" : ""}>Remove</button>`;
+    } else {
+      action = `<button class="btn small" data-install="${esc(p.kind)}|${esc(p.version)}" ${busy ? "disabled" : ""}>Install</button>`;
+    }
+    return `<div class="rowi"><div class="grow"><b class="num">${esc(p.version)}</b> ${p.label ? `<span class="note">${esc(p.label)}</span>` : ""}
+        ${p.installed && !p.in_use ? '<span class="muted"> · installed</span>' : ""}</div>
+      <span class="muted num">${size(p.size)}</span>${action}</div>`;
   });
+  return `<div class="rows">${rows.join("") || '<div class="rowi muted">Nothing in the catalog.</div>'}</div>`;
+}
 
-  draw("db", [db], () => {
-    const el = $("#db");
-    if (!db) { el.innerHTML = '<span class="muted">Loading…</span>'; return; }
-    if (!db.enabled) { el.innerHTML = '<span class="muted">MySQL is turned off in stack.toml.</span>'; return; }
-    if (!db.ready) { el.innerHTML = '<span class="muted">A root password is generated the first time MySQL starts.</span>'; return; }
-    el.innerHTML = `<dl class="kv">
-      <dt>Host</dt><dd>${esc(db.host)}</dd><span></span>
-      <dt>Port</dt><dd class="num">${esc(db.port)}</dd><span></span>
-      <dt>User</dt><dd>${esc(db.user)}</dd><span></span>
-      <dt>Password</dt><dd id="pw">••••••••••••</dd>
-        <span><button class="btn small ghost" id="pw-show">Show</button><button class="btn small ghost" id="pw-copy">Copy</button></span>
-    </dl>`;
-    $("#pw-show").onclick = (e) => {
-      const shown = e.target.textContent === "Hide";
-      $("#pw").textContent = shown ? "••••••••••••" : db.password;
-      e.target.textContent = shown ? "Show" : "Hide";
-    };
-    $("#pw-copy").onclick = () => navigator.clipboard.writeText(db.password).then(() => toast("Password copied"), () => toast("Couldn't copy", true));
-  });
+function wireVersions(el) {
+  el.querySelectorAll("[data-install]").forEach((b) => (b.onclick = () => {
+    const [kind, version] = b.dataset.install.split("|");
+    act("/api/packages/install", { kind, version }).catch(() => {});
+  }));
+  el.querySelectorAll("[data-remove]").forEach((b) => (b.onclick = () => {
+    const [kind, version] = b.dataset.remove.split("|");
+    if (!confirm(`Remove ${kind} ${version}? You can download it again later.`)) return;
+    act("/api/packages/remove", { kind, version }, `Removed ${kind} ${version}`).then(() => loadServerData()).catch(() => {});
+  }));
+}
 
-  const job = S.job && S.job.title.startsWith("Installing") ? S.job : null;
-  draw("packages", [packages, job, S.extensions, S.odbc], () => {
-    const el = $("#packages");
-    if (!packages) { el.innerHTML = '<span class="muted">Loading…</span>'; return; }
-    const busy = S.job && !S.job.finished;
-    const kinds = [["php", "PHP"], ["mysql", "MySQL"], ["nginx", "nginx"]];
-    el.innerHTML = kinds.map(([kind, title]) => `
-      <div class="pkg-group"><h3>${title}</h3><div class="rows">
-      ${packages.filter((p) => p.kind === kind).map((p) => {
-        const installing = job && job.title === `Installing ${p.kind} ${p.version}` && !job.finished;
-        const step = installing && job.steps[0];
-        let action;
-        if (installing) {
-          const pct = step && step.total ? Math.round((step.done / step.total) * 100) : 0;
-          action = `<div style="width:160px"><div class="bar-track"><div class="bar-fill" style="transform:scaleX(${pct / 100})"></div></div><div class="muted num" style="font-size:11.5px">${pct}% of ${size(p.size)}</div></div>`;
-        } else if (p.in_use) {
-          action = '<span class="badge live">In use</span>';
-        } else if (p.installed) {
-          action = `<button class="btn small ghost danger" data-remove="${esc(p.kind)}|${esc(p.version)}" ${busy ? "disabled" : ""}>Remove</button>`;
-        } else {
-          action = `<button class="btn small" data-install="${esc(p.kind)}|${esc(p.version)}" ${busy ? "disabled" : ""}>Install</button>`;
-        }
-        return `<div class="row">
-          <div class="grow"><b class="num">${esc(p.version)}</b> ${p.label ? `<span class="badge">${esc(p.label)}</span>` : ""}
-            ${p.installed && !p.in_use ? '<span class="muted"> · installed</span>' : ""}</div>
-          <span class="muted num">${size(p.size)}</span>
-          ${action}
-        </div>`;
-      }).join("")}</div></div>`).join("") + extensionsGroup(job, busy);
+// finishInstallJob reports a finished install and clears it.
+function finishInstallJob() {
+  const job = installJob();
+  if (!job || !job.finished) return;
+  if (job.error) toast(job.error, true); else toast(job.title.replace("Installing", "Installed"));
+  api("/api/job/dismiss", {}).then(() => loadServerData()).catch(() => {});
+}
+
+// serverCard is one server's slot on the PHP or Database page.
+function serverCard(g, body, buttons) {
+  const m = mark(g);
+  return `<div class="server ${m === "bad" ? "bad" : m === "off" ? "off" : ""}">
+    <div class="server-top"><i class="mark ${m}"></i><h2>${esc(label(g.name))}</h2><span class="muted num">${esc(g.version)}</span>
+      <div class="grow"></div><span class="state ${stateCls(g)}">${esc(stateWord(g))}${g.restarts ? ` · ${plural(g.restarts, "restart")}` : ""}</span></div>
+    ${body}
+    ${g.last_error && failing(g) ? `<div class="err mono">${esc(g.last_error.split("\n")[0])}</div>` : ""}
+    <div class="row-btns">${buttons}</div></div>`;
+}
+
+function renderPHP() {
+  ensureServerData();
+  const groups = services().filter((g) => g.name.startsWith("php-"));
+  $("#php-default").textContent = S.default_php ? `New sites use PHP ${S.default_php}` : "";
+  const job = installJob();
+  draw("php", [groups, S.running, S.sites.map((s) => [s.slug, s.php]), S.default_php, S.warnings, packages, job, S.extensions, S.odbc, jobBusy()], () => {
+    const el = $("#php");
+    const cards = groups.map((g) => {
+      const v = g.name.slice(4);
+      const users = S.sites.filter((s) => s.php === v).map((s) => s.slug);
+      const body = `<dl class="facts">
+          ${S.running && g.ports ? `<dt>Port</dt><dd class="mono">${esc(portText(g.ports))}</dd>` : ""}
+          <dt>Sites</dt><dd>${users.length ? esc(users.join(", ")) : '<span class="muted">None yet</span>'}${v === S.default_php ? ' <span class="note">default for new sites</span>' : ""}</dd></dl>`;
+      const buttons = `<button class="btn small" data-phpini="${esc(v)}" title="Change PHP ${esc(v)}'s settings and extensions in a form. Saving restarts it.">Settings and extensions</button>
+        <button class="btn small ghost" data-phpini-text="${esc(v)}" title="Open the php.ini of PHP ${esc(v)} in your text editor">${icon("open")}php.ini as text</button>
+        <button class="btn small ghost" data-log="${esc(logFor(g.name))}">${icon("logs")}Error log</button>
+        ${S.running ? `<button class="btn small ${failing(g) ? "primary" : "ghost"}" data-restart="${esc(g.name)}">${icon("reload")}Restart</button>` : ""}`;
+      return serverCard(g, body, buttons);
+    }).join("");
+    el.innerHTML = `
+      <div class="server-list">${cards || '<div class="muted">No PHP version is set up yet. Install one below.</div>'}</div>
+      ${S.warnings.map((w) => `<div class="notice warn"><b>Note</b>${esc(w)}</div>`).join("")}
+      <div class="section"><h2>Versions</h2><p>Downloaded from windows.php.net and checked against a pinned SHA-256. A site picks its version on the Sites page.</p>${versionRows("php")}</div>
+      ${extensionsSection()}`;
+    el.querySelectorAll("[data-phpini]").forEach((b) => (b.onclick = () => openINI(b.dataset.phpini)));
+    el.querySelectorAll("[data-phpini-text]").forEach((b) => (b.onclick = () => open("phpini", b.dataset.phpiniText)));
+    el.querySelectorAll("[data-log]").forEach((b) => (b.onclick = () => showLog(b.dataset.log)));
+    el.querySelectorAll("[data-restart]").forEach((b) => (b.onclick = () => act("/api/restart", { unit: b.dataset.restart }, "Restarted " + label(b.dataset.restart)).catch(() => {})));
     el.querySelectorAll("[data-ext]").forEach((b) => (b.onclick = () => {
       const [name, on] = b.dataset.ext.split("|");
       if (on === "0" && !confirm(`Turn off ${name}? PHP restarts without it; the files stay.`)) return;
       act("/api/ext", { name, on: on === "1" }, on === "0" ? `Turned off ${name}` : "").catch(() => {});
     }));
     $("#odbc-get") && ($("#odbc-get").onclick = () => open("url", S.links.odbc));
-    el.querySelectorAll("[data-install]").forEach((b) => (b.onclick = () => {
-      const [kind, version] = b.dataset.install.split("|");
-      act("/api/packages/install", { kind, version }).catch(() => {});
-    }));
-    el.querySelectorAll("[data-remove]").forEach((b) => (b.onclick = () => {
-      const [kind, version] = b.dataset.remove.split("|");
-      if (!confirm(`Remove ${kind} ${version}? You can download it again later.`)) return;
-      act("/api/packages/remove", { kind, version }, `Removed ${kind} ${version}`).then(loadServerData).catch(() => {});
-    }));
+    wireVersions(el);
   });
-  if (S.job && S.job.finished && S.job.title.startsWith("Installing")) {
-    if (S.job.error) toast(S.job.error, true); else toast(S.job.title.replace("Installing", "Installed"));
-    api("/api/job/dismiss", {}).then(loadServerData).catch(() => {});
-  }
 }
 
-// extensionsGroup lists the PHP extensions devstack downloads itself (php.net's
+// extensionsSection lists the PHP extensions devstack downloads itself (php.net's
 // zips leave them out), with the ODBC driver they need.
 const EXT_TITLES = { sqlsrv: "Microsoft SQL Server", pdo_sqlsrv: "Microsoft SQL Server for PDO" };
-function extensionsGroup(job, busy) {
+function extensionsSection() {
   const exts = S.extensions || [];
   if (!exts.length) return "";
+  const job = installJob(), busy = jobBusy();
   const rows = exts.map((x) => {
     const installing = job && job.title === `Installing ${x.name}` && !job.finished;
     let note = "", action;
     if (installing) {
       const step = job.steps.find((s) => s.state === "running") || job.steps[job.steps.length - 1];
       const pct = step && step.total ? Math.round((step.done / step.total) * 100) : 0;
-      action = `<div style="width:160px"><div class="bar-track"><div class="bar-fill" style="transform:scaleX(${pct / 100})"></div></div><div class="muted" style="font-size:11.5px">${esc(step ? step.label.replace("Download ", "") : "Starting…")}</div></div>`;
+      action = `<div class="progress"><div class="bar-track"><div class="bar-fill" style="transform:scaleX(${pct / 100})"></div></div><div class="muted">${esc(step ? step.label.replace("Download ", "") : "Starting…")}</div></div>`;
     } else if (x.enabled && x.missing && x.missing.length) {
-      note = `<span class="muted"> · not downloaded for PHP ${esc(x.missing.join(", "))}</span>`;
+      note = ` · not downloaded for PHP ${esc(x.missing.join(", "))}`;
       action = `<button class="btn small" data-ext="${esc(x.name)}|1" ${busy ? "disabled" : ""}>Download</button>`;
     } else if (x.enabled) {
-      action = `<span class="badge live">On</span><button class="btn small ghost" data-ext="${esc(x.name)}|0" ${busy ? "disabled" : ""}>Turn off</button>`;
+      action = `<span class="in-use"><i class="mark"></i>On</span><button class="btn small ghost" data-ext="${esc(x.name)}|0" ${busy ? "disabled" : ""}>Turn off</button>`;
     } else {
       action = `<button class="btn small" data-ext="${esc(x.name)}|1" ${busy ? "disabled" : ""}>Install</button>`;
     }
-    return `<div class="row">
-      <div class="grow"><b class="mono">${esc(x.name)}</b> <span class="muted">${esc(EXT_TITLES[x.name] || "")}</span>${note}</div>
-      ${action}
-    </div>`;
+    return `<div class="rowi"><div class="grow"><b class="mono">${esc(x.name)}</b><div class="sub">${esc(EXT_TITLES[x.name] || "")}${note}</div></div>${action}</div>`;
   }).join("");
   const o = S.odbc;
   let odbc = "";
   if (o && o.needed && !o.driver) {
-    odbc = `<div class="notice warn" style="display:flex;align-items:center;gap:10px"><div class="grow">SQL Server needs Microsoft's ODBC Driver for SQL Server (17 or 18). PHP loads sqlsrv without it, but connections fail until it is installed. Its installer asks for administrator rights.</div>
-      <button class="btn small" id="odbc-get">${icon("open")} Get the driver</button></div>`;
+    odbc = `<div class="notice warn" style="margin-top:8px"><div class="grow">SQL Server needs Microsoft's ODBC Driver for SQL Server (17 or 18). PHP loads sqlsrv without it, but connections fail until it is installed. Its installer asks for administrator rights.</div>
+      <button class="btn small" id="odbc-get">${icon("open")}Get the driver</button></div>`;
   } else if (o && o.needed) {
-    odbc = `<div class="muted" style="font-size:12px;margin-top:4px">Connects through ${esc(o.driver)}.</div>`;
+    odbc = `<p class="muted" style="margin:6px 2px 0;font-size:12px">Connects through ${esc(o.driver)}.</p>`;
   }
-  return `<div class="pkg-group"><h3>PHP extensions <span class="h-note">Not in php.net's builds; downloaded from php.net's PECL builds for each PHP version and checked against a pinned SHA-256.</span></h3>
+  return `<div class="section"><h2>Extra extensions</h2><p>Not in php.net's builds. Downloaded from php.net's PECL builds for each PHP version and checked against a pinned SHA-256.</p>
     <div class="rows">${rows}</div>${odbc}</div>`;
+}
+
+let pwShown = false;
+function renderDB() {
+  ensureServerData();
+  const g = services().find((x) => x.name === "mysql");
+  draw("db", [g, S.running, db, packages, installJob(), jobBusy(), pwShown], () => {
+    const el = $("#db");
+    let card;
+    if (db && !db.enabled) {
+      card = `<div class="server off"><div class="server-top"><i class="mark off"></i><h2>MySQL</h2></div><div class="muted">MySQL is turned off in stack.toml.</div></div>`;
+    } else if (g) {
+      let facts;
+      if (!db) facts = '<div class="muted">Loading…</div>';
+      else if (!db.ready) facts = '<div class="muted">A root password is generated the first time MySQL starts.</div>';
+      else facts = `<dl class="kv"><dt>Host</dt><dd>${esc(db.host)}</dd><span></span><dt>Port</dt><dd class="num">${esc(db.port)}</dd><span></span>
+        <dt>User</dt><dd>${esc(db.user)}</dd><span></span>
+        <dt>Password</dt><dd>${pwShown ? esc(db.password) : "••••••••••••"}</dd>
+        <span><button class="btn small ghost" id="pw-show">${pwShown ? "Hide" : "Show"}</button><button class="btn small ghost" id="pw-copy">Copy</button></span></dl>`;
+      const buttons = `<button class="btn small ghost" data-log="mysql.log">${icon("logs")}Log</button>
+        ${S.running ? `<button class="btn small ${failing(g) ? "primary" : "ghost"}" data-restart="mysql">${icon("reload")}Restart</button>` : ""}`;
+      card = serverCard(g, facts, buttons);
+    } else {
+      card = '<div class="muted">MySQL isn\'t set up in this stack.</div>';
+    }
+    el.innerHTML = `${card}
+      <p class="muted" style="margin:0;font-size:12.5px">Every site shares this MySQL server. The AI guide tells coding agents how to reach it.</p>
+      <div class="section"><h2>Versions</h2><p>Downloaded from mysql.com and checked against a pinned SHA-256.</p>${versionRows("mysql")}</div>`;
+    $("#pw-show") && ($("#pw-show").onclick = () => { pwShown = !pwShown; drawn.db = null; renderDB(); });
+    $("#pw-copy") && ($("#pw-copy").onclick = () => copy(db.password, "Password"));
+    el.querySelectorAll("[data-log]").forEach((b) => (b.onclick = () => showLog(b.dataset.log)));
+    el.querySelectorAll("[data-restart]").forEach((b) => (b.onclick = () => act("/api/restart", { unit: b.dataset.restart }, "Restarted MySQL").catch(() => {})));
+    wireVersions(el);
+  });
 }
 
 // ---- php.ini settings editor ----------------------------------------------------
@@ -467,7 +672,7 @@ const INI_GROUPS = [
       ["E_ALL & ~E_NOTICE & ~E_DEPRECATED", "Errors and warnings only"],
       ["E_ERROR | E_PARSE", "Fatal errors only"]] },
     { key: "display_startup_errors", type: "bool", label: "Show startup errors", help: "Problems PHP hits while starting, such as an extension that won't load.", def: "On" },
-    { key: "log_errors", type: "bool", label: "Write errors to the log", help: "To this PHP version's error log on the Logs tab.", def: "On" },
+    { key: "log_errors", type: "bool", label: "Write errors to the log", help: "To this PHP version's error log on the Logs page.", def: "On" },
   ] },
   { title: "Uploads and forms", items: [
     { key: "upload_max_filesize", type: "size", label: "Largest file upload", help: "Per file. Use K, M or G, like 64M.", def: "2M" },
@@ -824,7 +1029,7 @@ async function saveINI() {
   try {
     const res = await api("/api/phpini", { php, rev: ed.data.rev, set: ch.set, unset: ch.unset, extensions: ch.extensions });
     await loadINI();
-    ed.saved = res.error ? `<span class="error-text">Saved, but PHP ${esc(php)} didn't restart: ${esc(res.error.split("\n")[0])}</span> See the Logs tab.`
+    ed.saved = res.error ? `<span class="error-text">Saved, but PHP ${esc(php)} didn't restart: ${esc(res.error.split("\n")[0])}</span> See the Logs page.`
       : res.running ? `Saved. ${res.actions.some((a) => a.includes("php-" + php)) ? `PHP ${esc(php)} restarted with the new settings.` : "Applied."}`
       : "Saved. The servers use it when they start, and php in terminals uses it now.";
     drawFoot();
@@ -870,64 +1075,101 @@ $("#ini-search").oninput = filterINI;
 // Back from editing the file as text: show what it says now, unless there are edits here to keep.
 window.addEventListener("focus", () => { if (ed?.data && !ed.saving && !iniChanges().count && $("#ini").open) loadINI(); });
 
-let logTimer, logFiles = [];
+// ---- logs --------------------------------------------------------------------------
+
+let logTimer, logFiles = [], logName = localStorageGet("log") || "devstack.log";
+
+// showLog opens the Logs page on one file.
+function showLog(name) {
+  logName = name;
+  localStorageSet("log", name);
+  go("logs");
+}
+
 async function renderLogs() {
   if (drawn.logsActive) return;
   drawn.logsActive = true;
   await refreshLog();
 }
+
 async function refreshLog() {
   clearTimeout(logTimer);
-  if (tab !== "logs") { drawn.logsActive = false; return; }
-  const sel = $("#log-name");
-  const want = sel.value || localStorageGet("log") || "devstack.log";
+  if (page !== "logs") { drawn.logsActive = false; return; }
   try {
-    const r = await api("/api/logs?name=" + encodeURIComponent(want));
-    if (JSON.stringify(r.files) !== JSON.stringify(logFiles)) {
-      logFiles = r.files;
-      sel.innerHTML = r.files.map((f) => `<option ${f === want ? "selected" : ""}>${esc(f)}</option>`).join("");
+    const r = await api("/api/logs?name=" + encodeURIComponent(logName));
+    logFiles = r.files;
+    if (r.files.length && !r.files.includes(logName)) {
+      // That log isn't written yet (a server that never logged an error): show the
+      // server's main log, or devstack's own.
+      const base = logName.replace(/-error\.log$/, ".log");
+      logName = r.files.includes(base) ? base : r.files.includes("devstack.log") ? "devstack.log" : r.files[0];
+      return refreshLog();
     }
+    drawLogFiles();
     const pre = $("#log-text");
     const atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 30;
-    if (pre.textContent !== r.text) {
+    if (pre.dataset.name !== logName || pre.textContent !== (r.text || "(empty)")) {
+      const switched = pre.dataset.name !== logName;
+      pre.dataset.name = logName;
       pre.textContent = r.text || "(empty)";
-      if (atBottom) pre.scrollTop = pre.scrollHeight;
+      if (atBottom || switched) pre.scrollTop = pre.scrollHeight;
     }
   } catch (e) { toast(e.message, true); }
   if ($("#log-follow").checked) logTimer = setTimeout(refreshLog, 2000);
   else drawn.logsActive = false;
 }
 
+function drawLogFiles() {
+  draw("logfiles", [logFiles, logName], () => {
+    const item = (f, text) => `<button role="option" data-file="${esc(f)}" aria-selected="${f === logName}" title="${esc(f)}">${esc(text)}</button>`;
+    const own = logFiles.filter((f) => !f.startsWith("sites/"));
+    const sites = logFiles.filter((f) => f.startsWith("sites/"));
+    $("#log-files").innerHTML = `<h3>devstack and servers</h3>${own.map((f) => item(f, f)).join("")}` +
+      (sites.length ? `<h3>Site access logs</h3>${sites.map((f) => item(f, f.replace(/^sites\//, "").replace(/\.access\.log$/, ""))).join("")}` : "");
+    $("#log-files").querySelectorAll("[data-file]").forEach((b) => (b.onclick = () => {
+      logName = b.dataset.file;
+      localStorageSet("log", logName);
+      drawn.logsActive = false;
+      renderLogs();
+    }));
+  });
+}
+
+// ---- settings ------------------------------------------------------------------------
+
 function renderSettings() {
-  draw("settings", [S.settings, S.root, S.version, S.dns, S.https], () => {
-    const sw = (id, on) => `<label class="switch"><input type="checkbox" id="${id}" ${on ? "checked" : ""}><span></span></label>`;
+  ensureServerData();
+  const ng = services().find((g) => g.name === "nginx");
+  draw("settings", [S.settings, S.root, S.version, S.dns, S.https, ng, S.running, packages, installJob(), jobBusy()], () => {
+    const sw = (id, on, labelText) => `<label class="switch"><input type="checkbox" id="${id}" ${on ? "checked" : ""} aria-label="${esc(labelText)}"><span></span></label>`;
+    const row = (title, desc, action) => `<div class="rowi"><div class="grow"><div class="set-title">${title}</div><div class="set-desc">${desc}</div></div>${action}</div>`;
     $("#settings").innerHTML = `
-      <h3>Stack</h3>
-      <div class="set-card"><div class="grow"><div class="set-title">Stack folder</div><div class="set-desc mono">${esc(S.root)}</div></div>
-        <button class="btn small" id="open-root">${icon("folder")}Open</button></div>
-      <div class="set-card"><div class="grow"><div class="set-title">stack.toml</div>
-        <div class="set-desc">Ports, PHP extensions and php.ini settings. Reload after saving.</div></div>
-        <button class="btn small" id="edit-config">${icon("open")}Edit</button></div>
-      ${S.dns ? dnsCard(S.dns) : ""}
-      ${S.https ? httpsCard(S.https) : ""}
-      <h3>Startup</h3>
-      <div class="set-card"><div class="grow"><div class="set-title">Start servers when devstack opens</div>
-        <div class="set-desc">Your sites are up as soon as the app is.</div></div>${sw("set-start", S.settings.start_servers)}</div>
-      <div class="set-card"><div class="grow"><div class="set-title">Open devstack when you sign in</div>
-        <div class="set-desc">Starts in the tray, without a window.</div></div>${sw("set-autostart", S.settings.autostart)}</div>
-      <h3>Updates</h3>
-      <div class="set-card" id="update-card"></div>
-      <div class="set-card"><div class="grow"><div class="set-title">Check for updates automatically</div>
-        <div class="set-desc">Once a day, from devstack.holostack.in. Updates install only when you choose.</div></div>${sw("set-updates", S.settings.check_updates)}</div>
-      <h3>About</h3>
-      <div class="set-card"><div class="grow"><div class="set-title">devstack ${esc(S.version)}</div>
-        <div class="set-desc">Open source. Runs unmodified builds of nginx (<button class="link" data-link="https://nginx.org/LICENSE">BSD</button>),
-        PHP (<button class="link" data-link="https://www.php.net/license/">PHP License</button>) and
-        MySQL (<button class="link" data-link="https://www.mysql.com/about/legal/">GPLv2</button>), downloaded from their publishers.</div></div>
-        <button class="btn small" data-link="https://github.com/harsha2805/devstack">${icon("open")}Source</button></div>
-      <div class="set-card"><div class="grow"><div class="set-title">Support devstack</div>
-        <div class="set-desc">devstack is free and open source. Sponsoring on GitHub keeps it going.</div></div>
-        <button class="btn small" data-link="https://github.com/sponsors/harsha2805">${icon("heart")}Sponsor</button></div>`;
+      ${S.dns || S.https ? `<div class="section"><h2>Addresses</h2><div class="rows">${S.dns ? dnsRow(S.dns) : ""}${S.https ? httpsRow(S.https) : ""}</div></div>` : ""}
+      <div class="section"><h2>Startup</h2><div class="rows">
+        ${row("Start servers when devstack opens", "Your sites are up as soon as the app is.", sw("set-start", S.settings.start_servers, "Start servers when devstack opens"))}
+        ${row("Open devstack when you sign in", "Starts in the tray, without a window.", sw("set-autostart", S.settings.autostart, "Open devstack when you sign in"))}
+      </div></div>
+      <div class="section"><h2>Updates</h2><div class="rows">
+        <div class="rowi" id="update-card"></div>
+        ${row("Check for updates automatically", "Once a day, from devstack.holostack.in. Updates install only when you choose.", sw("set-updates", S.settings.check_updates, "Check for updates automatically"))}
+      </div></div>
+      <div class="section"><h2>Stack</h2><div class="rows">
+        ${row("Stack folder", `<span class="mono">${esc(S.root)}</span>`, `<button class="btn small" id="open-root">${icon("folder")}Open</button>`)}
+        ${row("stack.toml", "Ports, PHP extensions and php.ini settings for every version. Reload on the Sites page after saving.", `<button class="btn small" id="edit-config">${icon("open")}Edit</button>`)}
+        ${ng ? `<div class="rowi"><i class="mark ${mark(ng)}"></i><div class="grow"><div class="set-title">nginx ${esc(ng.version)}</div>
+          <div class="set-desc">The web server in front of every site. ${esc(stateWord(ng))}${S.running && ng.ports ? ` on ${esc(portText(ng.ports))}` : ""}.</div></div>
+          <button class="btn small ghost" data-log="nginx-error.log">${icon("logs")}Log</button>
+          ${S.running ? `<button class="btn small ghost" data-restart="nginx">${icon("reload")}Restart</button>` : ""}</div>` : ""}
+      </div>
+      <p style="margin:10px 0 6px" class="muted">nginx versions</p>${versionRows("nginx")}</div>
+      <div class="section"><h2>About</h2><div class="rows">
+        ${row(`devstack ${esc(S.version)}`, `Open source. Runs unmodified builds of nginx (<button class="link" data-link="https://nginx.org/LICENSE">BSD</button>),
+          PHP (<button class="link" data-link="https://www.php.net/license/">PHP License</button>) and
+          MySQL (<button class="link" data-link="https://www.mysql.com/about/legal/">GPLv2</button>), downloaded from their publishers.`,
+          `<button class="btn small" data-link="https://github.com/harsha2805/devstack">${icon("open")}Source</button>`)}
+        ${row("Support devstack", "devstack is free and open source. Sponsoring on GitHub keeps it going.",
+          `<button class="btn small" data-link="https://github.com/sponsors/harsha2805">${icon("heart")}Sponsor</button>`)}
+      </div></div>`;
     $("#open-root").onclick = () => open("folder", S.root);
     $("#edit-config").onclick = () => open("config", "");
     $("#set-start").onchange = (e) => act("/api/settings", { start_servers: e.target.checked }).catch(() => {});
@@ -937,14 +1179,18 @@ function renderSettings() {
     $("#dns-repair") && ($("#dns-repair").onclick = () => act("/api/dns", { on: true }).catch(() => {}));
     $("#set-https") && ($("#set-https").onchange = (e) => act("/api/https", { on: e.target.checked }).catch(() => {}));
     $("#https-repair") && ($("#https-repair").onclick = () => act("/api/https", { on: true }).catch(() => {}));
-    document.querySelectorAll("#settings [data-link]").forEach((b) => (b.onclick = () => open("url", b.dataset.link)));
+    const el = $("#settings");
+    el.querySelectorAll("[data-link]").forEach((b) => (b.onclick = () => open("url", b.dataset.link)));
+    el.querySelectorAll("[data-log]").forEach((b) => (b.onclick = () => showLog(b.dataset.log)));
+    el.querySelectorAll("[data-restart]").forEach((b) => (b.onclick = () => act("/api/restart", { unit: b.dataset.restart }, "Restarted nginx").catch(() => {})));
+    wireVersions(el);
     drawn.update = null;
   });
   renderUpdate();
 }
 
-// dnsCard is the Settings card for <site>.<tld> addresses.
-function dnsCard(d) {
+// dnsRow is the Settings row for <site>.<tld> addresses.
+function dnsRow(d) {
   const sw = `<label class="switch"><input type="checkbox" id="set-dns" ${d.on ? "checked" : ""} aria-label=".${esc(d.tld)} addresses"><span></span></label>`;
   let desc;
   if (d.on && !d.rule) {
@@ -954,13 +1200,12 @@ function dnsCard(d) {
   } else {
     desc = `Sites answer at <span class="mono">name.localhost</span> (browsers and curl). Turn this on so <span class="mono">name.${esc(d.tld)}</span> works in PHP, Postman and terminals too. Windows asks for administrator approval once.`;
   }
-  return `<h3>Addresses</h3>
-    <div class="set-card"><div class="grow"><div class="set-title">.${esc(d.tld)} addresses</div><div class="set-desc">${desc}</div></div>
-      ${d.on && !d.rule ? `<button class="btn small primary" id="dns-repair">Repair</button>` : sw}</div>`;
+  return `<div class="rowi"><div class="grow"><div class="set-title">.${esc(d.tld)} addresses</div><div class="set-desc">${desc}</div></div>
+    ${d.on && !d.rule ? `<button class="btn small primary" id="dns-repair">Repair</button>` : sw}</div>`;
 }
 
-// httpsCard is the Settings card for trusted HTTPS.
-function httpsCard(h) {
+// httpsRow is the Settings row for trusted HTTPS.
+function httpsRow(h) {
   const sw = `<label class="switch"><input type="checkbox" id="set-https" ${h.on ? "checked" : ""} aria-label="HTTPS"><span></span></label>`;
   const port = h.port === 443 ? "" : ` on port ${h.port}`;
   let desc;
@@ -973,16 +1218,17 @@ function httpsCard(h) {
     desc = `Serve every site over <span class="mono">https://</span> too, with a certificate browsers trust. Windows asks you once to trust devstack's
       local certificate authority, which can only sign local names, never real websites. No administrator rights needed.`;
   }
-  return `<div class="set-card"><div class="grow"><div class="set-title">HTTPS</div><div class="set-desc">${desc}</div></div>
-      ${h.on && !h.trusted ? `<button class="btn small primary" id="https-repair">Trust again</button>` : sw}</div>`;
+  return `<div class="rowi"><div class="grow"><div class="set-title">HTTPS</div><div class="set-desc">${desc}</div></div>
+    ${h.on && !h.trusted ? `<button class="btn small primary" id="https-repair">Trust again</button>` : sw}</div>`;
 }
 
-// renderUpdate draws the update card: up to date, available, downloading, or failed.
+// renderUpdate draws the update row: up to date, available, downloading, or failed.
 function renderUpdate() {
   const u = S.update;
   const job = S.job && S.job.title === "Updating devstack" ? S.job : null;
   draw("update", [u, job], () => {
     const el = $("#update-card");
+    if (!el) return;
     const checked = u.checked ? new Date(u.checked).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "";
     let text, action = "";
     if (!u.release) {
@@ -1037,10 +1283,10 @@ function renderSetup() {
   if (choice.mysql === null) choice.mysql = (o.mysql.find((x) => x.default) || o.mysql[0] || {}).value || "off";
   if (choice.root === null) choice.root = o.root;
   draw("setup", ["form", o], () => {
-    const seg = (name, opts) => `<div class="segmented" role="radiogroup">${opts.map((x) =>
-      `<button type="button" data-${name}="${esc(x.value)}" aria-selected="${choice[name] === x.value}">${esc(x.text)}</button>`).join("")}</div>`;
+    const seg = (name, opts, labelText) => `<div class="choice" role="radiogroup" aria-label="${labelText}">${opts.map((x) =>
+      `<button type="button" role="radio" data-${name}="${esc(x.value)}" aria-selected="${choice[name] === x.value}" aria-checked="${choice[name] === x.value}">${esc(x.text)}</button>`).join("")}</div>`;
     const phpOpts = o.php.map((x) => ({ value: x.value, text: x.value }));
-    const mysqlOpts = o.mysql.map((x) => ({ value: x.value, text: x.value + (x.label ? " " + x.label.toUpperCase() : "") }))
+    const mysqlOpts = o.mysql.map((x) => ({ value: x.value, text: x.value + (x.label ? " " + x.label : "") }))
       .concat([{ value: "off", text: "None" }]);
     $("#setup-card").innerHTML = `
       <h1>Set up devstack</h1>
@@ -1048,11 +1294,11 @@ function renderSetup() {
       <div class="field"><label for="root">Folder for your sites and servers</label>
         <input type="text" id="root" value="${esc(choice.root)}" spellcheck="false">
         <div class="hint" id="root-hint">Projects go in <span class="mono" id="root-www"></span>. Use a short path without spaces.</div></div>
-      <div class="field"><span class="label">PHP</span>${seg("php", phpOpts)}</div>
-      <div class="field"><span class="label">MySQL</span>${seg("mysql", mysqlOpts)}</div>
+      <div class="field"><span class="label">PHP</span>${seg("php", phpOpts, "PHP version")}</div>
+      <div class="field"><span class="label">MySQL</span>${seg("mysql", mysqlOpts, "MySQL version")}</div>
       <div class="plan" id="plan"></div>
-      ${o.vc_runtime ? "" : `<div class="notice warn" style="margin-bottom:12px">PHP and MySQL need Microsoft's Visual C++ runtime, which isn't installed.
-        <button class="link" id="vc">Get it from Microsoft</button>, then continue.</div>`}
+      ${o.vc_runtime ? "" : `<div class="notice warn" style="margin-bottom:12px"><div class="grow">PHP and MySQL need Microsoft's Visual C++ runtime, which isn't installed.
+        <button class="link" id="vc">Get it from Microsoft</button>, then continue.</div></div>`}
       <button class="btn primary wide" id="go">${icon("play")}Download and start</button>`;
     const update = () => {
       choice.root = $("#root").value.trim();
@@ -1065,9 +1311,10 @@ function renderSetup() {
       const items = [o.nginx, php, my].filter(Boolean);
       const names = ["nginx " + o.nginx.version, php && "PHP " + php.version, my && "MySQL " + my.version].filter(Boolean);
       const total = items.reduce((n, x) => n + x.size, 0);
+      setupRail(null);
       $("#plan").textContent = `Downloads ${names.join(", ").replace(/, ([^,]*)$/, " and $1")} (${size(total)}) from their official sites, checks each file, then starts them.`;
-      document.querySelectorAll("[data-php]").forEach((b) => b.setAttribute("aria-selected", b.dataset.php === choice.php));
-      document.querySelectorAll("[data-mysql]").forEach((b) => b.setAttribute("aria-selected", b.dataset.mysql === choice.mysql));
+      document.querySelectorAll("[data-php]").forEach((b) => { const on = b.dataset.php === choice.php; b.setAttribute("aria-selected", on); b.setAttribute("aria-checked", on); });
+      document.querySelectorAll("[data-mysql]").forEach((b) => { const on = b.dataset.mysql === choice.mysql; b.setAttribute("aria-selected", on); b.setAttribute("aria-checked", on); });
     };
     document.querySelectorAll("[data-php]").forEach((b) => (b.onclick = () => { choice.php = b.dataset.php; update(); }));
     document.querySelectorAll("[data-mysql]").forEach((b) => (b.onclick = () => { choice.mysql = b.dataset.mysql; update(); }));
@@ -1078,7 +1325,25 @@ function renderSetup() {
   });
 }
 
+// setupRail shows the servers setup will add as empty slots, filling each as it is set up.
+function setupRail(job) {
+  const o = S.setup || {};
+  const php = (o.php || []).find((x) => x.value === choice.php), my = (o.mysql || []).find((x) => x.value === choice.mysql);
+  const items = [["nginx", o.nginx && o.nginx.version], ["PHP", php && php.version], ["MySQL", my && my.version]].filter(([, v]) => v);
+  const stateOf = (name) => {
+    if (!job) return "";
+    const steps = job.steps.filter((s) => s.label.toLowerCase().includes(name.toLowerCase()));
+    if (steps.some((s) => s.state === "failed")) return "bad";
+    if (steps.some((s) => s.state === "running")) return "busy";
+    return steps.length && steps.every((s) => s.state === "done") ? "on" : "";
+  };
+  $("#setup-word").textContent = job ? (job.finished ? (job.error ? "Setup stopped" : "Ready") : "Setting up…") : "Not set up";
+  $("#setup-slots").innerHTML = items.map(([n, v]) =>
+    `<div class="slot ${stateOf(n)}"><i class="mark"></i><span class="name">${esc(n)}</span><em>${esc(short(v))}</em></div>`).join("");
+}
+
 function drawSetupProgress(job) {
+  setupRail(job);
   draw("setup", ["job", job], () => {
     const stepIcon = (s) => s.state === "done" ? icon("check", "icon") : s.state === "failed" ? icon("cross", "icon")
       : s.state === "running" ? icon("spin", "icon") : icon("ring", "icon");
@@ -1106,7 +1371,7 @@ function drawSetupProgress(job) {
           <span class="amount num">${!s.total ? "" : s.state === "pending" ? size(s.total) : `${size(s.done || 0)} / ${size(s.total)}`}</span>
           ${s.total ? `<div class="bar-track"><div class="bar-fill" style="transform:scaleX(${pct / 100})"></div></div>` : ""}</div>`;
       }).join("")}</div>
-      ${job.error ? `<div class="notice error" style="white-space:pre-wrap">${esc(job.error)}</div><div style="height:12px"></div>` : ""}
+      ${job.error ? `<div class="notice error" style="white-space:pre-wrap;margin-bottom:12px">${esc(job.error)}</div>` : ""}
       ${job.error && !startFailed ? `<button class="btn primary wide" id="retry">Back</button>` : ""}
       ${job.finished && (startFailed || !job.error) ? `<button class="btn primary wide" id="done">Open dashboard</button>` : ""}`;
     $("#retry") && ($("#retry").onclick = () => api("/api/job/dismiss", {}).then(() => { drawn.setup = null; poll(true); }));
@@ -1116,13 +1381,38 @@ function drawSetupProgress(job) {
 
 // ---- wiring -------------------------------------------------------------------
 
-document.querySelectorAll("#tabs button").forEach((b) => (b.onclick = () => {
-  tab = b.dataset.tab;
-  localStorageSet("tab", tab);
-  drawn.logsActive = false;
-  render();
-}));
-$("#log-name").onchange = () => { localStorageSet("log", $("#log-name").value); drawn.logsActive = false; renderLogs(); };
+const menu = $("#add-menu"), addBtn = $("#add-site");
+function closeMenu() { menu.hidden = true; addBtn.setAttribute("aria-expanded", "false"); }
+addBtn.innerHTML = icon("plus") + "Add site" + icon("chevron");
+$("#menu-www").innerHTML = `${icon("folder")}<span>Open the www folder<small>Every folder you put in it is a site</small></span>`;
+$("#menu-folder").innerHTML = `${icon("plus")}<span>Add a folder from elsewhere…<small>Serve a project without moving it</small></span>`;
+addBtn.onclick = (e) => {
+  e.stopPropagation();
+  const opening = menu.hidden;
+  menu.hidden = !opening;
+  addBtn.setAttribute("aria-expanded", String(opening));
+  if (opening) $("#menu-www").focus();
+};
+$("#menu-www").onclick = () => { closeMenu(); open("folder", S.www); };
+$("#menu-folder").onclick = pickProject;
+menu.onkeydown = (e) => {
+  const items = [...menu.querySelectorAll("button")], i = items.indexOf(document.activeElement);
+  if (e.key === "ArrowDown") { e.preventDefault(); items[(i + 1) % items.length].focus(); }
+  if (e.key === "ArrowUp") { e.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
+};
+document.addEventListener("click", (e) => { if (!menu.hidden && !e.target.closest(".menu-wrap")) closeMenu(); });
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape" || $("#ini").open) return;
+  if (!menu.hidden) { closeMenu(); addBtn.focus(); return; }
+  if (selected && page === "sites") select(selected);
+});
+
+$("#reload").innerHTML = icon("reload");
+$("#reload").onclick = () => act("/api/reload", {}, "Reloaded").catch(() => {});
+$("#find").oninput = (e) => { query = e.target.value; renderSites(); };
+document.querySelectorAll(".nav [data-page]").forEach((b) => (b.onclick = () => go(b.dataset.page)));
 $("#log-follow").onchange = () => { drawn.logsActive = false; renderLogs(); };
+$("#log-folder").innerHTML = icon("folder") + "Open folder";
+$("#log-folder").onclick = () => S && open("folder", S.root.replace(/[\\/]+$/, "") + "\\logs");
 
 poll();

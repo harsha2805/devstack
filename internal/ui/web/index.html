@@ -9,75 +9,97 @@
 </head>
 <body>
 
-<div id="dash" class="page" hidden>
-  <header class="strip" id="strip">
-    <span class="dot-ring"><span class="dot"></span></span>
-    <div class="strip-text">
-      <div class="state-word" id="state-word">STOPPED</div>
-      <div class="state-line" id="state-line"></div>
-    </div>
-    <div class="pills" id="pills"></div>
-    <div class="strip-divider"></div>
-    <button class="btn primary" id="power"></button>
-  </header>
-
-  <nav class="bar">
-    <div class="segmented" role="tablist" id="tabs">
-      <button role="tab" data-tab="sites">Sites</button>
-      <button role="tab" data-tab="servers">Servers</button>
-      <button role="tab" data-tab="logs">Logs</button>
-      <button role="tab" data-tab="settings">Settings</button>
-    </div>
-    <div class="bar-actions" id="bar-actions"></div>
-  </nav>
-
-  <main>
-    <section class="view" data-view="sites">
-      <div class="card fill">
-        <div id="sites"></div>
+<div id="dash" class="shell" hidden>
+  <aside class="rail" aria-label="devstack">
+    <section class="status" id="status" aria-live="polite">
+      <div class="status-text">
+        <div class="status-word" id="state-word">Stopped</div>
+        <div class="status-line" id="state-line"></div>
       </div>
+      <button class="btn small" id="power"></button>
     </section>
+    <div class="slots" id="slots" aria-label="Servers"></div>
+    <nav class="nav" id="nav" aria-label="Pages">
+      <button data-page="sites"></button>
+      <button data-page="php"></button>
+      <button data-page="database"></button>
+      <button data-page="logs"></button>
+    </nav>
+    <div class="grow"></div>
+    <nav class="nav" aria-label="Settings">
+      <button data-page="settings"></button>
+    </nav>
+  </aside>
 
-    <section class="view grid-servers" data-view="servers">
-      <div class="card">
-        <h2>Services</h2>
-        <div id="services"></div>
-      </div>
-      <div class="card">
-        <h2>Database</h2>
-        <div id="db"></div>
-      </div>
-      <div class="card span-2">
-        <h2>Versions <span class="h-note">Downloaded from each project's official site and checked against a pinned SHA-256.</span></h2>
-        <div id="packages"></div>
-      </div>
-    </section>
+  <main class="work">
+    <div class="alerts" id="alerts"></div>
 
-    <section class="view logs-view" data-view="logs">
-      <div class="card fill logs-card">
-        <div class="logs-head">
-          <select id="log-name" aria-label="Log file"></select>
-          <label class="check"><input type="checkbox" id="log-follow" checked> Follow</label>
+    <section class="page sites-page" data-page="sites">
+      <div class="sites-main">
+        <header class="page-head">
+          <h1>Sites <span class="count num" id="site-count"></span></h1>
+          <div class="grow"></div>
+          <input type="search" id="find" class="find" placeholder="Find a site" spellcheck="false" aria-label="Find a site">
+          <button class="btn icon-only ghost" id="reload" aria-label="Reload stack.toml" title="Apply changes to stack.toml (folders in www are picked up on their own)"></button>
+          <div class="menu-wrap">
+            <button class="btn primary" id="add-site" aria-haspopup="menu" aria-expanded="false"></button>
+            <div class="menu" id="add-menu" role="menu" hidden>
+              <button role="menuitem" id="menu-www"></button>
+              <button role="menuitem" id="menu-folder"></button>
+            </div>
+          </div>
+        </header>
+        <div class="scroll" id="sites-scroll">
+          <div id="sites"></div>
         </div>
-        <pre id="log-text" tabindex="0"></pre>
+      </div>
+      <aside class="panel" id="panel" aria-label="Site details" hidden></aside>
+    </section>
+
+    <section class="page" data-page="php">
+      <header class="page-head"><h1>PHP</h1><div class="grow"></div><span class="muted" id="php-default"></span></header>
+      <div class="scroll"><div class="page-body" id="php"></div></div>
+    </section>
+
+    <section class="page" data-page="database">
+      <header class="page-head"><h1>Database</h1></header>
+      <div class="scroll"><div class="page-body" id="db"></div></div>
+    </section>
+
+    <section class="page logs-page" data-page="logs">
+      <header class="page-head">
+        <h1>Logs</h1>
+        <div class="grow"></div>
+        <label class="check"><span class="switch"><input type="checkbox" id="log-follow" checked><span></span></span>Follow</label>
+        <button class="btn" id="log-folder"></button>
+      </header>
+      <div class="logs-body">
+        <div class="log-files" id="log-files" role="listbox" aria-label="Log files"></div>
+        <pre id="log-text" tabindex="0" aria-label="Log"></pre>
       </div>
     </section>
 
-    <section class="view" data-view="settings">
-      <div class="settings" id="settings"></div>
+    <section class="page" data-page="settings">
+      <header class="page-head"><h1>Settings</h1></header>
+      <div class="scroll"><div class="page-body settings" id="settings"></div></div>
     </section>
   </main>
 </div>
 
-<div id="setup" class="page setup" hidden>
-  <div class="card setup-card" id="setup-card"></div>
+<div id="setup" class="shell setup" hidden>
+  <aside class="rail" aria-label="devstack">
+    <section class="status"><div class="status-text"><div class="status-word" id="setup-word">Not set up</div>
+      <div class="status-line">Servers to download</div></div></section>
+    <div class="slots" id="setup-slots"></div>
+  </aside>
+  <main class="work"><div class="scroll"><div class="setup-card" id="setup-card"></div></div></main>
 </div>
 
 <dialog id="ini" class="sheet" aria-labelledby="ini-title">
   <header class="sheet-head">
     <div class="grow">
       <h2 id="ini-title">PHP settings</h2>
-      <div class="set-desc mono" id="ini-path"></div>
+      <div class="sheet-path mono" id="ini-path"></div>
     </div>
     <button class="btn small" id="ini-text"></button>
     <button class="btn small ghost icon-only" id="ini-close" aria-label="Close"></button>

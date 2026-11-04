@@ -5,6 +5,30 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions
 The release scripts need a section for the version they build and take the in-app update notes from the
 bold lead-ins under it, so write each feature up here when it lands.
 
+## [1.0.0] — 2026-11-04
+
+### Changed
+- **A new dashboard.** The devstack window is redesigned for 1.0. A graphite sidebar always shows whether your
+  servers run, with Start or Stop, and gives every server its own slot: filled while it runs, an empty outline when
+  it's stopped, hatched when it keeps crashing. Five pages replace the old tabs: Sites, PHP, Database, Logs and
+  Settings. Servers used to hold the services, the database login and the downloads together; each now has a page
+  of its own.
+- **Site details beside the list.** Click a site to open its panel: its address with Open and Copy, its folder and
+  a terminal, its PHP version, the AI guide, the database login, and links to its PHP error log and access log. The
+  list keeps the PHP version and AI guide switch on every row, and a Find box narrows it down. Add site is one button
+  with two choices: open the www folder, or add a folder from anywhere else.
+- **Problems where you look.** When a server stops or keeps crashing, a banner at the top of every page names the
+  sites it takes down, with the error, its log and a Restart button. A project whose folder went missing shows as a
+  dashed slot until the folder is back. Setup steps that are still open (`.test` addresses, PHP in terminals) sit
+  together in one "Finish setting up" card that goes away once they're done.
+- **A page for each job.** PHP lists every installed version with its port, the sites that use it, its settings
+  and extensions, its error log and Restart, then the versions you can install and the SQL Server extensions.
+  Database shows the MySQL login with Show and Copy. Logs lists every log file, servers and sites apart, and follows
+  the one you pick; every Log button in the app opens its file there. nginx and its versions moved to
+  Settings → Stack.
+- **Light, dark and small windows.** The new look follows Windows' light or dark setting, still works at the
+  smallest window size (the sidebar folds down to icons), and keeps High Contrast and reduced-motion support.
+
 ## [0.3.0] — 2026-10-30
 
 ### Added
