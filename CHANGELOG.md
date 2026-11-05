@@ -5,6 +5,14 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions
 The release scripts need a section for the version they build and take the in-app update notes from the
 bold lead-ins under it, so write each feature up here when it lands.
 
+## [1.0.1] — 2026-11-05
+
+### Fixed
+- **Start works after a restart of Windows.** If Windows shut down while devstack was running, Start could fail the
+  next day with "talk to daemon: … actively refused it". devstack had taken a new, unrelated program for its old
+  background service, because Windows had reused that service's process ID. devstack now checks that its service
+  really is the one running, and starts a fresh one when it isn't.
+
 ## [1.0.0] — 2026-11-04
 
 ### Changed

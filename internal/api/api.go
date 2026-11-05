@@ -31,10 +31,18 @@ type State struct {
 
 func StatePath(root string) string { return filepath.Join(root, "data", "devstack", "daemon.json") }
 
+// LockPath is held by the daemon for as long as it runs.
+func LockPath(root string) string { return filepath.Join(root, "data", "devstack", "daemon.lock") }
+
 // ErrNotRunning means there is no live daemon for this root.
 var ErrNotRunning = errors.New("devstack is not running")
 
 // ReadState returns the daemon state, cleaning up a file left by a dead daemon.
+//
+// A live pid alone is not proof: when Windows kills the daemon at shutdown the
+// state file survives, and after the next boot its pid may belong to some
+// other process. The daemon's lock is released by Windows whatever the death,
+// so an unheld lock means the file is stale.
 func ReadState(root string) (State, error) {
 	var s State
 	b, err := os.ReadFile(StatePath(root))
@@ -44,7 +52,7 @@ func ReadState(root string) (State, error) {
 	if err != nil {
 		return s, err
 	}
-	if err := json.Unmarshal(b, &s); err != nil || !winproc.Alive(s.PID) {
+	if err := json.Unmarshal(b, &s); err != nil || !winproc.Alive(s.PID) || !winproc.Locked(LockPath(root)) {
 		os.Remove(StatePath(root))
 		return s, ErrNotRunning
 	}

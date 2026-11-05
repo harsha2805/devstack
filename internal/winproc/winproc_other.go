@@ -59,3 +59,6 @@ func Environ(path string, _ ...string) []string           { return append(os.Env
 func LockFile(path string) (*os.File, error) {
 	return os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o600)
 }
+
+// Locked can't tell on other platforms; assume the owner is alive.
+func Locked(string) bool { return true }

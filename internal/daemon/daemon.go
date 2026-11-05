@@ -73,9 +73,20 @@ func Run(ctx context.Context, opts Options) error {
 	if err := os.MkdirAll(dataDir, 0o755); err != nil {
 		return err
 	}
-	lock, err := winproc.LockFile(filepath.Join(dataDir, "daemon.lock"))
-	if err != nil {
-		return fmt.Errorf("devstack is already running for %s", opts.Root)
+	// Clients probe the lock for an instant (api.ReadState), so retry briefly
+	// before deciding another daemon owns it.
+	var (
+		lock *os.File
+		err  error
+	)
+	for i := 0; ; i++ {
+		if lock, err = winproc.LockFile(api.LockPath(opts.Root)); err == nil {
+			break
+		}
+		if i == 20 {
+			return fmt.Errorf("devstack is already running for %s", opts.Root)
+		}
+		time.Sleep(50 * time.Millisecond)
 	}
 	defer lock.Close()
 

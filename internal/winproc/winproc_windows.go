@@ -293,3 +293,20 @@ func LockFile(path string) (*os.File, error) {
 	}
 	return os.NewFile(uintptr(h), path), nil
 }
+
+// Locked reports whether another process holds path through LockFile. A
+// missing file counts as unlocked. The probe holds the lock for an instant
+// only, so the owner's own LockFile should retry briefly.
+func Locked(path string) bool {
+	p, err := windows.UTF16PtrFromString(path)
+	if err != nil {
+		return false
+	}
+	h, err := windows.CreateFile(p, windows.GENERIC_READ, 0, nil,
+		windows.OPEN_EXISTING, windows.FILE_ATTRIBUTE_NORMAL, 0)
+	if err != nil {
+		return errors.Is(err, windows.ERROR_SHARING_VIOLATION)
+	}
+	windows.CloseHandle(h)
+	return false
+}
