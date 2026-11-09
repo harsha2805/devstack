@@ -5,6 +5,17 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions
 The release scripts need a section for the version they build and take the in-app update notes from the
 bold lead-ins under it, so write each feature up here when it lands.
 
+## [1.0.4] — 2026-11-09
+
+### Changed
+- **A star marks the default PHP.** The PHP picker read "PHP 8.3 (default)" on every row that uses the default. It
+  now shows "PHP 8.3 ★", and a "★ default" key sits beside the PHP heading in the site list and in a site's details.
+
+### Fixed
+- **Stacks can share one phpMyAdmin.** When two stacks used the same phpMyAdmin folder (through `paths.bin`), the
+  last one to start pointed phpMyAdmin at its own MySQL for both. Each stack's nginx now tells phpMyAdmin which
+  settings to use, so each one opens its own databases.
+
 ## [1.0.3] — 2026-11-09
 
 ### Added

@@ -291,7 +291,8 @@ func TestPhpMyAdmin(t *testing.T) {
 		t.Fatal(err)
 	}
 	conf := string(files[filepath.Join(st.Etc, "nginx", "sites", "phpmyadmin.conf")])
-	for _, want := range []string{"server_name  phpmyadmin.test phpmyadmin.localhost;", "fastcgi_pass php83;", "/bin/phpmyadmin/5.2.3"} {
+	for _, want := range []string{"server_name  phpmyadmin.test phpmyadmin.localhost;", "fastcgi_pass php83;", "/bin/phpmyadmin/5.2.3",
+		`fastcgi_param DEVSTACK_PMA_CONFIG "` + filepath.ToSlash(p.Config) + `";`} {
 		if !strings.Contains(conf, want) {
 			t.Errorf("phpmyadmin.conf lacks %q:\n%s", want, conf)
 		}
@@ -307,7 +308,7 @@ func TestPhpMyAdmin(t *testing.T) {
 		t.Fatal(err)
 	}
 	loader, err := os.ReadFile(filepath.Join(p.Build.Dir, "config.inc.php"))
-	if err != nil || !strings.Contains(string(loader), "require '"+filepath.ToSlash(p.Config)+"';") {
+	if err != nil || !strings.Contains(string(loader), "$_SERVER['DEVSTACK_PMA_CONFIG']") || strings.Contains(string(loader), st.Root) {
 		t.Errorf("loader = %q, %v", loader, err)
 	}
 	if _, err := os.Stat(p.TempDir); err != nil {

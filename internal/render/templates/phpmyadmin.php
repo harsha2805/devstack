@@ -45,6 +45,12 @@ if (is_file({{phpq .PhpMyAdminCustom}})) {
 {{end}}
 {{define "phpmyadmin-loader.php"}}<?php
 {{header "//"}}
-// phpMyAdmin reads config.inc.php from its own folder; devstack's lives in etc/.
-require {{phpq .PhpMyAdmin.Config}};
+// phpMyAdmin reads config.inc.php from its own folder. devstack's lives in each
+// stack's etc/, and that stack's nginx passes its path, so this file is the same
+// for every stack and several stacks can share one phpMyAdmin folder.
+$devstackConfig = $_SERVER['DEVSTACK_PMA_CONFIG'] ?? '';
+if (is_string($devstackConfig) && $devstackConfig !== '' && is_file($devstackConfig)) {
+    require $devstackConfig;
+}
+unset($devstackConfig);
 {{end}}

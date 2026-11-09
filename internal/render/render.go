@@ -110,11 +110,7 @@ func Files(st *model.Stack) (map[string][]byte, error) {
 		return nil, err
 	}
 	for _, s := range st.Sites {
-		data := struct {
-			*model.Stack
-			Site model.Site
-		}{st, s}
-		if err := add(filepath.Join(ng, "sites", s.Slug+".conf"), "site.conf", data); err != nil {
+		if err := add(filepath.Join(ng, "sites", s.Slug+".conf"), "site.conf", siteData{st, s, nil}); err != nil {
 			return nil, err
 		}
 	}
@@ -135,10 +131,8 @@ func Files(st *model.Stack) (map[string][]byte, error) {
 		}
 	}
 	if p := st.PhpMyAdmin; p != nil {
-		site := struct {
-			*model.Stack
-			Site model.Site
-		}{st, p.Site}
+		// The loader in phpMyAdmin's folder requires the config this names.
+		site := siteData{st, p.Site, map[string]string{"DEVSTACK_PMA_CONFIG": p.Config}}
 		if err := add(filepath.Join(ng, "sites", p.Slug+".conf"), "site.conf", site); err != nil {
 			return nil, err
 		}
@@ -147,6 +141,13 @@ func Files(st *model.Stack) (map[string][]byte, error) {
 		}
 	}
 	return out, nil
+}
+
+// siteData is what site.conf renders from: Params are extra FastCGI params.
+type siteData struct {
+	*model.Stack
+	Site   model.Site
+	Params map[string]string
 }
 
 type phpMyAdminView struct {
@@ -161,7 +162,8 @@ func phpMyAdminData(st *model.Stack) phpMyAdminView {
 }
 
 // PhpMyAdminLoader is the config.inc.php written into phpMyAdmin's own
-// folder, which only loads the generated one from etc/.
+// folder. It loads the generated config whose path nginx passes, so it is the
+// same for every stack.
 func PhpMyAdminLoader(st *model.Stack) ([]byte, error) {
 	var buf bytes.Buffer
 	if err := tmpl.ExecuteTemplate(&buf, "phpmyadmin-loader.php", st); err != nil {

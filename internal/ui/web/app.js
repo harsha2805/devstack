@@ -300,7 +300,8 @@ function siteMark(s) {
 }
 
 // The PHP choices for a site: each installed version once, the one the site
-// runs selected. The default version is marked "(default)" and choosing it
+// runs selected. The default version is marked ★ (the PHP headings explain
+// the star) and choosing it
 // unpins the site, so it follows the default when that changes.
 const phpOptions = (site) => {
   const vs = [...(S.phps || [])];
@@ -309,7 +310,7 @@ const phpOptions = (site) => {
   vs.sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
   return vs.map((v) => {
     const def = v === S.default_php;
-    return `<option value="${def ? "" : esc(v)}" ${site.php === v ? "selected" : ""}>PHP ${esc(v)}${def ? " (default)" : ""}</option>`;
+    return `<option value="${def ? "" : esc(v)}" ${site.php === v ? "selected" : ""}>PHP ${esc(v)}${def ? " ★" : ""}</option>`;
   }).join("");
 };
 const host = (url) => url.replace(/^https?:\/\//, "").replace(/\/$/, "");
@@ -357,13 +358,13 @@ function renderSites() {
     } else {
       const q = query.trim().toLowerCase();
       const shown = S.sites.map((s, i) => [s, i]).filter(([s]) => !q || [s.slug, s.name, s.url, s.dir].join(" ").toLowerCase().includes(q));
-      body = `<div class="site-head" aria-hidden="true"><span></span><span>Site</span><span>PHP</span><span>AI guide</span><span></span></div>` + shown.map(([s, i]) => {
+      body = `<div class="site-head" aria-hidden="true"><span></span><span>Site</span><span>PHP <small class="star-key">★ default</small></span><span>AI guide</span><span></span></div>` + shown.map(([s, i]) => {
         const [m, why] = marks[i];
         return `<div class="site ${selected === s.slug ? "selected" : ""}" data-row="${i}">
           <i class="mark ${m}" title="${esc(why)}"></i>
           <div class="site-id"><button class="site-name" data-select="${i}" aria-expanded="${selected === s.slug}" title="Show ${esc(s.slug)}'s details">${esc(s.slug)}</button>
             <span class="site-url">${esc(host(s.url))}${s.project ? ` · <span class="from" title="Added from outside www">${esc(s.dir)}</span>` : s.name !== s.slug ? ` · <span class="from">${esc(s.name)}</span>` : ""}</span></div>
-          <select data-php="${i}" aria-label="PHP version for ${esc(s.slug)}">${phpOptions(s)}</select>
+          <select data-php="${i}" aria-label="PHP version for ${esc(s.slug)}; ★ marks the default">${phpOptions(s)}</select>
           <label class="switch" title="AI guide for ${esc(s.slug)}: ${s.guide ? "on" : "off"}"><input type="checkbox" data-guide="${i}" ${s.guide ? "checked" : ""} aria-label="AI guide for ${esc(s.slug)}"><span></span></label>
           <div class="tools">
             <button class="btn small ghost icon-only" data-url="${i}" title="${S.running ? `Open ${esc(s.url)}` : "Start the servers to open it"}" aria-label="Open ${esc(s.slug)} in the browser">${icon("globe")}</button>
@@ -453,7 +454,7 @@ function renderPanel() {
           <button class="btn small" id="p-term">${icon("terminal")}Terminal</button>
           ${s.project ? `<button class="btn small ghost danger" id="p-remove">Stop serving</button>` : ""}
         </div>
-        <div><div class="group-label">PHP version</div><select id="p-php" class="php-pick" aria-label="PHP version for ${esc(s.slug)}" title="php and composer in this site's terminal use it too">${phpOptions(s)}</select></div>
+        <div><div class="group-label">PHP version <small class="star-key">★ default</small></div><select id="p-php" class="php-pick" aria-label="PHP version for ${esc(s.slug)}; ★ marks the default" title="php and composer in this site's terminal use it too">${phpOptions(s)}</select></div>
         <div><div class="group-label">AI guide</div>
           <label class="toggle-row" title="Writes .devstack/ai-guide.md (kept out of git) and a short pointer in AGENTS.md and CLAUDE.md. Your own text there is left alone."><span class="switch"><input type="checkbox" id="p-guide" ${s.guide ? "checked" : ""}><span></span></span>
             ${s.guide ? "On: coding agents know this site's URL, PHP, database and logs." : "Off: tell coding agents how this site runs here."}</label>
