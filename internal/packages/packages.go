@@ -52,6 +52,8 @@ func ProductName(k discover.Kind) string {
 		return "PHP"
 	case discover.MySQL:
 		return "MySQL"
+	case discover.PhpMyAdmin:
+		return "phpMyAdmin"
 	}
 	return string(k)
 }

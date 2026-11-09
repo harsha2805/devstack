@@ -48,6 +48,9 @@ type Stack struct {
 	PHP        []*PHPPool // one per PHP version in use, sorted by version
 	DefaultPHP *PHPPool
 	MySQL      *MySQL // nil when disabled or not installed
+	// PhpMyAdmin is served beside the sites while MySQL runs and phpMyAdmin
+	// is installed; nil otherwise. It isn't in Sites: it's no project of the user's.
+	PhpMyAdmin *PhpMyAdmin
 
 	Sites    []Site
 	Projects []sites.Project // everything in [projects], served or not (a folder can be gone)
@@ -77,6 +80,20 @@ type MySQL struct {
 	DataDir string
 	INIPath string
 }
+
+// PhpMyAdmin is the phpMyAdmin install nginx serves at phpmyadmin.<tld>.
+type PhpMyAdmin struct {
+	Site
+	Build discover.Build
+	// Config is the generated config.inc.php; the one in Build.Dir only loads it.
+	Config string
+	// Secrets is devstack's secrets file, read on each request for the MySQL root password.
+	Secrets string
+	TempDir string
+}
+
+// PhpMyAdminSlug is the host name label phpMyAdmin is served under.
+const PhpMyAdminSlug = "phpmyadmin"
 
 type Site struct {
 	sites.Site
@@ -207,6 +224,8 @@ func Resolve(cfg config.Stack, found discover.Result, siteList []sites.Site, sit
 		st.Sites = append(st.Sites, site)
 	}
 
+	st.PhpMyAdmin = resolvePhpMyAdmin(cfg, st, found)
+
 	for _, p := range pools {
 		st.PHP = append(st.PHP, p)
 	}
@@ -216,6 +235,44 @@ func Resolve(cfg config.Stack, found discover.Result, siteList []sites.Site, sit
 		errs = append(errs, err)
 	}
 	return st, errors.Join(errs...)
+}
+
+// resolvePhpMyAdmin serves the newest installed phpMyAdmin with the default PHP,
+// unless MySQL is off or a site or project already uses the name.
+func resolvePhpMyAdmin(cfg config.Stack, st *Stack, found discover.Result) *PhpMyAdmin {
+	if st.MySQL == nil || st.DefaultPHP == nil {
+		return nil
+	}
+	b, err := found.Pick(discover.PhpMyAdmin, "")
+	if err != nil {
+		return nil
+	}
+	taken := false
+	for _, s := range st.Sites {
+		taken = taken || s.Slug == PhpMyAdminSlug
+	}
+	_, isProject := cfg.Projects[PhpMyAdminSlug]
+	if taken || isProject {
+		st.Warnings = append(st.Warnings, "phpmyadmin: a site is already called \"phpmyadmin\", so devstack's phpMyAdmin isn't served")
+		return nil
+	}
+	site := Site{
+		Site: sites.Site{Name: "phpMyAdmin", Slug: PhpMyAdminSlug, Dir: b.Dir, Docroot: b.Dir, HasIndex: true},
+		PHP:  st.DefaultPHP, AccessLog: filepath.Join(st.Logs, "sites", PhpMyAdminSlug+".access.log"),
+	}
+	for _, tld := range []string{st.TLD, "localhost"} {
+		site.Hostnames = append(site.Hostnames, PhpMyAdminSlug+"."+tld)
+	}
+	if st.HTTPS {
+		site.CertFile = filepath.Join(st.CertDir, PhpMyAdminSlug+".crt")
+		site.KeyFile = filepath.Join(st.CertDir, PhpMyAdminSlug+".key")
+	}
+	return &PhpMyAdmin{
+		Site: site, Build: b,
+		Config:  filepath.Join(st.Etc, "phpmyadmin", "config.inc.php"),
+		Secrets: filepath.Join(st.Data, "devstack", "secrets.toml"),
+		TempDir: filepath.Join(st.Tmp, "phpmyadmin"),
+	}
 }
 
 func newPool(cfg config.Stack, st *Stack, b discover.Build) *PHPPool {

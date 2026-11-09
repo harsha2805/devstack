@@ -299,17 +299,18 @@ function siteMark(s) {
   return ["", "Serving"];
 }
 
-// The PHP choices for a site: "Default (8.3)" first, then the other installed
-// versions. The default version isn't listed again, unless the site is pinned
-// to it, so its choice still shows.
+// The PHP choices for a site: each installed version once, the one the site
+// runs selected. The default version is marked "(default)" and choosing it
+// unpins the site, so it follows the default when that changes.
 const phpOptions = (site) => {
-  const opts = [`<option value="" ${site.pinned ? "" : "selected"}>Default (${esc(S.default_php)})</option>`];
-  for (const v of S.phps || []) {
-    const on = site.pinned && site.php === v;
-    if (v === S.default_php && !on) continue;
-    opts.push(`<option value="${esc(v)}" ${on ? "selected" : ""}>PHP ${esc(v)}</option>`);
-  }
-  return opts.join("");
+  const vs = [...(S.phps || [])];
+  if (S.default_php && !vs.includes(S.default_php)) vs.push(S.default_php);
+  if (site.php && !vs.includes(site.php)) vs.push(site.php);
+  vs.sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+  return vs.map((v) => {
+    const def = v === S.default_php;
+    return `<option value="${def ? "" : esc(v)}" ${site.php === v ? "selected" : ""}>PHP ${esc(v)}${def ? " (default)" : ""}</option>`;
+  }).join("");
 };
 const host = (url) => url.replace(/^https?:\/\//, "").replace(/\/$/, "");
 
@@ -424,13 +425,16 @@ function renderPanel() {
   panel.hidden = false;
   const [m, why] = siteMark(s);
   const dev = !(S.update && S.update.release);
-  draw("panel", [s, S.phps, S.default_php, S.running, m, db, dev], () => {
+  draw("panel", [s, S.phps, S.default_php, S.running, m, db, dev, jobBusy()], () => {
     let dbHTML;
     if (!db) dbHTML = '<div class="muted">Loading…</div>';
-    else if (!db.enabled) dbHTML = '<div class="muted">MySQL is turned off in stack.toml.</div>';
+    else if (!db.enabled) dbHTML = db.installed
+      ? `<div class="muted">MySQL is off.</div><div class="row-btns" style="margin-top:6px"><button class="btn small" id="p-mysql-on" ${jobBusy() ? "disabled" : ""}>Turn on MySQL ${esc(db.installed)}</button></div>`
+      : '<div class="muted">MySQL is off. Install a version on the Database page.</div>';
     else if (!db.ready) dbHTML = '<div class="muted">A root password is generated the first time MySQL starts.</div>';
     else dbHTML = `<dl class="kv"><dt>Host</dt><dd>${esc(db.host)}:${esc(db.port)}</dd><span></span><dt>User</dt><dd>${esc(db.user)}</dd><span></span>
-      <dt>Password</dt><dd>••••••••••</dd><span><button class="btn small ghost" id="p-pw">Copy</button></span></dl>`;
+      <dt>Password</dt><dd>••••••••••</dd><span><button class="btn small ghost" id="p-pw">Copy</button></span></dl>
+      ${db.phpmyadmin ? `<div class="row-btns" style="margin-top:8px"><button class="btn small" id="p-pma" ${S.running ? "" : `disabled title="Start the servers to open it"`}>${icon("open")}phpMyAdmin</button></div>` : ""}`;
     const errs = dev
       ? `<div class="errors">${SAMPLE_ERRORS.map(([e, at]) => `<span class="e">${esc(e)}</span><br>in ${esc(at)}`).join("<br>")}</div>`
       : `<div class="errors soon">Per-site errors are coming in a later version. Until then, PHP ${esc(s.php)}'s error log has them.</div>`;
@@ -468,6 +472,8 @@ function renderPanel() {
     $("#p-remove") && ($("#p-remove").onclick = () => removeProject(s.slug));
     $("#p-guide").onchange = (e) => setGuide(s, e.target.checked).catch(() => (e.target.checked = !e.target.checked));
     $("#p-pw") && ($("#p-pw").onclick = () => copy(db.password, "Password"));
+    $("#p-pma") && ($("#p-pma").onclick = () => open("url", db.phpmyadmin.url));
+    $("#p-mysql-on") && ($("#p-mysql-on").onclick = () => setMySQL(""));
     $("#p-errlog").onclick = () => showLog(logFor("php-" + s.php));
     $("#p-access").onclick = () => showLog(`sites/${s.slug}.access.log`);
     $("#p-php").onchange = (e) => setPHP(s, e.target.value);
@@ -508,7 +514,10 @@ function versionRows(kind) {
     } else if (p.in_use) {
       action = '<span class="in-use"><i class="mark"></i>In use</span>';
     } else if (p.installed) {
-      action = `<button class="btn small ghost danger" data-remove="${esc(p.kind)}|${esc(p.version)}" ${busy ? "disabled" : ""}>Remove</button>`;
+      const use = p.kind === "mysql"
+        ? `<button class="btn small" data-use-mysql="${esc(p.version.split(".").slice(0, 2).join("."))}" ${busy ? "disabled" : ""} title="Run MySQL ${esc(p.version)}. A version used for the first time starts with empty databases.">Use</button>`
+        : "";
+      action = `${use}<button class="btn small ghost danger" data-remove="${esc(p.kind)}|${esc(p.version)}" ${busy ? "disabled" : ""}>Remove</button>`;
     } else {
       action = `<button class="btn small" data-install="${esc(p.kind)}|${esc(p.version)}" ${busy ? "disabled" : ""}>Install</button>`;
     }
@@ -519,7 +528,19 @@ function versionRows(kind) {
   return `<div class="rows">${rows.join("") || '<div class="rowi muted">Nothing in the catalog.</div>'}</div>`;
 }
 
+// setMySQL turns MySQL on ("" = the newest installed version), off ("off"), or
+// moves it to another installed major.minor.
+function setMySQL(version) {
+  const msg = version === "off" ? "Turned off MySQL" : version ? `MySQL ${version} is in use` : "Turned on MySQL";
+  return act("/api/mysql", { version }, msg).then(() => loadServerData()).catch(() => {});
+}
+
 function wireVersions(el) {
+  el.querySelectorAll("[data-use-mysql]").forEach((b) => (b.onclick = () => {
+    const v = b.dataset.useMysql;
+    if (db && db.enabled && !confirm(`Switch MySQL to ${v}? Each MySQL version keeps its own databases, so ${v} won't have the databases of ${db.version}. They stay on disk for when you switch back.`)) return;
+    setMySQL(v);
+  }));
   el.querySelectorAll("[data-install]").forEach((b) => (b.onclick = () => {
     const [kind, version] = b.dataset.install.split("|");
     act("/api/packages/install", { kind, version }).catch(() => {});
@@ -632,7 +653,13 @@ function renderDB() {
     const el = $("#db");
     let card;
     if (db && !db.enabled) {
-      card = `<div class="server off"><div class="server-top"><i class="mark off"></i><h2>MySQL</h2></div><div class="muted">MySQL is turned off in stack.toml.</div></div>`;
+      const body = db.installed
+        ? `<div class="muted">MySQL is off. Turn it on to give your sites a database.</div>`
+        : `<div class="muted">MySQL is off, and no version is installed yet. Install one below, then turn it on.</div>`;
+      const btn = db.installed
+        ? `<div class="row-btns"><button class="btn small primary" id="mysql-on" ${jobBusy() ? "disabled" : ""}>Turn on MySQL ${esc(db.installed)}</button></div>`
+        : "";
+      card = `<div class="server off"><div class="server-top"><i class="mark off"></i><h2>MySQL</h2><div class="grow"></div><span class="state">Off</span></div>${body}${btn}</div>`;
     } else if (g) {
       let facts;
       if (!db) facts = '<div class="muted">Loading…</div>';
@@ -641,21 +668,40 @@ function renderDB() {
         <dt>User</dt><dd>${esc(db.user)}</dd><span></span>
         <dt>Password</dt><dd>${pwShown ? esc(db.password) : "••••••••••••"}</dd>
         <span><button class="btn small ghost" id="pw-show">${pwShown ? "Hide" : "Show"}</button><button class="btn small ghost" id="pw-copy">Copy</button></span></dl>`;
-      const buttons = `<button class="btn small ghost" data-log="mysql.log">${icon("logs")}Log</button>
-        ${S.running ? `<button class="btn small ${failing(g) ? "primary" : "ghost"}" data-restart="mysql">${icon("reload")}Restart</button>` : ""}`;
+      const pma = db && db.phpmyadmin;
+      const buttons = `${pma ? `<button class="btn small" id="pma-open" ${S.running ? "" : `disabled title="Start the servers to open it"`}>${icon("open")}Open phpMyAdmin</button>` : ""}
+        <button class="btn small ghost" data-log="mysql.log">${icon("logs")}Log</button>
+        ${S.running ? `<button class="btn small ${failing(g) ? "primary" : "ghost"}" data-restart="mysql">${icon("reload")}Restart</button>` : ""}
+        <button class="btn small ghost" id="mysql-off" title="Stop MySQL and don't start it with the other servers. Your databases stay on disk.">Turn off</button>`;
       card = serverCard(g, facts, buttons);
     } else {
       card = '<div class="muted">MySQL isn\'t set up in this stack.</div>';
     }
     el.innerHTML = `${card}
       <p class="muted" style="margin:0;font-size:12.5px">Every site shares this MySQL server. The AI guide tells coding agents how to reach it.</p>
-      <div class="section"><h2>Versions</h2><p>Downloaded from mysql.com and checked against a pinned SHA-256.</p>${versionRows("mysql")}</div>`;
+      <div class="section"><h2>Versions</h2><p>Downloaded from mysql.com and checked against a pinned SHA-256. Each version keeps its own databases.</p>${versionRows("mysql")}</div>
+      <div class="section"><h2>phpMyAdmin</h2><p>${pmaNote()}</p>${versionRows("phpmyadmin")}</div>`;
+    $("#mysql-on") && ($("#mysql-on").onclick = () => setMySQL(""));
+    $("#mysql-off") && ($("#mysql-off").onclick = () => {
+      if (confirm("Turn off MySQL? Sites that use a database stop working until you turn it on again. Your databases stay on disk.")) setMySQL("off");
+    });
+    $("#pma-open") && ($("#pma-open").onclick = () => open("url", db.phpmyadmin.url));
     $("#pw-show") && ($("#pw-show").onclick = () => { pwShown = !pwShown; drawn.db = null; renderDB(); });
     $("#pw-copy") && ($("#pw-copy").onclick = () => copy(db.password, "Password"));
     el.querySelectorAll("[data-log]").forEach((b) => (b.onclick = () => showLog(b.dataset.log)));
     el.querySelectorAll("[data-restart]").forEach((b) => (b.onclick = () => act("/api/restart", { unit: b.dataset.restart }, "Restarted MySQL").catch(() => {})));
     wireVersions(el);
   });
+}
+
+// pmaNote says where phpMyAdmin is, or what it's waiting for.
+function pmaNote() {
+  const base = "Manage your databases in the browser. Downloaded from phpmyadmin.net and checked against a pinned SHA-256.";
+  if (!db) return base;
+  if (db.phpmyadmin) return `${base} It runs at ${esc(host(db.phpmyadmin.url))} with the default PHP and logs in as root by itself.`;
+  const installed = packages && packages.some((p) => p.kind === "phpmyadmin" && p.installed);
+  if (installed && !db.enabled) return `${base} Turn on MySQL to use it.`;
+  return `${base} Once it's installed, the MySQL card above opens it, logged in as root.`;
 }
 
 // ---- php.ini settings editor ----------------------------------------------------

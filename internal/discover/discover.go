@@ -1,7 +1,8 @@
 // Package discover finds installed server builds under the configured bin folders.
 //
 // Layout: <bin>/<service>/<any folder name>/... The folder name is ignored; the
-// version comes from running the executable, so renamed folders still work.
+// version comes from running the executable (or, for phpMyAdmin, which has none,
+// from its RELEASE-DATE-<version> file), so renamed folders still work.
 package discover
 
 import (
@@ -27,6 +28,8 @@ const (
 	Nginx Kind = "nginx"
 	PHP   Kind = "php"
 	MySQL Kind = "mysql"
+	// PhpMyAdmin is a PHP app, not a server: nginx serves it with the default PHP.
+	PhpMyAdmin Kind = "phpmyadmin"
 )
 
 // Build is one installed version of a service.
@@ -41,16 +44,20 @@ type Build struct {
 func (b Build) String() string { return fmt.Sprintf("%s %s", b.Kind, b.Version) }
 
 // layout says where the main executable lives in an install folder and how to read its version.
+// With versionFile set, exe is only a marker and the version is read from the
+// name of the file matching the versionFile glob, through pattern.
 type layout struct {
-	exe     string
-	args    []string
-	pattern *regexp.Regexp
+	exe         string
+	args        []string
+	pattern     *regexp.Regexp
+	versionFile string
 }
 
 var layouts = map[Kind]layout{
-	Nginx: {"nginx.exe", []string{"-v"}, regexp.MustCompile(`nginx/(\d+\.\d+\.\d+)`)},
-	PHP:   {"php-cgi.exe", []string{"-v"}, regexp.MustCompile(`PHP (\d+\.\d+\.\d+)`)},
-	MySQL: {filepath.Join("bin", "mysqld.exe"), []string{"--version"}, regexp.MustCompile(`Ver (\d+\.\d+\.\d+)(-MariaDB)?`)},
+	Nginx:      {exe: "nginx.exe", args: []string{"-v"}, pattern: regexp.MustCompile(`nginx/(\d+\.\d+\.\d+)`)},
+	PHP:        {exe: "php-cgi.exe", args: []string{"-v"}, pattern: regexp.MustCompile(`PHP (\d+\.\d+\.\d+)`)},
+	MySQL:      {exe: filepath.Join("bin", "mysqld.exe"), args: []string{"--version"}, pattern: regexp.MustCompile(`Ver (\d+\.\d+\.\d+)(-MariaDB)?`)},
+	PhpMyAdmin: {exe: "index.php", pattern: regexp.MustCompile(`^RELEASE-DATE-(\d+\.\d+\.\d+)$`), versionFile: "RELEASE-DATE-*"},
 }
 
 // Result holds every build found, newest first per kind.
@@ -138,6 +145,9 @@ func probe(ctx context.Context, kind Kind, dir string) (Build, error) {
 
 func probeExe(ctx context.Context, kind Kind, dir, exe string) (Build, error) {
 	l := layouts[kind]
+	if l.versionFile != "" {
+		return probeFile(kind, dir, exe)
+	}
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, exe, l.args...)
@@ -160,6 +170,19 @@ func probeExe(ctx context.Context, kind Kind, dir, exe string) (Build, error) {
 		}
 	}
 	return b, nil
+}
+
+// probeFile reads the version from a file name, e.g. phpMyAdmin's RELEASE-DATE-5.2.3.
+func probeFile(kind Kind, dir, exe string) (Build, error) {
+	l := layouts[kind]
+	matches, _ := filepath.Glob(filepath.Join(dir, l.versionFile))
+	for _, m := range matches {
+		if sub := l.pattern.FindStringSubmatch(filepath.Base(m)); sub != nil {
+			v, _ := ParseVersion(sub[1])
+			return Build{Kind: kind, Version: v, Dir: dir, Exe: exe}, nil
+		}
+	}
+	return Build{}, fmt.Errorf("%s: cannot read version: no %s file", dir, l.versionFile)
 }
 
 // Pick returns the newest build of kind matching the constraint ("" = any, "8.3", "8.3.36").

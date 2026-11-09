@@ -255,7 +255,7 @@ select { padding-right: 4px; }
 .sites-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .site-list { display: flex; flex-direction: column; gap: 6px; }
 .site-head, .site {
-  display: grid; grid-template-columns: 10px minmax(0, 1fr) 134px 56px 88px; gap: 12px; align-items: center;
+  display: grid; grid-template-columns: 10px minmax(0, 1fr) 160px 56px 88px; gap: 12px; align-items: center;
   min-height: 50px; padding: 6px 8px 6px 14px; background: var(--card);
   border: 1.5px solid var(--rule); border-radius: 5px; cursor: pointer;
 }
@@ -269,11 +269,11 @@ select { padding-right: 4px; }
   max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
 .site-url { font: 12px var(--mono); color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
 .site-url .from { font-family: var(--font); }
-.site select { width: 134px; height: 28px; font: 12.5px var(--mono); }
+.site select { width: 160px; height: 28px; font: 12.5px var(--mono); }
 .site .tools { display: flex; gap: 2px; }
 /* With the panel open its buttons do the same jobs, so rows keep only what scans. */
 .sites-page.with-panel .site .tools { display: none; }
-.sites-page.with-panel .site, .sites-page.with-panel .site-head { grid-template-columns: 10px minmax(0, 1fr) 134px 56px; }
+.sites-page.with-panel .site, .sites-page.with-panel .site-head { grid-template-columns: 10px minmax(0, 1fr) 160px 56px; }
 .sites-page.with-panel .site-head span:last-child { display: none; }
 .site:not(:hover):not(:focus-within):not(.selected) .tools .btn { opacity: .55; }
 .site.gone, .sites-page.with-panel .site.gone { background: transparent; border-style: dashed; border-color: var(--rule-strong); grid-template-columns: 10px minmax(0, 1fr) auto; cursor: default; }

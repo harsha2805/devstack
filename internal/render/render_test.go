@@ -250,3 +250,81 @@ func reload(t *testing.T, st *model.Stack) *model.Stack {
 	t.Helper()
 	return resolve(t, st.Root, nil)
 }
+
+// pmaStack is the fixture plus an installed phpMyAdmin.
+func pmaStack(t *testing.T, change func(*config.Stack), list []sites.Site) *model.Stack {
+	t.Helper()
+	root := t.TempDir()
+	pma := filepath.Join(root, "bin", "phpmyadmin", "5.2.3")
+	os.MkdirAll(pma, 0o755)
+	found := discover.Result{Builds: map[discover.Kind][]discover.Build{
+		discover.Nginx:      {{Kind: discover.Nginx, Version: discover.Version{1, 30, 4}, Dir: filepath.Join(root, "bin", "nginx", "1.30")}},
+		discover.PHP:        {{Kind: discover.PHP, Version: discover.Version{8, 3, 36}, Dir: filepath.Join(root, "bin", "php", "8.3")}},
+		discover.MySQL:      {{Kind: discover.MySQL, Version: discover.Version{9, 7, 2}, Dir: filepath.Join(root, "bin", "mysql", "9.7"), Flavor: "mysql"}},
+		discover.PhpMyAdmin: {{Kind: discover.PhpMyAdmin, Version: discover.Version{5, 2, 3}, Dir: pma}},
+	}}
+	cfg := config.Default()
+	cfg.Root = root
+	cfg.PHP.Extensions = nil
+	cfg.Ports.MySQL = 3307
+	if change != nil {
+		change(&cfg)
+	}
+	st, err := model.Resolve(cfg, found, list, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return st
+}
+
+func TestPhpMyAdmin(t *testing.T) {
+	st := pmaStack(t, nil, nil)
+	p := st.PhpMyAdmin
+	if p == nil {
+		t.Fatal("phpMyAdmin not served")
+	}
+	if got := st.URL(p.Site); got != "http://phpmyadmin.localhost" {
+		t.Errorf("URL = %s", got)
+	}
+	files, err := Files(st)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conf := string(files[filepath.Join(st.Etc, "nginx", "sites", "phpmyadmin.conf")])
+	for _, want := range []string{"server_name  phpmyadmin.test phpmyadmin.localhost;", "fastcgi_pass php83;", "/bin/phpmyadmin/5.2.3"} {
+		if !strings.Contains(conf, want) {
+			t.Errorf("phpmyadmin.conf lacks %q:\n%s", want, conf)
+		}
+	}
+	inc := string(files[p.Config])
+	for _, want := range []string{"['port'] = '3307';", "/data/devstack/secrets.toml'", "['auth_type'] = 'config';", "$cfg['VersionCheck'] = false;", "/etc-custom/phpmyadmin/config.inc.php'"} {
+		if !strings.Contains(inc, want) {
+			t.Errorf("config.inc.php lacks %q:\n%s", want, inc)
+		}
+	}
+
+	if _, err := Write(st); err != nil {
+		t.Fatal(err)
+	}
+	loader, err := os.ReadFile(filepath.Join(p.Build.Dir, "config.inc.php"))
+	if err != nil || !strings.Contains(string(loader), "require '"+filepath.ToSlash(p.Config)+"';") {
+		t.Errorf("loader = %q, %v", loader, err)
+	}
+	if _, err := os.Stat(p.TempDir); err != nil {
+		t.Errorf("temp dir: %v", err)
+	}
+}
+
+func TestPhpMyAdminNotServed(t *testing.T) {
+	if st := pmaStack(t, func(c *config.Stack) { c.Services.MySQL = config.Off }, nil); st.PhpMyAdmin != nil {
+		t.Error("served while MySQL is off")
+	}
+	own := []sites.Site{{Name: "phpmyadmin", Slug: "phpmyadmin", Dir: "C:/www/phpmyadmin", Docroot: "C:/www/phpmyadmin"}}
+	st := pmaStack(t, nil, own)
+	if st.PhpMyAdmin != nil {
+		t.Error("served over the user's own phpmyadmin site")
+	}
+	if len(st.Warnings) == 0 || !strings.Contains(strings.Join(st.Warnings, "\n"), "phpmyadmin") {
+		t.Errorf("no warning: %q", st.Warnings)
+	}
+}

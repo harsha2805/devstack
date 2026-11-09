@@ -118,6 +118,17 @@ func mysqlInit(ctx context.Context, st *model.Stack, log io.Writer) error {
 		os.RemoveAll(m.DataDir) // half-initialized datadirs refuse to start; let the next try start clean
 		return fmt.Errorf("initialize datadir: %w (see logs/mysql.log)", err)
 	}
+	// Each MySQL version has its own datadir, and a new one's root has no
+	// password, even when another version's root has the saved one. Mark it
+	// unapplied so ensureRootPassword gives this root the same password.
+	sec, err := LoadSecrets(st)
+	if err != nil {
+		return err
+	}
+	if sec.MySQLRootApplied {
+		sec.MySQLRootApplied = false
+		return saveSecrets(st, sec)
+	}
 	return nil
 }
 

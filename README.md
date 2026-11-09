@@ -107,7 +107,9 @@ runs, an outline when stopped, hatched when it keeps crashing.
   terminal with its PHP ready. Click a site for its details: address, PHP, AI guide, database login and logs.
 - **PHP:** each installed version with the sites that use it, its settings and extensions (php.ini), its error log
   and Restart; versions to install or remove, and the SQL Server extensions.
-- **Database:** the MySQL login (show or copy the generated password) and MySQL versions.
+- **Database:** turn MySQL on or off, the MySQL login (show or copy the generated password), MySQL versions (switch
+  with Use; each version keeps its own databases) and phpMyAdmin, which opens at `phpmyadmin.test` (or
+  `phpmyadmin.localhost`) already logged in.
 - **Logs:** every server and site log, followed live.
 - **Settings:** `.test` addresses, HTTPS, start servers with the app, open at sign-in, updates, nginx and its
   versions.
@@ -122,6 +124,7 @@ devstack init        # downloads nginx/PHP/MySQL (sha256-verified), picks free p
 devstack pkg list    # available and installed server versions
 devstack pkg install php 8.3
 devstack pkg install ext sqlsrv pdo_sqlsrv   # SQL Server for PHP (php.net builds leave it out)
+devstack pkg install phpmyadmin              # served at phpmyadmin.test while MySQL runs
 devstack up          # renders etc\ and starts everything in the background
 devstack status
 devstack sites       # URLs, e.g. http://hello.localhost:8080

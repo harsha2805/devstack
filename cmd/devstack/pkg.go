@@ -37,7 +37,7 @@ func cmdPkg(ctx context.Context, e *env, args []string) error {
 			return pkgExt(ctx, e, root, rest[1:], true)
 		}
 		if len(rest) < 1 || len(rest) > 2 {
-			return usageError{"usage: pkg install <nginx|php|mysql> [version], or pkg install ext <name>..."}
+			return usageError{"usage: pkg install <nginx|php|mysql|phpmyadmin> [version], or pkg install ext <name>..."}
 		}
 		kind, err := parseKind(rest[0])
 		if err != nil {
@@ -71,7 +71,7 @@ func cmdPkg(ctx context.Context, e *env, args []string) error {
 			return pkgExt(ctx, e, root, rest[1:], false)
 		}
 		if len(rest) != 2 {
-			return usageError{"usage: pkg remove <nginx|php|mysql> <exact version>"}
+			return usageError{"usage: pkg remove <nginx|php|mysql|phpmyadmin> <exact version>"}
 		}
 		kind, err := parseKind(rest[0])
 		if err != nil {
@@ -206,8 +206,8 @@ func progressText(done, total int64, elapsed time.Duration) string {
 
 func parseKind(s string) (discover.Kind, error) {
 	switch k := discover.Kind(strings.ToLower(s)); k {
-	case discover.Nginx, discover.PHP, discover.MySQL:
+	case discover.Nginx, discover.PHP, discover.MySQL, discover.PhpMyAdmin:
 		return k, nil
 	}
-	return "", usageError{fmt.Sprintf("unknown server %q (nginx, php, mysql)", s)}
+	return "", usageError{fmt.Sprintf("unknown server %q (nginx, php, mysql, phpmyadmin)", s)}
 }

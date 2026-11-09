@@ -1,6 +1,11 @@
 package discover
 
-import "testing"
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func v(s string) Version {
 	out, err := ParseVersion(s)
@@ -46,5 +51,28 @@ func TestPick(t *testing.T) {
 	}
 	if _, err := r.Pick(Nginx, ""); err == nil {
 		t.Error("Pick of a missing kind should fail")
+	}
+}
+
+func TestScanPhpMyAdmin(t *testing.T) {
+	bin := t.TempDir()
+	dir := filepath.Join(bin, "phpmyadmin", "renamed")
+	os.MkdirAll(dir, 0o755)
+	os.WriteFile(filepath.Join(dir, "index.php"), []byte("<?php"), 0o644)
+	os.WriteFile(filepath.Join(dir, "RELEASE-DATE-5.2.3"), []byte("2025-10-07"), 0o644)
+	// No version file: a stray folder, reported but not used.
+	os.MkdirAll(filepath.Join(bin, "phpmyadmin", "broken"), 0o755)
+	os.WriteFile(filepath.Join(bin, "phpmyadmin", "broken", "index.php"), []byte("<?php"), 0o644)
+
+	res := Scan(context.Background(), []string{bin})
+	b, err := res.Pick(PhpMyAdmin, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b.Version.String() != "5.2.3" || b.Dir != dir {
+		t.Errorf("got %s in %s", b.Version, b.Dir)
+	}
+	if len(res.Problems) != 1 {
+		t.Errorf("problems = %q", res.Problems)
 	}
 }

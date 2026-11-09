@@ -5,6 +5,29 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions
 The release scripts need a section for the version they build and take the in-app update notes from the
 bold lead-ins under it, so write each feature up here when it lands.
 
+## [1.0.3] — 2026-11-09
+
+### Added
+- **phpMyAdmin.** Install it from the Database page (or `devstack pkg install phpmyadmin`) and manage your databases
+  in the browser. It runs at `phpmyadmin.test` (or `phpmyadmin.localhost`) with the default PHP and opens already
+  logged in as root, from Open phpMyAdmin on the MySQL card or the phpMyAdmin button in a site's details. It's only
+  served while MySQL runs and only to this computer, and it never calls home. Downloaded from phpmyadmin.net and
+  checked against a pinned SHA-256.
+- **Turn MySQL on and off in the app.** A stack set up without MySQL used to say "MySQL is turned off in
+  stack.toml" with no way out but editing the file. The Database page now has Turn on (with the newest installed
+  version) and Turn off, and a site's details offer Turn on too.
+- **Switch MySQL versions.** An installed MySQL version that isn't running has a Use button. Each version keeps its
+  own databases, which stay on disk when you switch away.
+
+### Changed
+- **The PHP picker shows what a site runs.** Each installed PHP version is listed once, the default marked
+  "(default)", and the version the site uses now is the one selected, in the site list and in a site's details.
+
+### Fixed
+- **MySQL's root password after switching versions.** A MySQL version used for the first time got an empty root
+  password, because devstack thought the saved one was already set. It now sets the saved password on every new
+  version, so the login on the Database page works for each.
+
 ## [1.0.2] — 2026-11-09
 
 ### Fixed

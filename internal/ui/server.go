@@ -153,6 +153,7 @@ func (s *Server) routes() http.Handler {
 	api.HandleFunc("POST /api/project/pick", s.handlePickFolder)
 	api.HandleFunc("POST /api/project/add", s.handleProjectAdd)
 	api.HandleFunc("POST /api/project/remove", s.handleProjectRemove)
+	api.HandleFunc("POST /api/mysql", s.handleMySQL)
 	api.HandleFunc("POST /api/dns", s.handleDNS)
 	api.HandleFunc("POST /api/https", s.handleHTTPS)
 	api.HandleFunc("POST /api/dns/dismiss", s.handleDNSDismiss)
@@ -776,6 +777,9 @@ func (s *Server) handlePackages(w http.ResponseWriter, r *http.Request) {
 			if st.MySQL != nil {
 				mark(st.MySQL.Build)
 			}
+			if st.PhpMyAdmin != nil {
+				mark(st.PhpMyAdmin.Build)
+			}
 		}
 	}
 	out := []packageView{}
@@ -793,8 +797,10 @@ func kindOrder(k discover.Kind) int {
 		return 0
 	case discover.MySQL:
 		return 1
+	case discover.PhpMyAdmin:
+		return 2
 	}
-	return 2
+	return 3
 }
 
 func (s *Server) handleInstall(w http.ResponseWriter, r *http.Request) {
@@ -823,6 +829,9 @@ func (s *Server) handleInstall(w http.ResponseWriter, r *http.Request) {
 			return err
 		}
 		s.step(j, label, "done", e.Size, e.Size)
+		if e.Kind == discover.PhpMyAdmin {
+			return reloadIfRunning(ctx, root) // nginx starts serving it
+		}
 		if e.Kind != discover.PHP {
 			return nil
 		}
@@ -902,21 +911,96 @@ func (s *Server) handleRemove(w http.ResponseWriter, r *http.Request) {
 		replyErr(w, http.StatusBadRequest, err)
 		return
 	}
+	if discover.Kind(req.Kind) == discover.PhpMyAdmin {
+		// nginx stops serving it, or moves to another installed version.
+		if err := reloadIfRunning(r.Context(), root); err != nil {
+			replyErr(w, http.StatusInternalServerError, err)
+			return
+		}
+	}
 	reply(w, nil)
+}
+
+// reloadIfRunning applies a config change to running servers; a stopped
+// stack picks it up on the next Start.
+func reloadIfRunning(ctx context.Context, root string) error {
+	c, err := api.Connect(root)
+	if errors.Is(err, api.ErrNotRunning) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	_, err = c.Reload(ctx)
+	return err
+}
+
+// handleMySQL turns MySQL on or off, or switches its version. version is
+// "off", a major.minor, or "" for the newest installed version.
+func (s *Server) handleMySQL(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Version string `json:"version"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		replyErr(w, http.StatusBadRequest, err)
+		return
+	}
+	root := s.root()
+	if root == "" {
+		replyErr(w, http.StatusConflict, errors.New("devstack is not set up yet"))
+		return
+	}
+	v := req.Version
+	if v == "" {
+		// Pin the newest installed version, so installing a newer one later
+		// doesn't move MySQL to a new, empty datadir by itself.
+		newest, ok := newestMySQL(r.Context(), root)
+		if !ok {
+			replyErr(w, http.StatusConflict, errors.New("no MySQL version is installed; install one first"))
+			return
+		}
+		v = newest
+	}
+	if err := control.SetMySQL(r.Context(), root, v); err != nil {
+		replyErr(w, http.StatusBadRequest, err)
+		return
+	}
+	reply(w, map[string]string{"version": v})
+}
+
+// newestMySQL is the major.minor of the newest MySQL build the stack can use.
+func newestMySQL(ctx context.Context, root string) (string, bool) {
+	cfg, err := config.Load(root)
+	if err != nil {
+		return "", false
+	}
+	b, err := discover.Scan(ctx, stack.BinRoots(cfg)).Pick(discover.MySQL, "")
+	if err != nil {
+		return "", false
+	}
+	return b.Version.MajorMinor(), true
 }
 
 func (s *Server) handleDB(w http.ResponseWriter, r *http.Request) {
 	root := s.root()
 	l, err := stack.Load(r.Context(), root)
 	if err != nil || l.Stack == nil || l.Stack.MySQL == nil {
-		reply(w, map[string]any{"enabled": false})
+		// installed: what Turn on would start ("" when no MySQL is installed).
+		newest, _ := newestMySQL(r.Context(), root)
+		reply(w, map[string]any{"enabled": false, "installed": newest})
 		return
 	}
-	sec, _ := services.LoadSecrets(l.Stack)
-	reply(w, map[string]any{
-		"enabled": true, "host": "127.0.0.1", "port": l.Stack.MySQL.Port, "user": "root",
+	st := l.Stack
+	sec, _ := services.LoadSecrets(st)
+	out := map[string]any{
+		"enabled": true, "host": "127.0.0.1", "port": st.MySQL.Port, "user": "root",
 		"password": sec.MySQLRootPassword, "ready": sec.MySQLRootApplied,
-	})
+		"version": st.MySQL.Build.Version.MajorMinor(),
+	}
+	if p := st.PhpMyAdmin; p != nil {
+		out["phpmyadmin"] = map[string]string{"url": st.URL(p.Site), "version": p.Build.Version.String()}
+	}
+	reply(w, out)
 }
 
 func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {

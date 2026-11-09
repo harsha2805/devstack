@@ -6,7 +6,8 @@
 // PHP hashes come from php.net's releases.json. nginx and MySQL publish no
 // sha256, so their archives are downloaded once here and hashed, as are the
 // PECL extension builds (sqlsrv, pdo_sqlsrv) php.net's PHP zips don't bundle.
-// Composer's hash comes from getcomposer.org, next to the newest stable phar.
+// Composer's hash comes from getcomposer.org, next to the newest stable phar,
+// and phpMyAdmin's from the .sha256 file files.phpmyadmin.net keeps by each zip.
 // Entries whose URL is unchanged keep their previous hash (use -rehash to force).
 package main
 
@@ -78,6 +79,10 @@ func main() {
 			Strip:   "mysql-" + version + "-winx64/",
 		})
 	}
+
+	pma, err := phpMyAdminEntry(ctx)
+	check(err)
+	entries = append(entries, pma)
 
 	for i := range entries {
 		e := &entries[i]
@@ -263,6 +268,35 @@ func composerEntry(ctx context.Context) (*packages.Composer, error) {
 		return &packages.Composer{Version: v.Version, URL: url, SHA256: got, Size: size}, nil
 	}
 	return nil, fmt.Errorf("getcomposer.org/versions lists no stable release")
+}
+
+// phpMyAdminEntry is the newest phpMyAdmin release from its version feed, with
+// the sha256 published beside the zip (checked when the zip is hashed below).
+func phpMyAdminEntry(ctx context.Context) (packages.Entry, error) {
+	body, err := get(ctx, "https://www.phpmyadmin.net/home_page/version.json")
+	if err != nil {
+		return packages.Entry{}, err
+	}
+	var feed struct {
+		Version string `json:"version"`
+	}
+	if err := json.Unmarshal(body, &feed); err != nil || feed.Version == "" {
+		return packages.Entry{}, fmt.Errorf("phpmyadmin.net version.json: %v", err)
+	}
+	if _, err := discover.ParseVersion(feed.Version); err != nil {
+		return packages.Entry{}, fmt.Errorf("phpmyadmin.net version.json: %w", err)
+	}
+	name := "phpMyAdmin-" + feed.Version + "-all-languages"
+	url := "https://files.phpmyadmin.net/phpMyAdmin/" + feed.Version + "/" + name + ".zip"
+	sum, err := get(ctx, url+".sha256")
+	if err != nil {
+		return packages.Entry{}, err
+	}
+	hash, _, _ := strings.Cut(strings.TrimSpace(string(sum)), " ")
+	if len(hash) != 64 {
+		return packages.Entry{}, fmt.Errorf("%s.sha256: unexpected content %q", url, sum)
+	}
+	return packages.Entry{Kind: discover.PhpMyAdmin, Version: feed.Version, URL: url, SHA256: strings.ToLower(hash), Strip: name + "/"}, nil
 }
 
 // nginxEntries takes the current mainline and stable zips from nginx.org's download page.

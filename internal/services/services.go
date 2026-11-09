@@ -121,6 +121,9 @@ func nginxFiles(st *model.Stack) []string {
 	for _, s := range st.Sites {
 		files = append(files, filepath.Join(st.Etc, "nginx", "sites", s.Slug+".conf"))
 	}
+	if p := st.PhpMyAdmin; p != nil {
+		files = append(files, filepath.Join(st.Etc, "nginx", "sites", p.Slug+".conf"))
+	}
 	custom, _ := filepath.Glob(filepath.Join(st.EtcCustom, "nginx", "*.conf"))
 	return append(files, custom...)
 }
