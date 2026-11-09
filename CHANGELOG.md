@@ -5,6 +5,18 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions
 The release scripts need a section for the version they build and take the in-app update notes from the
 bold lead-ins under it, so write each feature up here when it lands.
 
+## [1.0.5] — 2026-11-09
+
+### Added
+- **phpMyAdmin opens your site's database.** A site's details now read its Laravel `.env` and say which database it
+  uses. When that's devstack's MySQL, the button reads "Open chess in phpMyAdmin" and opens phpMyAdmin straight on
+  that database. A `.env` that points at another server or port, or at SQLite, PostgreSQL or SQL Server, says so.
+- **phpMyAdmin from a site's details.** The Database section always offers it: Open it when it's installed,
+  Install phpMyAdmin when it isn't, or Turn on MySQL first when MySQL is off.
+
+### Changed
+- **The PHP picker shows only the version.** "8.3 ★" instead of "PHP 8.3 ★": the heading above it already says PHP.
+
 ## [1.0.4] — 2026-11-09
 
 ### Changed

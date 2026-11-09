@@ -243,3 +243,33 @@ func TestMsysPath(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestEnvDatabase(t *testing.T) {
+	cases := []struct {
+		env      string
+		ok       bool
+		name     string
+		usesPort int // UsesMySQL(3307) expected true when 3307, false when 0
+	}{
+		{"DB_CONNECTION=mysql\nDB_HOST=127.0.0.1\nDB_PORT=3307\nDB_DATABASE=chess\n", true, "chess", 3307},
+		{"DB_CONNECTION=mysql\nDB_HOST=localhost\nDB_DATABASE=\"shop\"\n", true, "shop", 0}, // unset port = 3306
+		{"DB_CONNECTION=mysql\nDB_HOST=db.example.com\nDB_PORT=3307\nDB_DATABASE=x\n", true, "x", 0},
+		{"DB_CONNECTION=mysql\nDB_PORT=3307\nDB_DATABASE=your_database\n", true, "", 3307}, // placeholder name
+		{"DB_CONNECTION=sqlite\nDB_DATABASE=database/database.sqlite\n", true, "database/database.sqlite", 0},
+		{"APP_NAME=x\n", false, "", 0},
+	}
+	for _, c := range cases {
+		dir := t.TempDir()
+		os.WriteFile(filepath.Join(dir, ".env"), []byte(c.env), 0o644)
+		db, ok := EnvDatabase(dir)
+		if ok != c.ok || db.Name != c.name {
+			t.Errorf("%q: got %+v, %v", c.env, db, ok)
+		}
+		if got := db.UsesMySQL(3307); got != (c.usesPort == 3307) {
+			t.Errorf("%q: UsesMySQL(3307) = %v", c.env, got)
+		}
+	}
+	if _, ok := EnvDatabase(t.TempDir()); ok {
+		t.Error("no .env should not be ok")
+	}
+}

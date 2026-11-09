@@ -310,7 +310,7 @@ const phpOptions = (site) => {
   vs.sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
   return vs.map((v) => {
     const def = v === S.default_php;
-    return `<option value="${def ? "" : esc(v)}" ${site.php === v ? "selected" : ""}>PHP ${esc(v)}${def ? " ★" : ""}</option>`;
+    return `<option value="${def ? "" : esc(v)}" ${site.php === v ? "selected" : ""}>${esc(v)}${def ? " ★" : ""}</option>`;
   }).join("");
 };
 const host = (url) => url.replace(/^https?:\/\//, "").replace(/\/$/, "");
@@ -426,16 +426,8 @@ function renderPanel() {
   panel.hidden = false;
   const [m, why] = siteMark(s);
   const dev = !(S.update && S.update.release);
-  draw("panel", [s, S.phps, S.default_php, S.running, m, db, dev, jobBusy()], () => {
-    let dbHTML;
-    if (!db) dbHTML = '<div class="muted">Loading…</div>';
-    else if (!db.enabled) dbHTML = db.installed
-      ? `<div class="muted">MySQL is off.</div><div class="row-btns" style="margin-top:6px"><button class="btn small" id="p-mysql-on" ${jobBusy() ? "disabled" : ""}>Turn on MySQL ${esc(db.installed)}</button></div>`
-      : '<div class="muted">MySQL is off. Install a version on the Database page.</div>';
-    else if (!db.ready) dbHTML = '<div class="muted">A root password is generated the first time MySQL starts.</div>';
-    else dbHTML = `<dl class="kv"><dt>Host</dt><dd>${esc(db.host)}:${esc(db.port)}</dd><span></span><dt>User</dt><dd>${esc(db.user)}</dd><span></span>
-      <dt>Password</dt><dd>••••••••••</dd><span><button class="btn small ghost" id="p-pw">Copy</button></span></dl>
-      ${db.phpmyadmin ? `<div class="row-btns" style="margin-top:8px"><button class="btn small" id="p-pma" ${S.running ? "" : `disabled title="Start the servers to open it"`}>${icon("open")}phpMyAdmin</button></div>` : ""}`;
+  draw("panel", [s, S.phps, S.default_php, S.running, m, db, dev, jobBusy(), packages, installJob()], () => {
+    const dbHTML = panelDB(s);
     const errs = dev
       ? `<div class="errors">${SAMPLE_ERRORS.map(([e, at]) => `<span class="e">${esc(e)}</span><br>in ${esc(at)}`).join("<br>")}</div>`
       : `<div class="errors soon">Per-site errors are coming in a later version. Until then, PHP ${esc(s.php)}'s error log has them.</div>`;
@@ -473,12 +465,74 @@ function renderPanel() {
     $("#p-remove") && ($("#p-remove").onclick = () => removeProject(s.slug));
     $("#p-guide").onchange = (e) => setGuide(s, e.target.checked).catch(() => (e.target.checked = !e.target.checked));
     $("#p-pw") && ($("#p-pw").onclick = () => copy(db.password, "Password"));
-    $("#p-pma") && ($("#p-pma").onclick = () => open("url", db.phpmyadmin.url));
+    $("#p-pma") && ($("#p-pma").onclick = () => open("url", pmaURL(s)));
+    $("#p-pma-install") && ($("#p-pma-install").onclick = (e) => {
+      const [kind, version] = e.currentTarget.dataset.pkg.split("|");
+      act("/api/packages/install", { kind, version }).catch(() => {});
+    });
     $("#p-mysql-on") && ($("#p-mysql-on").onclick = () => setMySQL(""));
     $("#p-errlog").onclick = () => showLog(logFor("php-" + s.php));
     $("#p-access").onclick = () => showLog(`sites/${s.slug}.access.log`);
     $("#p-php").onchange = (e) => setPHP(s, e.target.value);
   });
+}
+
+// CONN_NAMES spell Laravel's DB_CONNECTION values for people.
+const CONN_NAMES = { sqlite: "SQLite", pgsql: "PostgreSQL", sqlsrv: "SQL Server", mysql: "MySQL", mariadb: "MariaDB" };
+
+// envDB says which database the site's .env (Laravel) uses, when it sets one.
+function envDB(e) {
+  if (!e) return "";
+  let text;
+  if (e.ours) {
+    text = e.name
+      ? `This site's .env uses the database <b class="mono">${esc(e.name)}</b>.`
+      : "This site's .env uses this MySQL but doesn't name a database yet (DB_DATABASE).";
+  } else if (e.conn === "mysql" || e.conn === "mariadb") {
+    const at = `${e.host || "127.0.0.1"}:${e.port || "3306"}`;
+    text = `This site's .env points at <span class="mono">${esc(at)}</span>${db && db.enabled ? `, not devstack's MySQL on <span class="mono">127.0.0.1:${esc(db.port)}</span>` : ""}.`;
+  } else {
+    text = `This site's .env uses ${esc(CONN_NAMES[e.conn] || e.conn)}${e.name ? ` (<span class="mono">${esc(e.name)}</span>)` : ""}, not MySQL.`;
+  }
+  return `<div class="env-db">${text}</div>`;
+}
+
+// pmaURL opens phpMyAdmin at the site's own database when its .env names one.
+function pmaURL(s) {
+  const base = db.phpmyadmin.url;
+  const e = s.db;
+  return e && e.ours && e.name ? `${base}/index.php?route=/database/structure&db=${encodeURIComponent(e.name)}` : base;
+}
+
+// panelDB is the Database section of a site's details: the database its .env
+// uses, the login of the shared MySQL, and phpMyAdmin.
+function panelDB(s) {
+  if (!db) return '<div class="muted">Loading…</div>';
+  const busy = jobBusy();
+  let out = envDB(s.db);
+  if (!db.enabled) {
+    return out + (db.installed
+      ? `<div class="muted">MySQL is off. phpMyAdmin and your sites' databases need it.</div><div class="row-btns" style="margin-top:6px"><button class="btn small" id="p-mysql-on" ${busy ? "disabled" : ""}>Turn on MySQL ${esc(db.installed)}</button></div>`
+      : '<div class="muted">MySQL is off. Install a version on the Database page.</div>');
+  }
+  if (!db.ready) return out + '<div class="muted">A root password is generated the first time MySQL starts.</div>';
+  out += `<dl class="kv"><dt>Host</dt><dd>${esc(db.host)}:${esc(db.port)}</dd><span></span><dt>User</dt><dd>${esc(db.user)}</dd><span></span>
+    <dt>Password</dt><dd>••••••••••</dd><span><button class="btn small ghost" id="p-pw">Copy</button></span></dl>`;
+  let pma;
+  const job = installJob();
+  const pkg = packages && packages.find((p) => p.kind === "phpmyadmin");
+  if (db.phpmyadmin) {
+    const e = s.db;
+    const label = e && e.ours && e.name ? `Open ${esc(e.name)} in phpMyAdmin` : "phpMyAdmin";
+    pma = `<button class="btn small" id="p-pma" ${S.running ? "" : `disabled title="Start the servers to open it"`}>${icon("open")}${label}</button>`;
+  } else if (job && !job.finished && pkg && job.title === `Installing ${pkg.kind} ${pkg.version}`) {
+    const step = job.steps[0];
+    const pct = step && step.total ? Math.round((step.done / step.total) * 100) : 0;
+    pma = `<span class="muted">Installing phpMyAdmin… ${pct}%</span>`;
+  } else if (pkg && !pkg.installed) {
+    pma = `<button class="btn small" id="p-pma-install" data-pkg="${esc(pkg.kind)}|${esc(pkg.version)}" ${busy ? "disabled" : ""} title="Download phpMyAdmin ${esc(pkg.version)} (${size(pkg.size)}) to manage databases in the browser">${icon("open")}Install phpMyAdmin</button>`;
+  }
+  return out + (pma ? `<div class="row-btns" style="margin-top:8px">${pma}</div>` : "");
 }
 
 // ---- PHP, Database ---------------------------------------------------------------

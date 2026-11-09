@@ -252,6 +252,14 @@ type siteView struct {
 	Docroot string   `json:"docroot"`
 	Aliases []string `json:"aliases,omitempty"`
 	Project bool     `json:"project"` // listed in [projects], outside www
+	// DB is what the project's .env (Laravel) says about its database.
+	DB *siteDBView `json:"db,omitempty"`
+}
+
+type siteDBView struct {
+	aiguide.EnvDB
+	// Ours: the .env points at devstack's MySQL, so phpMyAdmin can open its database.
+	Ours bool `json:"ours"`
 }
 
 type stateView struct {
@@ -402,6 +410,9 @@ func (s *Server) fillStack(v *stateView, st *model.Stack) {
 			Aliases: site.Aliases, Pinned: site.Site.PHP != "", Guide: aiguide.Installed(site.Dir), Project: site.Project}
 		if site.PHP != nil {
 			sv.PHP = site.PHP.Key
+		}
+		if db, ok := aiguide.EnvDatabase(site.Dir); ok {
+			sv.DB = &siteDBView{EnvDB: db, Ours: st.MySQL != nil && db.UsesMySQL(st.MySQL.Port)}
 		}
 		v.Sites = append(v.Sites, sv)
 	}

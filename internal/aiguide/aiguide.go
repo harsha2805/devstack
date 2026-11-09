@@ -412,6 +412,43 @@ func installHint(cmd string, names []string) string {
 	return fmt.Sprintf(" Ask the user to run `%s pkg install ext %s`, which downloads %s for every PHP version.", cmd, strings.Join(get, " "), them)
 }
 
+// EnvDB is the database a project's .env (Laravel's DB_* keys) points at.
+type EnvDB struct {
+	Conn string `json:"conn"` // DB_CONNECTION: mysql, mariadb, sqlite, pgsql, sqlsrv
+	Host string `json:"host,omitempty"`
+	Port string `json:"port,omitempty"`
+	// Name is DB_DATABASE (a file for sqlite); "" when unset or still a
+	// template placeholder.
+	Name string `json:"name,omitempty"`
+}
+
+// EnvDatabase reads the DB_ keys of dir/.env. ok is false when the project
+// has no .env or it sets no DB_CONNECTION.
+func EnvDatabase(dir string) (db EnvDB, ok bool) {
+	env := readEnv(filepath.Join(dir, ".env"))
+	if env["DB_CONNECTION"] == "" {
+		return db, false
+	}
+	db = EnvDB{Conn: env["DB_CONNECTION"], Host: env["DB_HOST"], Port: env["DB_PORT"], Name: env["DB_DATABASE"]}
+	if placeholder.MatchString(db.Name) {
+		db.Name = ""
+	}
+	return db, true
+}
+
+// UsesMySQL reports whether db is a MySQL database on this machine at port,
+// that is, on devstack's MySQL when port is its port. An unset DB_PORT is 3306.
+func (db EnvDB) UsesMySQL(port int) bool {
+	if db.Conn != "mysql" && db.Conn != "mariadb" || !isLocal(db.Host) {
+		return false
+	}
+	p := db.Port
+	if p == "" {
+		p = "3306"
+	}
+	return p == strconv.Itoa(port)
+}
+
 // readEnv reads KEY=value lines from a .env file; a missing file reads as empty.
 func readEnv(path string) map[string]string {
 	env := map[string]string{}
