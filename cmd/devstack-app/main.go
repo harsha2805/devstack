@@ -92,6 +92,7 @@ func main() {
 
 	win := &window{url: srv.URL(), dataDir: filepath.Join(dir, "webview2")}
 	srv.OnShow = win.Show
+	srv.Window = win.Handle
 	app := &trayApp{srv: srv, win: win}
 	srv.OnQuit = app.quit
 

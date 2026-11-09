@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func testServer(t *testing.T) *Server {
@@ -103,5 +104,24 @@ func TestLocalURL(t *testing.T) {
 		if localURL(u) {
 			t.Errorf("%s should be refused", u)
 		}
+	}
+}
+
+func TestPasswordLock(t *testing.T) {
+	s := testServer(t)
+	if s.passwordUnlocked() {
+		t.Fatal("the password must start locked: asking Windows is the default")
+	}
+	s.unlockedUntil = time.Now().Add(time.Minute)
+	if !s.passwordUnlocked() {
+		t.Error("a recent check should unlock it")
+	}
+	s.unlockedUntil = time.Now().Add(-time.Second)
+	if s.passwordUnlocked() {
+		t.Error("the unlock should expire")
+	}
+	s.settings.SkipPasswordCheck = true
+	if !s.passwordUnlocked() {
+		t.Error("with the check off it is always unlocked")
 	}
 }

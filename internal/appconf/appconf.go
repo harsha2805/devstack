@@ -21,6 +21,9 @@ type Settings struct {
 	ResumeServers bool `json:"resume_servers,omitempty"`
 	// DNSAsked records that the one-time ".test addresses?" question was answered.
 	DNSAsked bool `json:"dns_asked,omitempty"`
+	// SkipPasswordCheck shows and copies the MySQL password without asking for
+	// Windows Hello or the Windows password first. Off (asking) by default.
+	SkipPasswordCheck bool `json:"skip_password_check,omitempty"`
 }
 
 // Dir is %LOCALAPPDATA%\devstack, or DEVSTACK_APPDATA when set (tests, previews).

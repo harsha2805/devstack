@@ -273,3 +273,29 @@ func TestEnvDatabase(t *testing.T) {
 		t.Error("no .env should not be ok")
 	}
 }
+
+func TestGuideSiteUserAndPhpMyAdmin(t *testing.T) {
+	st, site := testStack(t)
+	pma := model.Site{Site: sites.Site{Slug: "phpmyadmin"}}
+	st.PhpMyAdmin = &model.PhpMyAdmin{Site: pma, Build: discover.Build{Version: discover.Version{5, 2, 3}}}
+
+	os.WriteFile(filepath.Join(site.Dir, ".env"), []byte("DB_CONNECTION=mysql\nDB_HOST=127.0.0.1\nDB_PORT=3307\nDB_DATABASE=shop\nDB_USERNAME=root\nDB_PASSWORD=secret123\n"), 0o644)
+	guide := Render(st, site, "devstack")
+	for _, want := range []string{
+		"`.env` signs in as root, which can reach every database",
+		"Create a user for this site",
+		"phpMyAdmin 5.2.3: http://phpmyadmin.localhost:8080/index.php?route=/database/structure&db=shop (logs in as root)",
+	} {
+		if !strings.Contains(guide, want) {
+			t.Errorf("guide lacks %q", want)
+		}
+	}
+	if strings.Contains(guide, "secret123") {
+		t.Error("the guide printed the password")
+	}
+
+	os.WriteFile(filepath.Join(site.Dir, ".env"), []byte("DB_CONNECTION=mysql\nDB_HOST=127.0.0.1\nDB_PORT=3307\nDB_DATABASE=shop\nDB_USERNAME=my_app\n"), 0o644)
+	if guide := Render(st, site, "devstack"); !strings.Contains(guide, "signs in as `my_app`, a MySQL user devstack made for this site with access to only `shop`") {
+		t.Error("the guide doesn't recognize the site's own user")
+	}
+}

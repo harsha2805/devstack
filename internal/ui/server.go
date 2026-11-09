@@ -39,6 +39,7 @@ import (
 	"github.com/harsha2805/devstack/internal/stack"
 	"github.com/harsha2805/devstack/internal/supervisor"
 	"github.com/harsha2805/devstack/internal/update"
+	"github.com/harsha2805/devstack/internal/winauth"
 	"github.com/harsha2805/devstack/internal/winproc"
 )
 
@@ -53,7 +54,10 @@ type Server struct {
 	Exe     string // this executable; the autostart target
 	Daemon  string // runs the background service (`<Daemon> --root X daemon`); Exe when empty
 	OnShow  func() // bring the window forward (second launch)
-	OnQuit  func()
+	// Window is the dashboard window, which owns the Windows sign-in prompt
+	// before the MySQL password is shown; nil or 0 uses the foreground window.
+	Window func() uintptr
+	OnQuit func()
 
 	token string
 	addr  string
@@ -62,6 +66,9 @@ type Server struct {
 	job      *Job
 	settings appconf.Settings
 	upd      updateState
+	// unlockedUntil: the MySQL password stays visible until then (see verifyUser).
+	unlockedUntil time.Time
+	verifyMu      sync.Mutex
 }
 
 // Job is a long action (setup, start, stop, install) the UI shows progress for.
@@ -143,6 +150,7 @@ func (s *Server) routes() http.Handler {
 	api.HandleFunc("GET /api/logs", s.handleLogs)
 	api.HandleFunc("GET /api/packages", s.handlePackages)
 	api.HandleFunc("GET /api/db", s.handleDB)
+	api.HandleFunc("POST /api/db/reveal", s.handleDBReveal)
 	api.HandleFunc("POST /api/setup", s.handleSetup)
 	api.HandleFunc("POST /api/start", func(w http.ResponseWriter, r *http.Request) { s.startJob(w, "Starting servers", s.runStart) })
 	api.HandleFunc("POST /api/stop", func(w http.ResponseWriter, r *http.Request) { s.startJob(w, "Stopping servers", s.runStop) })
@@ -150,6 +158,7 @@ func (s *Server) routes() http.Handler {
 	api.HandleFunc("POST /api/restart", s.handleRestart)
 	api.HandleFunc("POST /api/site/php", s.handleSitePHP)
 	api.HandleFunc("POST /api/site/guide", s.handleSiteGuide)
+	api.HandleFunc("POST /api/site/dbuser", s.handleSiteDBUser)
 	api.HandleFunc("POST /api/project/pick", s.handlePickFolder)
 	api.HandleFunc("POST /api/project/add", s.handleProjectAdd)
 	api.HandleFunc("POST /api/project/remove", s.handleProjectRemove)
@@ -325,7 +334,7 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 	set := s.settings
 	v.Update = s.updateViewLocked()
 	s.mu.Unlock()
-	v.Settings = map[string]bool{"start_servers": set.StartServers, "check_updates": set.CheckUpdates,
+	v.Settings = map[string]bool{"start_servers": set.StartServers, "check_updates": set.CheckUpdates, "password_check": !set.SkipPasswordCheck,
 		"autostart": winproc.Autostart(AutostartName)}
 
 	root := s.root()
@@ -687,6 +696,23 @@ func (s *Server) handleRestart(w http.ResponseWriter, r *http.Request) {
 	reply(w, res)
 }
 
+// handleSiteDBUser gives a site a MySQL user of its own (control.SiteDBUser).
+func (s *Server) handleSiteDBUser(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Slug string `json:"slug"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		replyErr(w, http.StatusBadRequest, err)
+		return
+	}
+	u, err := control.SiteDBUser(r.Context(), s.root(), req.Slug)
+	if err != nil {
+		replyErr(w, http.StatusBadRequest, err)
+		return
+	}
+	reply(w, u)
+}
+
 // handleSitePHP pins a site to a PHP version in its .devstack.toml ("" = default).
 func (s *Server) handleSitePHP(w http.ResponseWriter, r *http.Request) {
 	var req struct {
@@ -1005,13 +1031,68 @@ func (s *Server) handleDB(w http.ResponseWriter, r *http.Request) {
 	sec, _ := services.LoadSecrets(st)
 	out := map[string]any{
 		"enabled": true, "host": "127.0.0.1", "port": st.MySQL.Port, "user": "root",
-		"password": sec.MySQLRootPassword, "ready": sec.MySQLRootApplied,
-		"version": st.MySQL.Build.Version.MajorMinor(),
+		"ready": sec.MySQLRootApplied, "version": st.MySQL.Build.Version.MajorMinor(),
+	}
+	// The page gets the password only once Windows has confirmed the user
+	// (POST /api/db/reveal), unless that check is turned off.
+	if s.passwordUnlocked() {
+		out["password"] = sec.MySQLRootPassword
+	} else {
+		out["locked"] = true
 	}
 	if p := st.PhpMyAdmin; p != nil {
 		out["phpmyadmin"] = map[string]string{"url": st.URL(p.Site), "version": p.Build.Version.String()}
 	}
 	reply(w, out)
+}
+
+// unlockFor is how long one Windows check keeps the password visible.
+const unlockFor = 5 * time.Minute
+
+// passwordUnlocked: the check is off, or the user passed it recently.
+func (s *Server) passwordUnlocked() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.settings.SkipPasswordCheck || time.Now().Before(s.unlockedUntil)
+}
+
+// verifyUser asks Windows Hello, or the Windows password, to confirm the
+// signed-in user, and keeps the password unlocked for unlockFor after.
+func (s *Server) verifyUser(message string) error {
+	s.verifyMu.Lock() // one prompt at a time
+	defer s.verifyMu.Unlock()
+	if s.passwordUnlocked() {
+		return nil
+	}
+	var owner uintptr
+	if s.Window != nil {
+		owner = s.Window()
+	}
+	if err := winauth.Verify(owner, message); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	s.unlockedUntil = time.Now().Add(unlockFor)
+	s.mu.Unlock()
+	return nil
+}
+
+// handleDBReveal returns the MySQL root password once the user is verified.
+func (s *Server) handleDBReveal(w http.ResponseWriter, r *http.Request) {
+	l, err := stack.Load(r.Context(), s.root())
+	if err != nil || l.Stack == nil || l.Stack.MySQL == nil {
+		replyErr(w, http.StatusConflict, errors.New("MySQL is off"))
+		return
+	}
+	if err := s.verifyUser("devstack wants to show your MySQL root password"); err != nil {
+		replyErr(w, http.StatusForbidden, err)
+		return
+	}
+	sec, _ := services.LoadSecrets(l.Stack)
+	s.mu.Lock()
+	left := time.Until(s.unlockedUntil)
+	s.mu.Unlock()
+	reply(w, map[string]any{"password": sec.MySQLRootPassword, "unlocked_ms": max(left.Milliseconds(), 0)})
 }
 
 func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
@@ -1133,6 +1214,7 @@ var knownLinks = map[string]bool{
 	"https://www.php.net/license/":           true,
 	"https://nginx.org/LICENSE":              true,
 	"https://www.mysql.com/about/legal/":     true,
+	"https://www.phpmyadmin.net/license/":    true,
 	"https://github.com/harsha2805/devstack": true,
 	"https://github.com/sponsors/harsha2805": true,
 }
@@ -1141,9 +1223,10 @@ func knownLink(u string) bool { return knownLinks[u] }
 
 func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		StartServers *bool `json:"start_servers"`
-		CheckUpdates *bool `json:"check_updates"`
-		Autostart    *bool `json:"autostart"`
+		StartServers  *bool `json:"start_servers"`
+		CheckUpdates  *bool `json:"check_updates"`
+		Autostart     *bool `json:"autostart"`
+		PasswordCheck *bool `json:"password_check"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		replyErr(w, http.StatusBadRequest, err)
@@ -1156,8 +1239,18 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if req.StartServers != nil || req.CheckUpdates != nil {
+	if req.PasswordCheck != nil && !*req.PasswordCheck && !s.passwordUnlocked() {
+		// Turning the check off is itself guarded, or anyone at the keyboard could.
+		if err := s.verifyUser("devstack wants to stop asking before it shows your MySQL password"); err != nil {
+			replyErr(w, http.StatusForbidden, err)
+			return
+		}
+	}
+	if req.StartServers != nil || req.CheckUpdates != nil || req.PasswordCheck != nil {
 		s.mu.Lock()
+		if req.PasswordCheck != nil {
+			s.settings.SkipPasswordCheck = !*req.PasswordCheck
+		}
 		if req.StartServers != nil {
 			s.settings.StartServers = *req.StartServers
 		}

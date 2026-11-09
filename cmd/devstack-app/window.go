@@ -38,6 +38,13 @@ var (
 	procGetDpiForSystem  = user32.NewProc("GetDpiForSystem")
 )
 
+// Handle is the open window, 0 when it's closed or a browser shows the dashboard.
+func (w *window) Handle() uintptr {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.hwnd
+}
+
 func (w *window) Show() {
 	w.mu.Lock()
 	if w.open {

@@ -219,6 +219,10 @@ func ensureRootPassword(ctx context.Context, st *model.Stack, log io.Writer) err
 	return saveSecrets(st, sec)
 }
 
+// RandomPassword is n letters and digits (no look-alikes), safe unquoted in
+// SQL strings and .env files.
+func RandomPassword(n int) string { return randomPassword(n) }
+
 func randomPassword(n int) string {
 	const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789"
 	b := make([]byte, n)

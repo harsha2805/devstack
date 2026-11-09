@@ -19,6 +19,8 @@ const ICONS = {
   spin: '<path d="M8 3a5 5 0 1 0 5 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><animateTransform attributeName="transform" type="rotate" from="0 8 8" to="360 8 8" dur=".9s" repeatCount="indefinite"/></path>',
   globe: '<g fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="8" r="5.8"/><path d="M2.2 8h11.6M8 2.2c1.9 1.9 1.9 9.7 0 11.6M8 2.2c-1.9 1.9-1.9 9.7 0 11.6"/></g>',
   copy: '<g fill="none" stroke="currentColor" stroke-width="1.2"><rect x="5.5" y="5.5" width="8" height="8" rx="1.3"/><path d="M3.5 10.5V3.8c0-.4.3-.8.8-.8h6.2"/></g>',
+  eye: '<g fill="none" stroke="currentColor" stroke-width="1.2"><path d="M1.8 8S4 3.8 8 3.8 14.2 8 14.2 8 12 12.2 8 12.2 1.8 8 1.8 8z"/><circle cx="8" cy="8" r="2"/></g>',
+  eyeOff: '<g fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><path d="M6.3 4.1A6.6 6.6 0 0 1 8 3.8C12 3.8 14.2 8 14.2 8a10.6 10.6 0 0 1-1.7 2.3M10.1 11.6a5.9 5.9 0 0 1-2.1.6C4 12.2 1.8 8 1.8 8a10.9 10.9 0 0 1 2.4-2.9"/><path d="M6.6 6.6a2 2 0 0 0 2.8 2.8M2.5 2.5l11 11"/></g>',
   plus: '<path d="M8 3.5v9M3.5 8h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
   chevron: '<path d="m4.5 6.5 3.5 3.5 3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>',
   sites: '<g fill="none" stroke="currentColor" stroke-width="1.2"><rect x="1.8" y="2.8" width="12.4" height="10.4" rx="1.5"/><path d="M1.8 6h12.4"/></g>',
@@ -426,7 +428,7 @@ function renderPanel() {
   panel.hidden = false;
   const [m, why] = siteMark(s);
   const dev = !(S.update && S.update.release);
-  draw("panel", [s, S.phps, S.default_php, S.running, m, db, dev, jobBusy(), packages, installJob()], () => {
+  draw("panel", [s, S.phps, S.default_php, S.running, m, db, dev, jobBusy(), packages, installJob(), pwShown], () => {
     const dbHTML = panelDB(s);
     const errs = dev
       ? `<div class="errors">${SAMPLE_ERRORS.map(([e, at]) => `<span class="e">${esc(e)}</span><br>in ${esc(at)}`).join("<br>")}</div>`
@@ -446,7 +448,7 @@ function renderPanel() {
           <button class="btn small" id="p-term">${icon("terminal")}Terminal</button>
           ${s.project ? `<button class="btn small ghost danger" id="p-remove">Stop serving</button>` : ""}
         </div>
-        <div><div class="group-label">PHP version <small class="star-key">★ default</small></div><select id="p-php" class="php-pick" aria-label="PHP version for ${esc(s.slug)}; ★ marks the default" title="php and composer in this site's terminal use it too">${phpOptions(s)}</select></div>
+        <div class="php-line"><span class="group-label">PHP version <small class="star-key">★ default</small></span><select id="p-php" class="php-pick" aria-label="PHP version for ${esc(s.slug)}; ★ marks the default" title="php and composer in this site's terminal use it too">${phpOptions(s)}</select></div>
         <div><div class="group-label">AI guide</div>
           <label class="toggle-row" title="Writes .devstack/ai-guide.md (kept out of git) and a short pointer in AGENTS.md and CLAUDE.md. Your own text there is left alone."><span class="switch"><input type="checkbox" id="p-guide" ${s.guide ? "checked" : ""}><span></span></span>
             ${s.guide ? "On: coding agents know this site's URL, PHP, database and logs." : "Off: tell coding agents how this site runs here."}</label>
@@ -464,8 +466,10 @@ function renderPanel() {
     $("#p-term").onclick = () => act("/api/terminal", { site: s.slug }).catch(() => {});
     $("#p-remove") && ($("#p-remove").onclick = () => removeProject(s.slug));
     $("#p-guide").onchange = (e) => setGuide(s, e.target.checked).catch(() => (e.target.checked = !e.target.checked));
-    $("#p-pw") && ($("#p-pw").onclick = () => copy(db.password, "Password"));
+    $("#p-pw-show") && ($("#p-pw-show").onclick = togglePassword);
+    $("#p-pw-copy") && ($("#p-pw-copy").onclick = copyPassword);
     $("#p-pma") && ($("#p-pma").onclick = () => open("url", pmaURL(s)));
+    $("#p-dbuser") && ($("#p-dbuser").onclick = (e) => createSiteUser(s, !!e.currentTarget.dataset.new));
     $("#p-pma-install") && ($("#p-pma-install").onclick = (e) => {
       const [kind, version] = e.currentTarget.dataset.pkg.split("|");
       act("/api/packages/install", { kind, version }).catch(() => {});
@@ -504,6 +508,36 @@ function pmaURL(s) {
   return e && e.ours && e.name ? `${base}/index.php?route=/database/structure&db=${encodeURIComponent(e.name)}` : base;
 }
 
+// siteUser offers a MySQL user of the site's own, limited to its database,
+// in place of root. Shown when the .env names a database on devstack's MySQL.
+function siteUser(s, busy) {
+  const e = s.db;
+  if (!e || !e.ours || !e.name) return "";
+  const own = s.slug.replace(/-/g, "_").slice(0, 32);
+  if (e.username === own) {
+    return `<div class="site-user"><span>Signs in as <b class="mono">${esc(own)}</b>, which can only reach <b class="mono">${esc(e.name)}</b>.</span>
+      <button class="btn small ghost" id="p-dbuser" data-new="1" ${busy ? "disabled" : ""} title="Give ${esc(own)} a new random password and put it in .env">New password</button></div>`;
+  }
+  const who = e.username ? `Signs in as <b class="mono">${esc(e.username)}</b>${e.username === "root" ? ", which can reach every database" : ""}.` : "The .env sets no DB_USERNAME.";
+  return `<div class="site-user"><span>${who}</span>
+    <button class="btn small" id="p-dbuser" ${busy ? "disabled" : ""} title="Create MySQL user ${esc(own)} with access to only ${esc(e.name)}, and put its login in .env">Create a user for this site</button></div>`;
+}
+
+function createSiteUser(s, renew) {
+  const own = s.slug.replace(/-/g, "_").slice(0, 32);
+  const q = renew
+    ? `Give ${own} a new password? devstack writes it to ${s.slug}'s .env (DB_PASSWORD).`
+    : `Create MySQL user ${own} with access to only the ${s.db.name} database (created if it's missing)?
+
+devstack writes its login to ${s.slug}'s .env as DB_USERNAME and DB_PASSWORD.`;
+  if (!confirm(q)) return;
+  act("/api/site/dbuser", { slug: s.slug }).then((r) => {
+    toast(r.config_cached
+      ? `${r.user} is ready. Laravel has cached its config: run php artisan config:clear`
+      : `${r.user} is ready, and ${s.slug}'s .env uses it`);
+  }).catch(() => {});
+}
+
 // panelDB is the Database section of a site's details: the database its .env
 // uses, the login of the shared MySQL, and phpMyAdmin.
 function panelDB(s) {
@@ -516,8 +550,9 @@ function panelDB(s) {
       : '<div class="muted">MySQL is off. Install a version on the Database page.</div>');
   }
   if (!db.ready) return out + '<div class="muted">A root password is generated the first time MySQL starts.</div>';
-  out += `<dl class="kv"><dt>Host</dt><dd>${esc(db.host)}:${esc(db.port)}</dd><span></span><dt>User</dt><dd>${esc(db.user)}</dd><span></span>
-    <dt>Password</dt><dd>••••••••••</dd><span><button class="btn small ghost" id="p-pw">Copy</button></span></dl>`;
+  out += siteUser(s, busy);
+  out += `<div class="kv-cap">Root login · every database</div><dl class="kv"><dt>Host</dt><dd>${esc(db.host)}:${esc(db.port)}</dd><span></span><dt>User</dt><dd>${esc(db.user)}</dd><span></span>
+    <dt>Password</dt>${pwCells("p-pw")}</dl>`;
   let pma;
   const job = installJob();
   const pkg = packages && packages.find((p) => p.kind === "phpmyadmin");
@@ -700,7 +735,38 @@ function extensionsSection() {
     <div class="rows">${rows}</div>${odbc}</div>`;
 }
 
+// The MySQL password reaches the page only after Windows confirms the user
+// (Settings can turn that off). getPassword asks once, then the server keeps
+// it unlocked for a few minutes; after that the page forgets it again.
 let pwShown = false;
+let relockTimer;
+async function getPassword() {
+  if (db && db.password) return db.password;
+  try {
+    const r = await api("/api/db/reveal", {});
+    db.password = r.password;
+    clearTimeout(relockTimer);
+    if (r.unlocked_ms) relockTimer = setTimeout(() => { pwShown = false; loadServerData(); }, r.unlocked_ms);
+    return r.password;
+  } catch (e) {
+    if (!/cancel/i.test(e.message)) toast(e.message, true);
+    return null;
+  }
+}
+async function togglePassword() {
+  if (!pwShown && !(await getPassword())) return;
+  pwShown = !pwShown;
+  drawn.db = drawn.panel = null;
+  render();
+}
+async function copyPassword() {
+  const pw = await getPassword();
+  if (pw) copy(pw, "Password");
+}
+// pwCells is the password value and its eye and copy buttons, for a dl.kv row.
+const pwCells = (pre) => `<dd class="mono">${pwShown && db.password ? esc(db.password) : "••••••••••••"}</dd>
+  <span class="pw-btns"><button class="btn small ghost icon-only" id="${pre}-show" aria-label="${pwShown ? "Hide" : "Show"} the password" title="${pwShown ? "Hide" : "Show"} the password${db.locked && !pwShown ? " (asks Windows that it's you)" : ""}">${icon(pwShown ? "eyeOff" : "eye")}</button><button class="btn small ghost icon-only" id="${pre}-copy" aria-label="Copy the password" title="Copy the password">${icon("copy")}</button></span>`;
+
 function renderDB() {
   ensureServerData();
   const g = services().find((x) => x.name === "mysql");
@@ -721,8 +787,7 @@ function renderDB() {
       else if (!db.ready) facts = '<div class="muted">A root password is generated the first time MySQL starts.</div>';
       else facts = `<dl class="kv"><dt>Host</dt><dd>${esc(db.host)}</dd><span></span><dt>Port</dt><dd class="num">${esc(db.port)}</dd><span></span>
         <dt>User</dt><dd>${esc(db.user)}</dd><span></span>
-        <dt>Password</dt><dd>${pwShown ? esc(db.password) : "••••••••••••"}</dd>
-        <span><button class="btn small ghost" id="pw-show">${pwShown ? "Hide" : "Show"}</button><button class="btn small ghost" id="pw-copy">Copy</button></span></dl>`;
+        <dt>Password</dt>${pwCells("pw")}</dl>`;
       const pma = db && db.phpmyadmin;
       const buttons = `${pma ? `<button class="btn small" id="pma-open" ${S.running ? "" : `disabled title="Start the servers to open it"`}>${icon("open")}Open phpMyAdmin</button>` : ""}
         <button class="btn small ghost" data-log="mysql.log">${icon("logs")}Log</button>
@@ -741,8 +806,8 @@ function renderDB() {
       if (confirm("Turn off MySQL? Sites that use a database stop working until you turn it on again. Your databases stay on disk.")) setMySQL("off");
     });
     $("#pma-open") && ($("#pma-open").onclick = () => open("url", db.phpmyadmin.url));
-    $("#pw-show") && ($("#pw-show").onclick = () => { pwShown = !pwShown; drawn.db = null; renderDB(); });
-    $("#pw-copy") && ($("#pw-copy").onclick = () => copy(db.password, "Password"));
+    $("#pw-show") && ($("#pw-show").onclick = togglePassword);
+    $("#pw-copy") && ($("#pw-copy").onclick = copyPassword);
     el.querySelectorAll("[data-log]").forEach((b) => (b.onclick = () => showLog(b.dataset.log)));
     el.querySelectorAll("[data-restart]").forEach((b) => (b.onclick = () => act("/api/restart", { unit: b.dataset.restart }, "Restarted MySQL").catch(() => {})));
     wireVersions(el);
@@ -1252,6 +1317,9 @@ function renderSettings() {
         ${row("Start servers when devstack opens", "Your sites are up as soon as the app is.", sw("set-start", S.settings.start_servers, "Start servers when devstack opens"))}
         ${row("Open devstack when you sign in", "Starts in the tray, without a window.", sw("set-autostart", S.settings.autostart, "Open devstack when you sign in"))}
       </div></div>
+      <div class="section"><h2>Privacy</h2><div class="rows">
+        ${row("Ask Windows before showing the MySQL password", "Windows Hello, or your Windows password, before the password is shown or copied. Then it stays visible for 5 minutes.", sw("set-pwcheck", S.settings.password_check, "Ask Windows before showing the MySQL password"))}
+      </div></div>
       <div class="section"><h2>Updates</h2><div class="rows">
         <div class="rowi" id="update-card"></div>
         ${row("Check for updates automatically", "Once a day, from devstack.holostack.in. Updates install only when you choose.", sw("set-updates", S.settings.check_updates, "Check for updates automatically"))}
@@ -1267,8 +1335,9 @@ function renderSettings() {
       <p style="margin:10px 0 6px" class="muted">nginx versions</p>${versionRows("nginx")}</div>
       <div class="section"><h2>About</h2><div class="rows">
         ${row(`devstack ${esc(S.version)}`, `Open source. Runs unmodified builds of nginx (<button class="link" data-link="https://nginx.org/LICENSE">BSD</button>),
-          PHP (<button class="link" data-link="https://www.php.net/license/">PHP License</button>) and
-          MySQL (<button class="link" data-link="https://www.mysql.com/about/legal/">GPLv2</button>), downloaded from their publishers.`,
+          PHP (<button class="link" data-link="https://www.php.net/license/">PHP License</button>),
+          MySQL (<button class="link" data-link="https://www.mysql.com/about/legal/">GPLv2</button>) and
+          phpMyAdmin (<button class="link" data-link="https://www.phpmyadmin.net/license/">GPLv2</button>), downloaded from their publishers.`,
           `<button class="btn small" data-link="https://github.com/harsha2805/devstack">${icon("open")}Source</button>`)}
         ${row("Support devstack", "devstack is free and open source. Sponsoring on GitHub keeps it going.",
           `<button class="btn small" data-link="https://github.com/sponsors/harsha2805">${icon("heart")}Sponsor</button>`)}
@@ -1278,6 +1347,12 @@ function renderSettings() {
     $("#set-start").onchange = (e) => act("/api/settings", { start_servers: e.target.checked }).catch(() => {});
     $("#set-autostart").onchange = (e) => act("/api/settings", { autostart: e.target.checked }).catch(() => {});
     $("#set-updates").onchange = (e) => act("/api/settings", { check_updates: e.target.checked }).catch(() => {});
+    $("#set-pwcheck").onchange = (e) => {
+      const on = e.target.checked;
+      act("/api/settings", { password_check: on }, on ? "devstack asks Windows before showing the password" : "")
+        .then(() => loadServerData())
+        .catch(() => (e.target.checked = !on));
+    };
     $("#set-dns") && ($("#set-dns").onchange = (e) => act("/api/dns", { on: e.target.checked }).catch(() => {}));
     $("#dns-repair") && ($("#dns-repair").onclick = () => act("/api/dns", { on: true }).catch(() => {}));
     $("#set-https") && ($("#set-https").onchange = (e) => act("/api/https", { on: e.target.checked }).catch(() => {}));

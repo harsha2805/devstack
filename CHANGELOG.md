@@ -5,6 +5,28 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions
 The release scripts need a section for the version they build and take the in-app update notes from the
 bold lead-ins under it, so write each feature up here when it lands.
 
+## [1.3.0] — 2026-11-09
+
+### Added
+- **A MySQL user for each site.** When a site's `.env` points at devstack's MySQL and still signs in as root, its
+  details offer Create a user for this site: a user named after the site, with a random password and access to
+  only that site's database (created if it's missing). devstack writes the login into the `.env` as `DB_USERNAME`
+  and `DB_PASSWORD`. New password gives that user a fresh one. If Laravel has cached its config, devstack reminds
+  you to run `php artisan config:clear`.
+- **Windows checks it's you before showing the MySQL password.** Show and Copy now ask Windows Hello (PIN, face or
+  fingerprint), or your Windows password where Hello isn't set up, the way a browser does before showing a saved
+  password. After that the password stays available for 5 minutes. It's on by default; turn it off under Settings →
+  Privacy (which asks once more). Until you pass the check, the app doesn't send the password to the page at all.
+- **An eye icon shows the password.** In a site's details and on the Database page, the eye shows or hides it and
+  the copy icon copies it.
+
+### Changed
+- **The AI guide knows phpMyAdmin and site users.** It gives coding agents phpMyAdmin's address, opened on the
+  site's database, says whether the site signs in as root or as a user of its own, and asks them to keep that user.
+- **phpMyAdmin in the credits.** Settings → About and the README list phpMyAdmin (GPLv2) beside nginx, PHP and MySQL.
+- **Narrower PHP pickers.** The PHP dropdown in the site list is only as wide as the version, and in a site's details
+  the label and the dropdown share one line.
+
 ## [1.0.5] — 2026-11-09
 
 ### Added

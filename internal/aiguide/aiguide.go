@@ -12,6 +12,7 @@ package aiguide
 import (
 	"errors"
 	"fmt"
+	neturl "net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -278,6 +279,25 @@ func Render(st *model.Stack, site model.Site, cli string) string {
 		}
 		w("- Password: run `%s db creds`. Don't write it into committed files; `.env` is the place for it.", cmd)
 		w("- Create databases with any client, for example `CREATE DATABASE %s;`", strings.ReplaceAll(site.Slug, "-", "_"))
+		if db, user := env["DB_DATABASE"], env["DB_USERNAME"]; localMySQL && db != "" && !placeholder.MatchString(db) {
+			own := strings.ReplaceAll(site.Slug, "-", "_")
+			if len(own) > 32 {
+				own = own[:32]
+			}
+			switch user {
+			case own:
+				w("- `.env` signs in as `%s`, a MySQL user devstack made for this site with access to only `%s`. Keep it; don't switch the site to root.", own, db)
+			case "root", "":
+				w("- `.env` signs in as root, which can reach every database. The user can give this site a MySQL user of its own, limited to `%s`, from the devstack app (the site's details → Create a user for this site); devstack then writes `DB_USERNAME` and `DB_PASSWORD` into `.env`.", db)
+			}
+		}
+		if p := st.PhpMyAdmin; p != nil {
+			link := st.URL(p.Site)
+			if db := env["DB_DATABASE"]; localMySQL && db != "" && !placeholder.MatchString(db) {
+				link += "/index.php?route=/database/structure&db=" + neturl.QueryEscape(db)
+			}
+			w("- phpMyAdmin %s: %s (logs in as root). It's for the user to browse and edit data; use the `mysql` client or the app's own code for scripted changes.", p.Build.Version, link)
+		}
 		w("- MySQL log: `%s`", filepath.Join(st.Logs, "mysql.log"))
 	} else if conn == "" || localMySQL {
 		w("- devstack's MySQL is turned off. Ask the user before turning it on or adding one.")
@@ -420,6 +440,8 @@ type EnvDB struct {
 	// Name is DB_DATABASE (a file for sqlite); "" when unset or still a
 	// template placeholder.
 	Name string `json:"name,omitempty"`
+	// Username is DB_USERNAME (never the password).
+	Username string `json:"username,omitempty"`
 }
 
 // EnvDatabase reads the DB_ keys of dir/.env. ok is false when the project
@@ -429,7 +451,7 @@ func EnvDatabase(dir string) (db EnvDB, ok bool) {
 	if env["DB_CONNECTION"] == "" {
 		return db, false
 	}
-	db = EnvDB{Conn: env["DB_CONNECTION"], Host: env["DB_HOST"], Port: env["DB_PORT"], Name: env["DB_DATABASE"]}
+	db = EnvDB{Conn: env["DB_CONNECTION"], Host: env["DB_HOST"], Port: env["DB_PORT"], Name: env["DB_DATABASE"], Username: env["DB_USERNAME"]}
 	if placeholder.MatchString(db.Name) {
 		db.Name = ""
 	}

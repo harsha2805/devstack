@@ -104,10 +104,12 @@ The sidebar always shows whether the servers run, with Start or Stop, and one sl
 runs, an outline when stopped, hatched when it keeps crashing.
 
 - **Sites:** pick each site's PHP version and switch its AI guide on, or open it in the browser, its folder or a
-  terminal with its PHP ready. Click a site for its details: address, PHP, AI guide, database login and logs.
+  terminal with its PHP ready. Click a site for its details: address, PHP, AI guide, the database its `.env` uses
+  (open it in phpMyAdmin, or give the site a MySQL user of its own) and logs.
 - **PHP:** each installed version with the sites that use it, its settings and extensions (php.ini), its error log
   and Restart; versions to install or remove, and the SQL Server extensions.
-- **Database:** turn MySQL on or off, the MySQL login (show or copy the generated password), MySQL versions (switch
+- **Database:** turn MySQL on or off, the MySQL login (show or copy the generated password, after Windows Hello or
+  your Windows password; Settings → Privacy can turn that check off), MySQL versions (switch
   with Use; each version keeps its own databases) and phpMyAdmin, which opens at `phpmyadmin.test` (or
   `phpmyadmin.localhost`) already logged in.
 - **Logs:** every server and site log, followed live.
@@ -297,8 +299,8 @@ its credit and say what you changed. Releases up to 0.2.5 were published under t
 The license covers the code, not the name: a fork you distribute should go by its own name and logo, not
 "devstack".
 
-devstack downloads nginx (BSD), PHP (PHP License), MySQL (GPLv2) and Composer (MIT) from their publishers at run
-time; none of them are bundled.
+devstack downloads nginx (BSD), PHP (PHP License), MySQL (GPLv2), phpMyAdmin (GPLv2) and Composer (MIT) from their
+publishers at run time; none of them are bundled.
 
 <p align="center">
   <sub>Made by <a href="https://github.com/harsha2805">Harsha</a> · <a href="https://holostack.in">HoloStack</a>
