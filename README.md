@@ -81,9 +81,10 @@
 ## 🚀 Install
 
 Download `devstack_setup_<version>.exe` from **[devstack.holostack.in](https://devstack.holostack.in)** and run
-it. It installs for your account only (no admin prompt) into `%LOCALAPPDATA%\Programs\devstack`, adds `devstack`
-to your PATH, and puts devstack's `php` and `composer` first. The first launch asks where your sites should live
-and which PHP and MySQL versions to run, then downloads and starts them.
+it. It installs for your account only (no admin prompt) into the folder you pick (`C:\devstack` by default), adds
+`devstack` to your PATH, and puts devstack's `php` and `composer` first. Your sites, servers and databases go in that
+same folder: the first launch suggests it for the stack, asks which PHP and MySQL versions to run, then downloads and
+starts them.
 
 > [!NOTE]
 > devstack isn't code-signed yet, so Windows may say "Windows protected your PC" the first time. Choose

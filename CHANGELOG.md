@@ -5,6 +5,18 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions
 The release scripts need a section for the version they build and take the in-app update notes from the
 bold lead-ins under it, so write each feature up here when it lands.
 
+## [1.0.2] — 2026-11-09
+
+### Fixed
+- **Your sites go where you installed devstack.** The installer asked for a folder, but the first launch still put
+  the www folder, the servers and the databases in `C:\devstack`. The first-run screen now suggests the folder you
+  picked in the installer, so choosing `D:\devstack` puts your sites in `D:\devstack\www`. New installs default to
+  `C:\devstack`, and the installer turns down folders with spaces or non-English letters, which nginx, PHP and
+  MySQL can't run from. Existing installs and stacks don't move.
+- **A tidier PHP version picker.** The site panel listed the default version twice ("Default 8.3", then 8.3
+  again) and grew one button wider with every PHP you installed, until the labels were cut off. It's now a dropdown,
+  like the one in the sites list, and both list the default version once.
+
 ## [1.0.1] — 2026-11-05
 
 ### Fixed

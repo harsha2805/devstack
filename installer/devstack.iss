@@ -1,9 +1,10 @@
 ; devstack installer: per user, no admin rights. Built by build-release.ps1:
 ;   ISCC /DAppVersion=0.1.0 /DBin=..\dist\release\bin installer\devstack.iss
-; It installs devstack-app.exe (tray + window) and devstack.exe (CLI) into
-; %LOCALAPPDATA%\Programs\devstack and adds that folder to the user PATH.
-; The stack itself (sites, servers, databases) lives in the folder picked on
-; first run and is never touched by Setup or the uninstaller.
+; It installs devstack-app.exe (tray + window) and devstack.exe (CLI) into the
+; folder picked here (C:\devstack by default) and adds it to the user PATH.
+; The app's first-run screen then suggests that same folder for the stack
+; (www, servers, databases), so everything lands where the user chose. Setup
+; and the uninstaller never touch the stack's files.
 
 #ifndef AppVersion
   #error Pass the version: ISCC /DAppVersion=x.y.z installer\devstack.iss
@@ -40,8 +41,9 @@ VersionInfoTextVersion={#AppVersion}
 VersionInfoProductTextVersion={#AppVersion}
 VersionInfoCopyright=Copyright (c) 2026 Harsha (HoloStack). Apache License 2.0.
 AppCopyright=Copyright (c) 2026 Harsha (HoloStack)
-; With PrivilegesRequired=lowest, {autopf} is %LOCALAPPDATA%\Programs.
-DefaultDirName={autopf}\devstack
+; The stack goes in this folder too, so it's short, ASCII and outside the
+; profile, like setup.DefaultRoot. Upgrades keep the folder already used.
+DefaultDirName={sd}\devstack
 DefaultGroupName=devstack
 DisableProgramGroupPage=yes
 UninstallDisplayIcon={app}\devstack-app.exe
@@ -64,6 +66,10 @@ ChangesEnvironment=yes
 ; [Code] PrepareToInstall closes devstack first. Restart Manager is the backstop.
 CloseApplications=yes
 RestartApplications=no
+
+[Messages]
+SelectDirLabel3=Setup will install devstack into the following folder. Your sites (the www folder), the servers and the databases will go in this folder too.
+SelectDirBrowseLabel=To continue, click Next. To pick a different folder, click Browse. Use a path without spaces or non-English letters, for example D:\devstack.
 
 [Files]
 Source: "{#Bin}\devstack-app.exe"; DestDir: "{app}"; Flags: ignoreversion
@@ -126,6 +132,28 @@ begin
     else
       WizardSelectTasks('!startup');
   end;
+end;
+
+{ The stack lives in the install folder, and nginx, PHP and MySQL on Windows
+  break on paths with spaces or non-English letters (setup.CheckRoot). }
+function NextButtonClick(CurPageID: Integer): Boolean;
+var
+  Dir: String;
+  I: Integer;
+begin
+  Result := True;
+  if CurPageID <> wpSelectDir then
+    Exit;
+  Dir := WizardDirValue;
+  for I := 1 to Length(Dir) do
+    if (Ord(Dir[I]) > 127) or (Dir[I] = ' ') then
+    begin
+      MsgBox('"' + Dir + '" has spaces or non-English letters.' + #13#10#13#10 +
+        'Your sites and servers go in this folder, and nginx, PHP and MySQL on Windows break on such paths. ' +
+        'Pick a folder like C:\devstack or D:\devstack.', mbError, MB_OK);
+      Result := False;
+      Exit;
+    end;
 end;
 
 { Silent installs are the in-app updater: keep whatever the user chose. }

@@ -299,9 +299,16 @@ function siteMark(s) {
   return ["", "Serving"];
 }
 
+// The PHP choices for a site: "Default (8.3)" first, then the other installed
+// versions. The default version isn't listed again, unless the site is pinned
+// to it, so its choice still shows.
 const phpOptions = (site) => {
   const opts = [`<option value="" ${site.pinned ? "" : "selected"}>Default (${esc(S.default_php)})</option>`];
-  for (const v of S.phps || []) opts.push(`<option value="${esc(v)}" ${site.pinned && site.php === v ? "selected" : ""}>PHP ${esc(v)}</option>`);
+  for (const v of S.phps || []) {
+    const on = site.pinned && site.php === v;
+    if (v === S.default_php && !on) continue;
+    opts.push(`<option value="${esc(v)}" ${on ? "selected" : ""}>PHP ${esc(v)}</option>`);
+  }
   return opts.join("");
 };
 const host = (url) => url.replace(/^https?:\/\//, "").replace(/\/$/, "");
@@ -418,8 +425,6 @@ function renderPanel() {
   const [m, why] = siteMark(s);
   const dev = !(S.update && S.update.release);
   draw("panel", [s, S.phps, S.default_php, S.running, m, db, dev], () => {
-    const seg = [["", `Default ${S.default_php}`], ...(S.phps || []).map((v) => [v, v])].map(([v, text]) =>
-      `<button data-seg="${esc(v)}" aria-pressed="${(v === "" && !s.pinned) || (s.pinned && s.php === v)}">${esc(text)}</button>`).join("");
     let dbHTML;
     if (!db) dbHTML = '<div class="muted">Loading…</div>';
     else if (!db.enabled) dbHTML = '<div class="muted">MySQL is turned off in stack.toml.</div>';
@@ -444,7 +449,7 @@ function renderPanel() {
           <button class="btn small" id="p-term">${icon("terminal")}Terminal</button>
           ${s.project ? `<button class="btn small ghost danger" id="p-remove">Stop serving</button>` : ""}
         </div>
-        <div><div class="group-label">PHP version</div><div class="seg" role="group" aria-label="PHP version for ${esc(s.slug)}" title="php and composer in this site's terminal use it too">${seg}</div></div>
+        <div><div class="group-label">PHP version</div><select id="p-php" class="php-pick" aria-label="PHP version for ${esc(s.slug)}" title="php and composer in this site's terminal use it too">${phpOptions(s)}</select></div>
         <div><div class="group-label">AI guide</div>
           <label class="toggle-row" title="Writes .devstack/ai-guide.md (kept out of git) and a short pointer in AGENTS.md and CLAUDE.md. Your own text there is left alone."><span class="switch"><input type="checkbox" id="p-guide" ${s.guide ? "checked" : ""}><span></span></span>
             ${s.guide ? "On: coding agents know this site's URL, PHP, database and logs." : "Off: tell coding agents how this site runs here."}</label>
@@ -465,10 +470,7 @@ function renderPanel() {
     $("#p-pw") && ($("#p-pw").onclick = () => copy(db.password, "Password"));
     $("#p-errlog").onclick = () => showLog(logFor("php-" + s.php));
     $("#p-access").onclick = () => showLog(`sites/${s.slug}.access.log`);
-    $("#panel").querySelectorAll("[data-seg]").forEach((b) => (b.onclick = () => {
-      if (b.getAttribute("aria-pressed") === "true") return;
-      setPHP(s, b.dataset.seg);
-    }));
+    $("#p-php").onchange = (e) => setPHP(s, e.target.value);
   });
 }
 

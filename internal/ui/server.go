@@ -38,6 +38,7 @@ import (
 	"github.com/harsha2805/devstack/internal/setup"
 	"github.com/harsha2805/devstack/internal/stack"
 	"github.com/harsha2805/devstack/internal/supervisor"
+	"github.com/harsha2805/devstack/internal/update"
 	"github.com/harsha2805/devstack/internal/winproc"
 )
 
@@ -420,12 +421,26 @@ func (s *Server) installedPHP(st *model.Stack) []string {
 	return out
 }
 
+// suggestedRoot is the folder the first-run screen offers for the stack: the
+// folder picked in the installer, so www and the servers land where the user
+// chose to install devstack. Portable copies, and install folders the servers
+// can't run from (spaces, non-English letters), get setup.DefaultRoot.
+func (s *Server) suggestedRoot() string {
+	if s.Exe != "" && update.Installed(s.Exe) {
+		dir := winproc.LongPath(filepath.Dir(s.Exe))
+		if setup.CheckRoot(dir) == nil {
+			return dir
+		}
+	}
+	return setup.DefaultRoot()
+}
+
 func (s *Server) setupOptions() *setupView {
 	cat, err := packages.Default()
 	if err != nil {
 		return nil
 	}
-	v := &setupView{Root: setup.DefaultRoot()}
+	v := &setupView{Root: s.suggestedRoot()}
 	_, v.VCRuntime = winproc.VCRuntime()
 	for _, e := range cat.Entries {
 		ver, _ := discover.ParseVersion(e.Version)

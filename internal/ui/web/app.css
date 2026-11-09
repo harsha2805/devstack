@@ -312,12 +312,7 @@ select { padding-right: 4px; }
 .addr .field span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row-btns { display: flex; gap: 6px; flex-wrap: wrap; }
 .group-label { font-size: 12px; font-weight: 600; color: var(--ink-3); margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
-.seg { display: flex; border: 1px solid var(--rule-strong); border-radius: 4px; overflow: hidden; }
-.seg button { flex: 1; min-width: 0; padding: 5px 4px; border: 0; border-right: 1px solid var(--rule-strong); background: var(--card);
-  font: 600 12px var(--mono); color: var(--ink-2); cursor: pointer; white-space: nowrap; }
-.seg button:last-child { border-right: 0; }
-.seg button:hover { background: var(--hover); }
-.seg button[aria-pressed="true"] { background: var(--ink); color: var(--card); }
+.php-pick { display: block; width: 100%; max-width: 220px; height: 30px; font: 13px var(--mono); }
 .hint { font-size: 12px; color: var(--ink-3); margin-top: 6px; }
 .toggle-row { display: flex; align-items: center; gap: 10px; font-size: 12.5px; }
 dl.kv { display: grid; grid-template-columns: 74px minmax(0, 1fr) auto; gap: 4px 10px; margin: 0; align-items: center; font-size: 12.5px; }
@@ -486,5 +481,5 @@ dialog.sheet::backdrop { background: rgb(20 22 26 / .45); }
   .mark.off, .mark.gone { background: Canvas; }
   .slot, .site, .server, .rows, .alert, .todo { border-color: CanvasText; }
   .slot.bad, .site.selected { outline: 2px solid Highlight; }
-  .nav button[aria-current="page"], .seg button[aria-pressed="true"], .choice button[aria-selected="true"] { outline: 2px solid Highlight; }
+  .nav button[aria-current="page"], .choice button[aria-selected="true"] { outline: 2px solid Highlight; }
 }
