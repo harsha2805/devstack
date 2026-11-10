@@ -19,7 +19,8 @@
         <li><strong>Updates.</strong> When you click Update now, devstack downloads the new installer from
           github.com; GitHub's <a href="https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement">privacy statement</a> applies.</li>
         <li><strong>Servers.</strong> When you set up devstack or install a version, it downloads nginx from
-          nginx.org, PHP from downloads.php.net and MySQL from cdn.mysql.com.</li>
+          nginx.org, PHP from downloads.php.net, MySQL from cdn.mysql.com, phpMyAdmin from files.phpmyadmin.net and
+          Mailpit from github.com.</li>
         <li><strong>Links.</strong> Buttons such as Sponsor, the source code or Microsoft's Visual C++ runtime open
           in your browser only when you click them.</li>
       </ul>

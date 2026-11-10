@@ -39,6 +39,7 @@ type Options struct {
 	Nginx string
 	PHP   string
 	MySQL string // or config.Off
+	Mail  string // Mailpit, which catches the mail sites send; or config.Off
 }
 
 // Events report progress; every field is optional.
@@ -54,6 +55,8 @@ type Result struct {
 	Found      discover.Result
 	HTTPPort   int
 	MySQLPort  int
+	SMTPPort   int
+	InboxPort  int
 	PHPBase    int
 	SampleSite string // created sample site folder, if any
 	VCRuntime  bool   // the Visual C++ runtime PHP and MySQL need is present
@@ -119,6 +122,7 @@ func plan(o Options, found discover.Result) ([]packages.Entry, error) {
 		{discover.Nginx, o.Nginx, stableNginx(cat)},
 		{discover.PHP, o.PHP, DefaultPHP},
 		{discover.MySQL, o.MySQL, DefaultMySQL},
+		{discover.Mailpit, o.Mail, ""},
 	}
 	var todo []packages.Entry
 	for _, w := range wishes {
@@ -212,6 +216,8 @@ func Init(ctx context.Context, o Options, ev Events) (Result, error) {
 
 	res.HTTPPort = pickPort(ev, "http", 80, 8080, 8000, 8888, 8081)
 	res.MySQLPort = pickPort(ev, "mysql", 3306, 3307, 3308, 3309)
+	res.SMTPPort = pickPort(ev, "smtp", 1025, 1026, 1027, 2525)
+	res.InboxPort = pickPort(ev, "inbox", 8025, 8026, 8027, 8028)
 	res.PHPBase = pickPHPBase(php.Version, config.Default().PHP.Workers)
 
 	binList := []string{"bin"}
@@ -222,6 +228,7 @@ func Init(ctx context.Context, o Options, ev Events) (Result, error) {
 		"WWW": filepath.ToSlash(o.WWW), "Bins": quoteList(binList),
 		"PHP": php.Version.MajorMinor(), "MySQL": mysqlVer,
 		"HTTP": res.HTTPPort, "MySQLPort": res.MySQLPort, "PHPBase": res.PHPBase,
+		"SMTP": res.SMTPPort, "Inbox": res.InboxPort, "Mail": o.Mail,
 		"Extensions": quoteList(config.DefaultExtensions),
 	}
 	var sb strings.Builder
@@ -338,6 +345,9 @@ mysql = "{{.MySQL}}"
 # "on" answers *.<tld> for every program on this machine. Turn it on from the
 # app or with ` + "`devstack dns on`" + `: it needs one administrator approval.
 dns   = "off"
+# Mailpit catches every email your sites send, so none reach real inboxes:
+# "" = newest installed, "off" = don't run it.
+mail  = "{{.Mail}}"
 
 [php]
 default      = "{{.PHP}}"
@@ -357,6 +367,8 @@ extensions   = [{{.Extensions}}]
 http  = {{.HTTP}}
 mysql = {{.MySQLPort}}
 php   = {{.PHPBase}}          # PHP X.Y workers listen on php + X*100 + Y*10 + n (9000 -> 8.3 on 9830...)
+smtp  = {{.SMTP}}          # Mailpit takes mail here (MAIL_PORT)
+inbox = {{.Inbox}}          # Mailpit's inbox page
 
 # Project folders kept outside www, by the name each is served under. Add them
 # from the app (Sites > Add folder) or with ` + "`devstack project add <folder>`" + `.

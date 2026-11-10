@@ -49,12 +49,19 @@ func (l *Logs) Close() {
 	}
 }
 
-// Specs returns every unit in start order: databases, PHP pools, then the web
-// server, so nginx never answers before its upstreams exist.
+// Specs returns every unit in start order: databases and Mailpit, PHP pools,
+// then the web server, so nginx never answers before its upstreams exist.
 func Specs(st *model.Stack, logs *Logs) ([]supervisor.Spec, error) {
 	var specs []supervisor.Spec
 	if st.MySQL != nil {
 		sp, err := MySQLSpec(st, logs)
+		if err != nil {
+			return nil, err
+		}
+		specs = append(specs, sp)
+	}
+	if st.Mail != nil {
+		sp, err := MailpitSpec(st, logs)
 		if err != nil {
 			return nil, err
 		}

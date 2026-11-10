@@ -30,6 +30,8 @@ const (
 	MySQL Kind = "mysql"
 	// PhpMyAdmin is a PHP app, not a server: nginx serves it with the default PHP.
 	PhpMyAdmin Kind = "phpmyadmin"
+	// Mailpit catches the mail sites send: an SMTP server with an inbox page.
+	Mailpit Kind = "mailpit"
 )
 
 // Build is one installed version of a service.
@@ -58,6 +60,9 @@ var layouts = map[Kind]layout{
 	PHP:        {exe: "php-cgi.exe", args: []string{"-v"}, pattern: regexp.MustCompile(`PHP (\d+\.\d+\.\d+)`)},
 	MySQL:      {exe: filepath.Join("bin", "mysqld.exe"), args: []string{"--version"}, pattern: regexp.MustCompile(`Ver (\d+\.\d+\.\d+)(-MariaDB)?`)},
 	PhpMyAdmin: {exe: "index.php", pattern: regexp.MustCompile(`^RELEASE-DATE-(\d+\.\d+\.\d+)$`), versionFile: "RELEASE-DATE-*"},
+	// Without --no-release-check, `mailpit version` asks GitHub for the newest release.
+	// It prints its own path first: "D:\...\mailpit.exe v1.33.1 compiled with go1.27.3 ...".
+	Mailpit: {exe: "mailpit.exe", args: []string{"version", "--no-release-check"}, pattern: regexp.MustCompile(`\bv(\d+\.\d+\.\d+) compiled with`)},
 }
 
 // Result holds every build found, newest first per kind.

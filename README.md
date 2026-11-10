@@ -62,7 +62,7 @@
     <td valign="top">
       <h3>🗄️ MySQL and SQL Server</h3>
       MySQL with a generated password, and Microsoft's <code>sqlsrv</code> / <code>pdo_sqlsrv</code> for every
-      PHP version in one command.
+      PHP version in one command. Mailpit catches every email your sites send.
     </td>
   </tr>
   <tr>
@@ -112,6 +112,9 @@ runs, an outline when stopped, hatched when it keeps crashing.
   your Windows password; Settings → Privacy can turn that check off), MySQL versions (switch
   with Use; each version keeps its own databases) and phpMyAdmin, which opens at `phpmyadmin.test` (or
   `phpmyadmin.localhost`) already logged in.
+- **Mail:** Mailpit, which catches the mail your sites send (and PHP's `mail()`), so none reaches real inboxes: the
+  newest messages, the unread count in the sidebar, the SMTP settings (`127.0.0.1:1025`) and its inbox at
+  `127.0.0.1:8025`. A site's details can point its `.env` at it.
 - **Logs:** every server and site log, followed live.
 - **Settings:** `.test` addresses, HTTPS, start servers with the app, open at sign-in, updates, nginx and its
   versions.
@@ -127,6 +130,7 @@ devstack pkg list    # available and installed server versions
 devstack pkg install php 8.3
 devstack pkg install ext sqlsrv pdo_sqlsrv   # SQL Server for PHP (php.net builds leave it out)
 devstack pkg install phpmyadmin              # served at phpmyadmin.test while MySQL runs
+devstack pkg install mailpit                 # catches mail on 127.0.0.1:1025, inbox at 127.0.0.1:8025
 devstack up          # renders etc\ and starts everything in the background
 devstack status
 devstack sites       # URLs, e.g. http://hello.localhost:8080
@@ -228,8 +232,8 @@ The **AI guide** switch on each site (or `devstack guide add`) fixes that:
 | `etc\` | generated config, rewritten on every render; don't edit |
 | `etc-custom\nginx\*.conf` | your own nginx config, included and never touched |
 | `etc-custom\php\8.3\php.ini` | the full php.ini of PHP 8.3, every extension listed; change it in Servers > php.ini or edit it freely |
-| `data\` | MySQL data, daemon state, `secrets.toml` |
-| `logs\` | `devstack.log`, `nginx-error.log`, `php-8.3-error.log`, `mysql.log`, `sites\*.access.log` |
+| `data\` | MySQL data, caught mail (`mailpit\`), daemon state, `secrets.toml` |
+| `logs\` | `devstack.log`, `nginx-error.log`, `php-8.3-error.log`, `mysql.log`, `mailpit.log`, `sites\*.access.log` |
 
 ### PHP settings
 
@@ -278,8 +282,8 @@ servers it runs. No code, templates or assets from closed-source tools are used.
 
 devstack has no telemetry. It connects to the internet only to check for updates once a day
 (`https://devstack.holostack.in/latest.json`, sending just its version; turn it off in Settings → Updates), to
-download an update from GitHub when you click Update now, and to download nginx, PHP, MySQL and Composer from
-their publishers when you install them. Details: [devstack.holostack.in/privacy](https://devstack.holostack.in/privacy).
+download an update from GitHub when you click Update now, and to download nginx, PHP, MySQL, phpMyAdmin, Mailpit
+and Composer from their publishers when you install them. Details: [devstack.holostack.in/privacy](https://devstack.holostack.in/privacy).
 
 ## ⭐ Star history
 
@@ -299,8 +303,8 @@ its credit and say what you changed. Releases up to 0.2.5 were published under t
 The license covers the code, not the name: a fork you distribute should go by its own name and logo, not
 "devstack".
 
-devstack downloads nginx (BSD), PHP (PHP License), MySQL (GPLv2), phpMyAdmin (GPLv2) and Composer (MIT) from their
-publishers at run time; none of them are bundled.
+devstack downloads nginx (BSD), PHP (PHP License), MySQL (GPLv2), phpMyAdmin (GPLv2), Mailpit (MIT) and Composer
+(MIT) from their publishers at run time; none of them are bundled.
 
 <p align="center">
   <sub>Made by <a href="https://github.com/harsha2805">Harsha</a> · <a href="https://holostack.in">HoloStack</a>

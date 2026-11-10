@@ -19,6 +19,7 @@ import (
 
 	"github.com/harsha2805/devstack/internal/certs"
 	"github.com/harsha2805/devstack/internal/model"
+	"github.com/harsha2805/devstack/internal/phpini"
 	"github.com/harsha2805/devstack/internal/shim"
 )
 
@@ -115,12 +116,15 @@ func Files(st *model.Stack) (map[string][]byte, error) {
 		}
 	}
 	for _, p := range st.PHP {
+		user := userINI(p)
 		data := struct {
 			*model.Stack
 			Pool  *model.PHPPool
 			User  string
 			Owned []string
-		}{st, p, userINI(p), Owned}
+			// MailFrom: mail() needs a sender on Windows, and neither php.ini sets one.
+			MailFrom bool
+		}{st, p, user, Owned, st.Mail != nil && !setsINI(user, p.INI, "sendmail_from")}
 		if err := add(p.INIPath, "php.ini", data); err != nil {
 			return nil, err
 		}
@@ -141,6 +145,19 @@ func Files(st *model.Stack) (map[string][]byte, error) {
 		}
 	}
 	return out, nil
+}
+
+// setsINI reports whether the user's php.ini text or stack.toml's [php.ini] sets key.
+func setsINI(text string, stackINI map[string]string, key string) bool {
+	if _, ok := stackINI[key]; ok {
+		return true
+	}
+	for _, kv := range phpini.Settings(text) {
+		if strings.EqualFold(kv[0], key) {
+			return true
+		}
+	}
+	return false
 }
 
 // siteData is what site.conf renders from: Params are extra FastCGI params.

@@ -7,7 +7,8 @@
 // sha256, so their archives are downloaded once here and hashed, as are the
 // PECL extension builds (sqlsrv, pdo_sqlsrv) php.net's PHP zips don't bundle.
 // Composer's hash comes from getcomposer.org, next to the newest stable phar,
-// and phpMyAdmin's from the .sha256 file files.phpmyadmin.net keeps by each zip.
+// phpMyAdmin's from the .sha256 file files.phpmyadmin.net keeps by each zip,
+// and Mailpit's from the digest GitHub lists for each release asset.
 // Entries whose URL is unchanged keep their previous hash (use -rehash to force).
 package main
 
@@ -83,6 +84,10 @@ func main() {
 	pma, err := phpMyAdminEntry(ctx)
 	check(err)
 	entries = append(entries, pma)
+
+	mp, err := mailpitEntry(ctx)
+	check(err)
+	entries = append(entries, mp)
 
 	for i := range entries {
 		e := &entries[i]
@@ -297,6 +302,42 @@ func phpMyAdminEntry(ctx context.Context) (packages.Entry, error) {
 		return packages.Entry{}, fmt.Errorf("%s.sha256: unexpected content %q", url, sum)
 	}
 	return packages.Entry{Kind: discover.PhpMyAdmin, Version: feed.Version, URL: url, SHA256: strings.ToLower(hash), Strip: name + "/"}, nil
+}
+
+// mailpitEntry is Mailpit's newest release on GitHub, with the sha256 GitHub
+// records for the Windows zip (checked when the zip is hashed).
+func mailpitEntry(ctx context.Context) (packages.Entry, error) {
+	body, err := get(ctx, "https://api.github.com/repos/axllent/mailpit/releases/latest")
+	if err != nil {
+		return packages.Entry{}, err
+	}
+	var rel struct {
+		Tag    string `json:"tag_name"`
+		Assets []struct {
+			Name   string `json:"name"`
+			URL    string `json:"browser_download_url"`
+			Digest string `json:"digest"`
+			Size   int64  `json:"size"`
+		} `json:"assets"`
+	}
+	if err := json.Unmarshal(body, &rel); err != nil {
+		return packages.Entry{}, fmt.Errorf("mailpit release: %w", err)
+	}
+	version := strings.TrimPrefix(rel.Tag, "v")
+	if _, err := discover.ParseVersion(version); err != nil {
+		return packages.Entry{}, fmt.Errorf("mailpit release tag %q: %w", rel.Tag, err)
+	}
+	for _, a := range rel.Assets {
+		if a.Name != "mailpit-windows-amd64.zip" {
+			continue
+		}
+		hash, ok := strings.CutPrefix(a.Digest, "sha256:")
+		if !ok || len(hash) != 64 {
+			return packages.Entry{}, fmt.Errorf("mailpit %s: GitHub lists no sha256 for %s", version, a.Name)
+		}
+		return packages.Entry{Kind: discover.Mailpit, Version: version, URL: a.URL, SHA256: strings.ToLower(hash)}, nil
+	}
+	return packages.Entry{}, fmt.Errorf("mailpit %s has no mailpit-windows-amd64.zip", version)
 }
 
 // nginxEntries takes the current mainline and stable zips from nginx.org's download page.

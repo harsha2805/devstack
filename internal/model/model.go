@@ -51,6 +51,8 @@ type Stack struct {
 	// PhpMyAdmin is served beside the sites while MySQL runs and phpMyAdmin
 	// is installed; nil otherwise. It isn't in Sites: it's no project of the user's.
 	PhpMyAdmin *PhpMyAdmin
+	// Mail is Mailpit, catching the mail sites send; nil when off or not installed.
+	Mail *Mail
 
 	Sites    []Site
 	Projects []sites.Project // everything in [projects], served or not (a folder can be gone)
@@ -80,6 +82,19 @@ type MySQL struct {
 	DataDir string
 	INIPath string
 }
+
+// Mail is Mailpit: an SMTP server on SMTPPort that keeps every message it
+// gets, and an inbox page on InboxPort. Nothing is sent on to real inboxes.
+type Mail struct {
+	Build     discover.Build
+	SMTPPort  int
+	InboxPort int
+	DB        string // Mailpit's database of caught mail
+}
+
+// InboxURL is Mailpit's inbox page. 127.0.0.1, not localhost: Mailpit listens
+// on IPv4 only, and browsers try ::1 first for localhost.
+func (m Mail) InboxURL() string { return fmt.Sprintf("http://127.0.0.1:%d", m.InboxPort) }
 
 // PhpMyAdmin is the phpMyAdmin install nginx serves at phpmyadmin.<tld>.
 type PhpMyAdmin struct {
@@ -201,6 +216,18 @@ func Resolve(cfg config.Stack, found discover.Result, siteList []sites.Site, sit
 			st.Warnings = append(st.Warnings, "mysql: not installed, skipping ("+err.Error()+")")
 		default:
 			errs = append(errs, fmt.Errorf("services.mysql: %w", err))
+		}
+	}
+
+	if v := cfg.Services.Mail; v != config.Off {
+		// Unlike MySQL, a missing Mailpit is no warning: the Mail page offers it.
+		b, err := found.Pick(discover.Mailpit, v)
+		switch {
+		case err == nil:
+			st.Mail = &Mail{Build: b, SMTPPort: cfg.Ports.SMTP, InboxPort: cfg.Ports.Inbox,
+				DB: filepath.Join(st.Data, "mailpit", "mailpit.db")}
+		case v != "":
+			errs = append(errs, fmt.Errorf("services.mail: %w", err))
 		}
 	}
 
@@ -342,6 +369,10 @@ func checkPorts(st *Stack) error {
 	if st.MySQL != nil {
 		claim(st.MySQL.Port, "ports.mysql")
 	}
+	if st.Mail != nil {
+		claim(st.Mail.SMTPPort, "ports.smtp")
+		claim(st.Mail.InboxPort, "ports.inbox")
+	}
 	for _, p := range st.PHP {
 		for _, port := range p.Ports {
 			claim(port, p.Name)
@@ -358,6 +389,10 @@ func (s Stack) Ports() map[int]string {
 	}
 	if s.MySQL != nil {
 		out[s.MySQL.Port] = "mysql"
+	}
+	if s.Mail != nil {
+		out[s.Mail.SMTPPort] = "mailpit"
+		out[s.Mail.InboxPort] = "mailpit"
 	}
 	for _, p := range s.PHP {
 		for _, port := range p.Ports {

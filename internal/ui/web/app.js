@@ -26,6 +26,7 @@ const ICONS = {
   sites: '<g fill="none" stroke="currentColor" stroke-width="1.2"><rect x="1.8" y="2.8" width="12.4" height="10.4" rx="1.5"/><path d="M1.8 6h12.4"/></g>',
   php: '<path d="M5.5 4.5 2 8l3.5 3.5M10.5 4.5 14 8l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>',
   database: '<g fill="none" stroke="currentColor" stroke-width="1.2"><ellipse cx="8" cy="4" rx="5.2" ry="1.9"/><path d="M2.8 4v8c0 1 2.3 1.9 5.2 1.9s5.2-.9 5.2-1.9V4M2.8 8c0 1 2.3 1.9 5.2 1.9s5.2-.9 5.2-1.9"/></g>',
+  mail: '<g fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"><rect x="1.8" y="3.3" width="12.4" height="9.4" rx="1.5"/><path d="m2.4 4.3 5.6 4.4 5.6-4.4"/></g>',
   logs: '<path d="M3 4h10M3 8h10M3 12h6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>',
   settings: '<g fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.8v1.8M8 12.4v1.8M1.8 8h1.8M12.4 8h1.8M3.6 3.6l1.3 1.3M11.1 11.1l1.3 1.3M3.6 12.4l1.3-1.3M11.1 4.9l1.3-1.3"/></g>',
 };
@@ -75,7 +76,7 @@ const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 // ---- state + rendering -------------------------------------------------------
 
 let S = null;
-const PAGES = ["sites", "php", "database", "logs", "settings"];
+const PAGES = ["sites", "php", "database", "mail", "logs", "settings"];
 // "servers" was the old combined tab; its first job, PHP, is the closest page.
 let page = [location.hash.slice(1), localStorageGet("page"), { servers: "php" }[localStorageGet("tab")]].find((p) => PAGES.includes(p)) || "sites";
 let selected = null; // the site shown in the side panel
@@ -116,6 +117,7 @@ function render() {
   if (page === "sites") { renderSites(); renderPanel(); }
   if (page === "php") renderPHP();
   if (page === "database") renderDB();
+  if (page === "mail") renderMail();
   if (page === "logs") renderLogs();
   if (page === "settings") renderSettings();
   finishInstallJob();
@@ -131,10 +133,10 @@ function go(p) {
 
 // ---- services ------------------------------------------------------------------
 
-const label = (name) => name.replace(/^php-/, "PHP ").replace(/^mysql$/, "MySQL");
+const label = (name) => name.replace(/^php-/, "PHP ").replace(/^mysql$/, "MySQL").replace(/^mailpit$/, "Mailpit");
 const short = (v) => String(v ?? "").split(".").slice(0, 2).join(".");
-// byRole orders services the way requests flow: web server, PHP, database.
-const role = (name) => name === "nginx" ? 0 : name.startsWith("php-") ? 1 : 2;
+// byRole orders services the way requests flow: web server, PHP, database, mail.
+const role = (name) => name === "nginx" ? 0 : name.startsWith("php-") ? 1 : name === "mailpit" ? 3 : 2;
 const byRole = (list) => [...list].sort((a, b) => role(a.name) - role(b.name) || a.name.localeCompare(b.name));
 const services = () => byRole(S.running && S.groups.length
   ? S.groups
@@ -150,7 +152,7 @@ const stateWord = (g) => !S.running || !g || g.state === "stopped" ? "Stopped"
 const stateCls = (g) => ({ "": "ok", off: "off", busy: "busy", bad: "bad" })[mark(g)];
 const phpGroup = (v) => S.groups.find((g) => g.name === "php-" + v);
 // logFor names the log a service writes its errors to.
-const logFor = (name) => name === "mysql" ? "mysql.log" : name + "-error.log";
+const logFor = (name) => name === "mysql" || name === "mailpit" ? name + ".log" : name + "-error.log";
 
 function overall() {
   const job = S.job && !S.job.finished ? S.job : null;
@@ -201,7 +203,7 @@ function renderShell() {
       const m = mark(g);
       const right = m === "bad" ? (g.state === "backoff" ? "restarting" : "failed") : m === "busy" ? g.state : S.running && m === "" ? portText(g.ports) : short(g.version);
       const name = g.name === "nginx" ? "nginx" : label(g.name) + (g.name.startsWith("php-") ? "" : " " + short(g.version));
-      const to = g.name.startsWith("php-") ? "php" : g.name === "mysql" ? "database" : "settings";
+      const to = g.name.startsWith("php-") ? "php" : g.name === "mysql" ? "database" : g.name === "mailpit" ? "mail" : "settings";
       return `<button class="slot ${m === "" ? "on" : m}" data-goto="${to}" title="${esc(label(g.name))} ${esc(g.version)}: ${esc(stateWord(g))}">
         <i class="mark"></i><span class="name">${esc(name)}</span><em>${esc(right)}</em></button>`;
     }).join("");
@@ -210,15 +212,18 @@ function renderShell() {
 
   const phpBad = S.running && S.groups.some((g) => g.name.startsWith("php-") && failing(g));
   const dbBad = S.running && S.groups.some((g) => g.name === "mysql" && failing(g));
+  const mailBad = S.running && S.groups.some((g) => g.name === "mailpit" && failing(g));
+  const unread = S.mail && S.mail.counted ? S.mail.unread : 0;
   const update = !!(S.update && S.update.version);
-  draw("nav", [page, S.sites.length, phpBad, dbBad, update], () => {
+  draw("nav", [page, S.sites.length, phpBad, dbBad, mailBad, unread, update], () => {
     const extra = { sites: `<span class="badge">${S.sites.length}</span>`, php: phpBad ? '<i class="dot" title="A PHP version isn\'t running"></i>' : "",
-      database: dbBad ? '<i class="dot" title="MySQL isn\'t running"></i>' : "", settings: update ? '<i class="dot update" title="Update available"></i>' : "" };
-    const names = { sites: "Sites", php: "PHP", database: "Database", logs: "Logs", settings: "Settings" };
+      database: dbBad ? '<i class="dot" title="MySQL isn\'t running"></i>' : "", settings: update ? '<i class="dot update" title="Update available"></i>' : "",
+      mail: mailBad ? '<i class="dot" title="Mailpit isn\'t running"></i>' : unread ? `<span class="badge" title="${plural(unread, "unread message")}">${unread > 99 ? "99+" : unread}</span>` : "" };
+    const names = { sites: "Sites", php: "PHP", database: "Database", mail: "Mail", logs: "Logs", settings: "Settings" };
     document.querySelectorAll(".nav [data-page]").forEach((b) => {
       const p = b.dataset.page;
       b.innerHTML = icon(p) + `<span class="label">${names[p]}</span>` + (extra[p] || "");
-      b.setAttribute("aria-label", names[p] + (p === "settings" && update ? ", update available" : ""));
+      b.setAttribute("aria-label", names[p] + (p === "settings" && update ? ", update available" : "") + (p === "mail" && unread ? `, ${plural(unread, "unread message")}` : ""));
       b.toggleAttribute("aria-current", p === page);
       if (p === page) b.setAttribute("aria-current", "page");
     });
@@ -428,7 +433,8 @@ function renderPanel() {
   panel.hidden = false;
   const [m, why] = siteMark(s);
   const dev = !(S.update && S.update.release);
-  draw("panel", [s, S.phps, S.default_php, S.running, m, db, dev, jobBusy(), packages, installJob(), pwShown], () => {
+  const mailKey = S.mail && [S.mail.enabled, S.mail.installed, S.mail.inbox, S.mail.smtp_port];
+  draw("panel", [s, S.phps, S.default_php, S.running, m, db, dev, jobBusy(), packages, installJob(), pwShown, mailKey], () => {
     const dbHTML = panelDB(s);
     const errs = dev
       ? `<div class="errors">${SAMPLE_ERRORS.map(([e, at]) => `<span class="e">${esc(e)}</span><br>in ${esc(at)}`).join("<br>")}</div>`
@@ -454,6 +460,7 @@ function renderPanel() {
             ${s.guide ? "On: coding agents know this site's URL, PHP, database and logs." : "Off: tell coding agents how this site runs here."}</label>
           </div>
         <div><div class="group-label">Database <span class="muted" style="font-weight:400">shared by every site</span></div>${dbHTML}</div>
+        <div><div class="group-label">Mail</div>${panelMail(s)}</div>
         <div><div class="group-label">Recent errors ${dev ? '<span class="tag">sample</span>' : ""}</div>${errs}
           <div class="row-btns" style="margin-top:8px">
             <button class="link" id="p-errlog">PHP ${esc(s.php)} error log</button><span class="muted">·</span>
@@ -475,6 +482,9 @@ function renderPanel() {
       act("/api/packages/install", { kind, version }).catch(() => {});
     });
     $("#p-mysql-on") && ($("#p-mysql-on").onclick = () => setMySQL(""));
+    $("#p-mail") && ($("#p-mail").onclick = () => siteToMailpit(s));
+    $("#p-inbox") && ($("#p-inbox").onclick = () => open("url", S.mail.inbox));
+    $("#p-mail-on") && ($("#p-mail-on").onclick = () => setMail(true));
     $("#p-errlog").onclick = () => showLog(logFor("php-" + s.php));
     $("#p-access").onclick = () => showLog(`sites/${s.slug}.access.log`);
     $("#p-php").onchange = (e) => setPHP(s, e.target.value);
@@ -822,6 +832,123 @@ function pmaNote() {
   const installed = packages && packages.some((p) => p.kind === "phpmyadmin" && p.installed);
   if (installed && !db.enabled) return `${base} Turn on MySQL to use it.`;
   return `${base} Once it's installed, the MySQL card above opens it, logged in as root.`;
+}
+
+// ---- Mail ------------------------------------------------------------------------
+// Mailpit catches what sites send. The page shows its address, the newest
+// messages (fetched again whenever the inbox counts change) and its versions.
+
+let mailList = null, mailListFor = "";
+async function loadMailList() {
+  try { mailList = await api("/api/mail/messages"); } catch { mailList = null; }
+  drawn.mail = null;
+  render();
+}
+
+function setMail(on) {
+  return act("/api/mail", { on }, on ? "Turned on Mailpit" : "Turned off Mailpit").then(() => loadServerData()).catch(() => {});
+}
+
+const mailEnv = (m) => `MAIL_MAILER=smtp\nMAIL_HOST=127.0.0.1\nMAIL_PORT=${m.smtp_port}`;
+
+// ago is a short "5 min ago" for a time today, else the date.
+function ago(t) {
+  const d = new Date(t), s = (Date.now() - d) / 1000;
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+  return d.toLocaleDateString([], { dateStyle: "medium" });
+}
+const who = (a) => a ? (a.name || a.address) : "";
+
+function renderMail() {
+  ensureServerData();
+  const m = S.mail;
+  const g = services().find((x) => x.name === "mailpit");
+  const marker = m && m.enabled && S.running && m.counted ? `${m.total}|${m.unread}` : "";
+  if (marker !== mailListFor) {
+    mailListFor = marker;
+    if (marker) loadMailList(); else mailList = null;
+  }
+  draw("mail", [m, g, S.running, packages, installJob(), jobBusy(), mailList], () => {
+    const el = $("#mail");
+    let card, recent = "";
+    if (!m || !m.enabled) {
+      const body = m && m.installed
+        ? '<div class="muted">Mailpit is off, so mail your sites send goes out for real, or fails.</div>'
+        : '<div class="muted">Mailpit catches every email your sites send, so none reach real inboxes. Install it below.</div>';
+      const btn = m && m.installed
+        ? `<div class="row-btns"><button class="btn small primary" id="mail-on" ${jobBusy() ? "disabled" : ""}>Turn on Mailpit ${esc(short(m.installed))}</button></div>` : "";
+      card = `<div class="server off"><div class="server-top"><i class="mark off"></i><h2>Mailpit</h2><div class="grow"></div><span class="state">Off</span></div>${body}${btn}</div>`;
+    } else {
+      const unit = g || { name: "mailpit", version: m.version, state: "stopped", restarts: 0 };
+      const caught = !S.running ? '<span class="muted">Start the servers to catch mail</span>'
+        : m.counted ? `${plural(m.total, "message")}${m.unread ? `, ${m.unread} unread` : ""}` : '<span class="muted">Not answering yet</span>';
+      const facts = `<dl class="kv"><dt>SMTP</dt><dd>127.0.0.1:${esc(m.smtp_port)}</dd><span></span>
+        <dt>Inbox</dt><dd>${esc(host(m.inbox))}</dd><span></span>
+        <dt>Caught</dt><dd style="font-family:inherit">${caught}</dd><span></span></dl>`;
+      const buttons = `<button class="btn small" id="mail-inbox" ${S.running ? "" : `disabled title="Start the servers to open it"`}>${icon("open")}Open inbox</button>
+        <button class="btn small ghost" data-log="mailpit.log">${icon("logs")}Log</button>
+        ${S.running ? `<button class="btn small ${failing(unit) ? "primary" : "ghost"}" data-restart="mailpit">${icon("reload")}Restart</button>` : ""}
+        <button class="btn small ghost" id="mail-off" title="Stop Mailpit and don't start it with the other servers. Caught mail stays on disk.">Turn off</button>`;
+      card = serverCard(unit, facts, buttons);
+      if (S.running) {
+        const rows = (mailList || []).map((x) => `<button class="rowi mail-row${x.read ? "" : " unread"}" data-url="${esc(x.url)}" title="Open in Mailpit">
+            <div class="grow"><b>${esc(x.subject || "(no subject)")}</b><div class="sub">${esc(who(x.from))} → ${esc(x.to.map(who).join(", "))}${x.snippet ? " · " + esc(x.snippet) : ""}</div></div>
+            <span class="muted num">${esc(ago(x.created))}</span></button>`).join("");
+        recent = `<div class="section"><h2>Newest mail</h2><div class="rows">${mailList === null ? '<div class="rowi muted">Loading…</div>'
+          : rows || '<div class="rowi muted">Nothing caught yet. Mail your sites send shows up here.</div>'}</div></div>`;
+      }
+    }
+    const how = m && m.enabled ? `<div class="section"><h2>Sending from a site</h2>
+        <p>PHP's mail() reaches Mailpit by itself. Laravel and other apps that read .env need these lines; each site's details can write them for you.</p>
+        <div class="rows"><div class="rowi"><pre class="mono env-lines">${esc(mailEnv(m))}</pre><div class="grow"></div>
+          <button class="btn small ghost" id="mail-copy-env">${icon("copy")}Copy</button></div></div></div>` : "";
+    el.innerHTML = `${card}${recent}${how}
+      <div class="section"><h2>Versions</h2><p>Downloaded from Mailpit's GitHub releases and checked against a pinned SHA-256.</p>${versionRows("mailpit")}</div>`;
+    $("#mail-on") && ($("#mail-on").onclick = () => setMail(true));
+    $("#mail-off") && ($("#mail-off").onclick = () => {
+      if (confirm("Turn off Mailpit? Mail your sites send then goes out for real, or fails. Caught mail stays on disk.")) setMail(false);
+    });
+    $("#mail-inbox") && ($("#mail-inbox").onclick = () => open("url", m.inbox));
+    $("#mail-copy-env") && ($("#mail-copy-env").onclick = () => copy(mailEnv(m), "Settings"));
+    el.querySelectorAll("[data-url]").forEach((b) => (b.onclick = () => open("url", b.dataset.url)));
+    el.querySelectorAll("[data-log]").forEach((b) => (b.onclick = () => showLog(b.dataset.log)));
+    el.querySelectorAll("[data-restart]").forEach((b) => (b.onclick = () => act("/api/restart", { unit: b.dataset.restart }, "Restarted Mailpit").catch(() => {})));
+    wireVersions(el);
+  });
+}
+
+// panelMail is the Mail section of a site's details: where its mail goes.
+function panelMail(s) {
+  const m = S.mail;
+  if (!m || !m.enabled) {
+    return m && m.installed
+      ? `<div class="muted">Mailpit is off, so this site's mail goes out for real.</div><div class="row-btns" style="margin-top:6px"><button class="btn small" id="p-mail-on" ${jobBusy() ? "disabled" : ""}>Turn on Mailpit</button></div>`
+      : '<div class="muted">Install Mailpit on the Mail page to catch the mail this site sends.</div>';
+  }
+  const e = s.mail;
+  let text, btn = "";
+  if (!e) {
+    text = "PHP's mail() goes to Mailpit. This site has no .env to set up.";
+  } else if (e.ours) {
+    text = "This site's .env sends mail to Mailpit.";
+  } else {
+    const to = e.mailer === "smtp" && e.host ? ` to <span class="mono">${esc(e.host)}${e.port ? ":" + esc(e.port) : ""}</span>` : "";
+    text = e.mailer ? `This site's .env sends mail with <b class="mono">${esc(e.mailer)}</b>${to}, not to Mailpit.` : "This site's .env doesn't say how to send mail (MAIL_MAILER).";
+    btn = `<button class="btn small" id="p-mail" ${jobBusy() ? "disabled" : ""} title="Set MAIL_MAILER, MAIL_HOST and MAIL_PORT in .env">Send mail to Mailpit</button>`;
+  }
+  return `<div class="env-db">${text}</div><div class="row-btns">${btn}<button class="btn small ${btn ? "ghost" : ""}" id="p-inbox" ${S.running ? "" : `disabled title="Start the servers to open it"`}>${icon("open")}Inbox</button></div>`;
+}
+
+function siteToMailpit(s) {
+  const m = S.mail;
+  if (!confirm(`Send ${s.slug}'s mail to Mailpit? devstack sets these in its .env:\n\n${mailEnv(m)}`)) return;
+  act("/api/site/mail", { slug: s.slug }).then((r) => {
+    toast(r.config_cached
+      ? "Done. Laravel has cached its config: run php artisan config:clear"
+      : `${s.slug}'s mail now goes to Mailpit`);
+  }).catch(() => {});
 }
 
 // ---- php.ini settings editor ----------------------------------------------------
@@ -1336,8 +1463,9 @@ function renderSettings() {
       <div class="section"><h2>About</h2><div class="rows">
         ${row(`devstack ${esc(S.version)}`, `Open source. Runs unmodified builds of nginx (<button class="link" data-link="https://nginx.org/LICENSE">BSD</button>),
           PHP (<button class="link" data-link="https://www.php.net/license/">PHP License</button>),
-          MySQL (<button class="link" data-link="https://www.mysql.com/about/legal/">GPLv2</button>) and
-          phpMyAdmin (<button class="link" data-link="https://www.phpmyadmin.net/license/">GPLv2</button>), downloaded from their publishers.`,
+          MySQL (<button class="link" data-link="https://www.mysql.com/about/legal/">GPLv2</button>),
+          phpMyAdmin (<button class="link" data-link="https://www.phpmyadmin.net/license/">GPLv2</button>) and
+          Mailpit (<button class="link" data-link="https://github.com/axllent/mailpit/blob/develop/LICENSE">MIT</button>), downloaded from their publishers.`,
           `<button class="btn small" data-link="https://github.com/harsha2805/devstack">${icon("open")}Source</button>`)}
         ${row("Support devstack", "devstack is free and open source. Sponsoring on GitHub keeps it going.",
           `<button class="btn small" data-link="https://github.com/sponsors/harsha2805">${icon("heart")}Sponsor</button>`)}

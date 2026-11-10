@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/harsha2805/devstack/internal/aiguide"
@@ -88,6 +89,9 @@ func SiteDBUser(ctx context.Context, root, slug string) (SiteUser, error) {
 	return SiteUser{User: user, Database: env.Name, ConfigCached: cacheErr == nil}, nil
 }
 
+// envOrder is the order missing keys are added in, Laravel's own.
+var envOrder = []string{"DB_USERNAME", "DB_PASSWORD", "MAIL_MAILER", "MAIL_SCHEME", "MAIL_HOST", "MAIL_PORT"}
+
 // dbNameRe is what SiteDBUser accepts as a database name.
 var dbNameRe = regexp.MustCompile(`^[A-Za-z0-9_$]{1,64}$`)
 
@@ -106,8 +110,9 @@ func grantName(db string) string {
 }
 
 // SetEnv sets KEY=value lines in a .env file: each key's existing line is
-// replaced in place, and missing keys go after the last DB_ line (or at the
-// end). Comments, order and line endings stay as they were.
+// replaced in place, and missing keys go after the last line of their group
+// (DB_ keys after the last DB_ line, MAIL_ after MAIL_), or at the end.
+// Comments, order and line endings stay as they were.
 func SetEnv(path string, values map[string]string) error {
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -120,7 +125,17 @@ func SetEnv(path string, values map[string]string) error {
 	}
 	lines := strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n")
 	done := map[string]bool{}
-	lastDB := -1
+	// The keys' shared prefix, "DB_"; "" when they don't share one.
+	group, first := "", true
+	for k := range values {
+		g, _, _ := strings.Cut(k, "_")
+		if first {
+			group, first = g+"_", false
+		} else if g+"_" != group {
+			group = ""
+		}
+	}
+	lastInGroup := -1
 	for i, l := range lines {
 		t := strings.TrimPrefix(strings.TrimSpace(l), "export ")
 		k, _, ok := strings.Cut(t, "=")
@@ -128,8 +143,8 @@ func SetEnv(path string, values map[string]string) error {
 		if !ok || strings.HasPrefix(k, "#") {
 			continue
 		}
-		if strings.HasPrefix(k, "DB_") {
-			lastDB = i
+		if group != "" && strings.HasPrefix(k, group) {
+			lastInGroup = i
 		}
 		if v, want := values[k]; want && !done[k] {
 			lines[i] = k + "=" + v
@@ -137,20 +152,25 @@ func SetEnv(path string, values map[string]string) error {
 		}
 	}
 	var add []string
-	for _, k := range []string{"DB_USERNAME", "DB_PASSWORD"} { // a stable order for the keys SiteDBUser sets
+	for _, k := range envOrder { // a stable order for the keys devstack sets
 		if v, ok := values[k]; ok && !done[k] {
 			add = append(add, k+"="+v)
 			done[k] = true
 		}
 	}
-	for k, v := range values {
+	var rest []string
+	for k := range values {
 		if !done[k] {
-			add = append(add, k+"="+v)
+			rest = append(rest, k)
 		}
 	}
+	sort.Strings(rest)
+	for _, k := range rest {
+		add = append(add, k+"="+values[k])
+	}
 	if len(add) > 0 {
-		at := lastDB + 1
-		if lastDB < 0 {
+		at := lastInGroup + 1
+		if lastInGroup < 0 {
 			at = len(lines)
 			for at > 0 && lines[at-1] == "" {
 				at--

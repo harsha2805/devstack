@@ -6,7 +6,7 @@ devstack has no telemetry, no account and no ads. It connects to the internet on
 
 - Updates. When you click Update now, devstack downloads the new installer from github.com.
 
-- Servers. When you set up devstack or install a version, it downloads nginx from nginx.org, PHP from downloads.php.net and MySQL from cdn.mysql.com. (If Windows lacks the Microsoft Visual C++ runtime, devstack shows Microsoft's download link; it doesn't fetch it.)
+- Servers. When you set up devstack or install a version, it downloads nginx from nginx.org, PHP from downloads.php.net, MySQL from cdn.mysql.com, phpMyAdmin from files.phpmyadmin.net and Mailpit from github.com. (If Windows lacks the Microsoft Visual C++ runtime, devstack shows Microsoft's download link; it doesn't fetch it.)
 
 Links in the app, such as Sponsor or the source code, open in your browser only when you click them.
 

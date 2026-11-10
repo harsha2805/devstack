@@ -52,6 +52,9 @@ type Services struct {
 	MySQL string `toml:"mysql"`
 	DNS   string `toml:"dns"`   // "on": answer *.<tld> on 127.0.0.1:53 (see package dns)
 	HTTPS string `toml:"https"` // "on": serve every site over HTTPS too (see package certs)
+	// Mail is Mailpit, which catches the mail sites send: "" runs the newest
+	// installed version (nothing when none is), "1.33" a version, "off" none.
+	Mail string `toml:"mail"`
 }
 
 type PHP struct {
@@ -67,6 +70,8 @@ type Ports struct {
 	HTTPS int `toml:"https"`
 	MySQL int `toml:"mysql"`
 	PHP   int `toml:"php"`
+	SMTP  int `toml:"smtp"`  // Mailpit takes mail here
+	Inbox int `toml:"inbox"` // Mailpit's inbox page
 }
 
 // Site is the optional www/<site>/.devstack.toml.
@@ -95,7 +100,7 @@ func Default() Stack {
 			Extensions:  append([]string(nil), DefaultExtensions...),
 			INI:         map[string]string{},
 		},
-		Ports: Ports{HTTP: 80, HTTPS: 443, MySQL: 3306, PHP: 9000},
+		Ports: Ports{HTTP: 80, HTTPS: 443, MySQL: 3306, PHP: 9000, SMTP: 1025, Inbox: 8025},
 	}
 }
 
@@ -156,6 +161,9 @@ func (c Stack) Validate() error {
 	if v := c.Services.MySQL; v != "" && v != Off && !versionRe.MatchString(v) {
 		bad("services.mysql", "%q must be a version like \"8.4\", \"\" for newest, or \"off\"", v)
 	}
+	if v := c.Services.Mail; v != "" && v != Off && !versionRe.MatchString(v) {
+		bad("services.mail", "%q must be a version like \"1.33\", \"\" for newest, or \"off\"", v)
+	}
 	if v := c.Services.DNS; v != "on" && v != Off {
 		bad("services.dns", "%q must be \"on\" or \"off\"", v)
 	}
@@ -192,6 +200,8 @@ func (c Stack) Validate() error {
 	checkPort("ports.http", c.Ports.HTTP)
 	checkPort("ports.https", c.Ports.HTTPS)
 	checkPort("ports.mysql", c.Ports.MySQL)
+	checkPort("ports.smtp", c.Ports.SMTP)
+	checkPort("ports.inbox", c.Ports.Inbox)
 	if c.Ports.PHP < 1024 || c.Ports.PHP > 65535-1000 {
 		bad("ports.php", "must be 1024..64535, got %d", c.Ports.PHP)
 	}

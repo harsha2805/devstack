@@ -159,6 +159,9 @@ func (s *Server) routes() http.Handler {
 	api.HandleFunc("POST /api/site/php", s.handleSitePHP)
 	api.HandleFunc("POST /api/site/guide", s.handleSiteGuide)
 	api.HandleFunc("POST /api/site/dbuser", s.handleSiteDBUser)
+	api.HandleFunc("POST /api/site/mail", s.handleSiteMail)
+	api.HandleFunc("GET /api/mail/messages", s.handleMailMessages)
+	api.HandleFunc("POST /api/mail", s.handleMail)
 	api.HandleFunc("POST /api/project/pick", s.handlePickFolder)
 	api.HandleFunc("POST /api/project/add", s.handleProjectAdd)
 	api.HandleFunc("POST /api/project/remove", s.handleProjectRemove)
@@ -263,6 +266,8 @@ type siteView struct {
 	Project bool     `json:"project"` // listed in [projects], outside www
 	// DB is what the project's .env (Laravel) says about its database.
 	DB *siteDBView `json:"db,omitempty"`
+	// Mail is how the project's .env sends mail; nil when it has no .env.
+	Mail *siteMailView `json:"mail,omitempty"`
 }
 
 type siteDBView struct {
@@ -297,6 +302,7 @@ type stateView struct {
 	Extensions []control.ExtensionStatus `json:"extensions"`
 	ODBC       *control.ODBCStatus       `json:"odbc,omitempty"`
 	Shims      *shimsView                `json:"shims,omitempty"`
+	Mail       *mailView                 `json:"mail,omitempty"`
 }
 
 // plannedService describes what will run, for display while stopped.
@@ -357,9 +363,10 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 	if ss, ok := control.ShimStatus(); ok {
 		v.Shims = &shimsView{PathStatus: ss, OK: ss.OK(), Problem: ss.Problem()}
 	}
+	var st *model.Stack
 	if l, err := stack.Load(r.Context(), root); err != nil {
 		v.Errors = append(v.Errors, err.Error())
-	} else if st := l.Stack; st != nil {
+	} else if st = l.Stack; st != nil {
 		s.fillStack(&v, st)
 	}
 	if c, err := api.Connect(root); err == nil {
@@ -369,6 +376,9 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 			v.Groups = control.Groups(ds.Units)
 			v.Errors = append(v.Errors, ds.Errors...)
 		}
+	}
+	if st != nil {
+		v.Mail = mailState(r.Context(), st, v.Running)
 	}
 	for _, g := range v.Groups {
 		if g.State != supervisor.Running && g.LastError != "" {
@@ -407,6 +417,9 @@ func (s *Server) fillStack(v *stateView, st *model.Stack) {
 	if st.MySQL != nil {
 		v.Planned = append(v.Planned, plannedService{"mysql", st.MySQL.Build.Version.String(), fmt.Sprint(st.MySQL.Port)})
 	}
+	if m := st.Mail; m != nil {
+		v.Planned = append(v.Planned, plannedService{"mailpit", m.Build.Version.String(), fmt.Sprintf("%d %d", m.SMTPPort, m.InboxPort)})
+	}
 	seen := map[string]bool{}
 	for _, b := range s.installedPHP(st) {
 		if !seen[b] {
@@ -422,6 +435,11 @@ func (s *Server) fillStack(v *stateView, st *model.Stack) {
 		}
 		if db, ok := aiguide.EnvDatabase(site.Dir); ok {
 			sv.DB = &siteDBView{EnvDB: db, Ours: st.MySQL != nil && db.UsesMySQL(st.MySQL.Port)}
+		}
+		if _, err := os.Stat(filepath.Join(site.Dir, ".env")); err == nil {
+			em, _ := aiguide.EnvMail(site.Dir)
+			sv.Mail = &siteMailView{Mailer: em.Mailer, Host: em.Host, Port: em.Port,
+				Ours: st.Mail != nil && em.UsesMailpit(st.Mail.SMTPPort)}
 		}
 		v.Sites = append(v.Sites, sv)
 	}
@@ -817,6 +835,9 @@ func (s *Server) handlePackages(w http.ResponseWriter, r *http.Request) {
 			if st.PhpMyAdmin != nil {
 				mark(st.PhpMyAdmin.Build)
 			}
+			if st.Mail != nil {
+				mark(st.Mail.Build)
+			}
 		}
 	}
 	out := []packageView{}
@@ -836,8 +857,10 @@ func kindOrder(k discover.Kind) int {
 		return 1
 	case discover.PhpMyAdmin:
 		return 2
+	case discover.Mailpit:
+		return 3
 	}
-	return 3
+	return 4
 }
 
 func (s *Server) handleInstall(w http.ResponseWriter, r *http.Request) {
@@ -866,8 +889,9 @@ func (s *Server) handleInstall(w http.ResponseWriter, r *http.Request) {
 			return err
 		}
 		s.step(j, label, "done", e.Size, e.Size)
-		if e.Kind == discover.PhpMyAdmin {
-			return reloadIfRunning(ctx, root) // nginx starts serving it
+		if e.Kind == discover.PhpMyAdmin || e.Kind == discover.Mailpit {
+			// nginx starts serving phpMyAdmin; Mailpit starts unless services.mail is off.
+			return reloadIfRunning(ctx, root)
 		}
 		if e.Kind != discover.PHP {
 			return nil
@@ -935,7 +959,8 @@ func (s *Server) handleRemove(w http.ResponseWriter, r *http.Request) {
 	if l, err := stack.Load(r.Context(), root); err == nil && l.Stack != nil {
 		st := l.Stack
 		used := st.Nginx.Version.String() == req.Version && req.Kind == "nginx" ||
-			st.MySQL != nil && req.Kind == "mysql" && st.MySQL.Build.Version.String() == req.Version
+			st.MySQL != nil && req.Kind == "mysql" && st.MySQL.Build.Version.String() == req.Version ||
+			st.Mail != nil && req.Kind == "mailpit" && st.Mail.Build.Version.String() == req.Version
 		for _, p := range st.PHP {
 			used = used || req.Kind == "php" && p.Build.Version.String() == req.Version
 		}
@@ -1205,18 +1230,19 @@ func localURL(u string) bool {
 	if h, _, err := net.SplitHostPort(host); err == nil {
 		host = h
 	}
-	return host == "localhost" || strings.HasSuffix(host, ".localhost") || strings.HasSuffix(host, ".test")
+	return host == "localhost" || host == "127.0.0.1" || strings.HasSuffix(host, ".localhost") || strings.HasSuffix(host, ".test")
 }
 
 var knownLinks = map[string]bool{
-	setup.VCRedistURL:                        true,
-	packages.ODBCDriverURL:                   true,
-	"https://www.php.net/license/":           true,
-	"https://nginx.org/LICENSE":              true,
-	"https://www.mysql.com/about/legal/":     true,
-	"https://www.phpmyadmin.net/license/":    true,
-	"https://github.com/harsha2805/devstack": true,
-	"https://github.com/sponsors/harsha2805": true,
+	setup.VCRedistURL:                                         true,
+	packages.ODBCDriverURL:                                    true,
+	"https://www.php.net/license/":                            true,
+	"https://nginx.org/LICENSE":                               true,
+	"https://www.mysql.com/about/legal/":                      true,
+	"https://www.phpmyadmin.net/license/":                     true,
+	"https://github.com/axllent/mailpit/blob/develop/LICENSE": true,
+	"https://github.com/harsha2805/devstack":                  true,
+	"https://github.com/sponsors/harsha2805":                  true,
 }
 
 func knownLink(u string) bool { return knownLinks[u] }

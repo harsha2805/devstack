@@ -350,6 +350,14 @@ dl.kv dd { margin: 0; font: 12px var(--mono); overflow-wrap: anywhere; }
 .rowi { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 7px 12px; border-top: 1px solid var(--rule); }
 .rowi:first-child { border-top: 0; }
 .rowi .grow > .sub { font-size: 12px; color: var(--ink-3); }
+.mail-row { width: 100%; text-align: left; font: inherit; color: inherit; background: none; border: 0; border-top: 1px solid var(--rule); cursor: pointer; }
+.mail-row:first-child { border-top: 0; }
+.mail-row:hover { background: var(--subtle); }
+.mail-row .grow { min-width: 0; }
+.mail-row b { font-weight: 500; }
+.mail-row.unread b { font-weight: 700; }
+.mail-row .sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.env-lines { margin: 0; font-size: 12px; line-height: 1.6; white-space: pre; }
 .in-use { display: inline-flex; align-items: center; gap: 7px; color: var(--ink-2); font-size: 12.5px; }
 .note { font: 12px var(--mono); color: var(--ink-3); margin-left: 6px; }
 .notice { border-radius: 5px; padding: 9px 12px; font-size: 12.5px; display: flex; align-items: center; gap: 10px; }

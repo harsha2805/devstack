@@ -5,6 +5,29 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions
 The release scripts need a section for the version they build and take the in-app update notes from the
 bold lead-ins under it, so write each feature up here when it lands.
 
+## [1.4.0] — 2026-11-10
+
+### Added
+- **Mailpit catches the mail your sites send.** Nothing reaches real inboxes while you develop: every email lands
+  in Mailpit's inbox instead. New installs download it with the other servers; on an existing stack, install it on
+  the new Mail page (10.7 MB, from Mailpit's GitHub releases, checked against a pinned SHA-256). It runs with the
+  other servers on `127.0.0.1:1025` (SMTP) and `127.0.0.1:8025` (inbox), and accepts any login, so a site's
+  `MAIL_USERNAME` and `MAIL_PASSWORD` can stay as they are. Caught mail is kept in `data\mailpit`.
+- **A Mail page.** The sidebar shows how many messages are unread. The page lists the newest mail (click one to open
+  it in Mailpit), the SMTP settings to copy, Open inbox, Mailpit's log, Restart and Turn off.
+- **Send a site's mail to Mailpit.** A site's details say how its `.env` sends mail. When that isn't Mailpit, Send
+  mail to Mailpit writes `MAIL_MAILER=smtp`, `MAIL_HOST=127.0.0.1` and `MAIL_PORT=1025` into it, and reminds you
+  to run `php artisan config:clear` if Laravel has cached its config.
+- **PHP's `mail()` goes to Mailpit too.** While Mailpit runs, devstack points every PHP version's `SMTP` and
+  `smtp_port` at it, and gives `mail()` a sender (`devstack@localhost`) when your php.ini sets none.
+
+### Changed
+- **The AI guide knows about Mailpit.** It tells coding agents that mail is caught, whether the site's `.env` sends
+  to Mailpit, and how to read caught mail through Mailpit's API to check what a site sent.
+- **`stack.toml` has `services.mail`, `ports.smtp` and `ports.inbox`.** `mail = "off"` stops Mailpit; the default
+  runs whichever version is installed. `devstack pkg install mailpit` and `devstack init --mail off` work from the
+  command line.
+
 ## [1.3.1] — 2026-11-09
 
 ### Changed

@@ -85,6 +85,13 @@
       "sha256": "2d2e13c735366d318425c78e4ee2cc8fc648d77faba3ddea2cd516e43885733f",
       "size": 16431330,
       "strip": "phpMyAdmin-5.2.3-all-languages/"
+    },
+    {
+      "kind": "mailpit",
+      "version": "1.33.1",
+      "url": "https://github.com/axllent/mailpit/releases/download/v1.33.1/mailpit-windows-amd64.zip",
+      "sha256": "0bcf8f1e7c21005b30c206064ff2f37dac602ef66774e558379d326f5673d652",
+      "size": 11186131
     }
   ],
   "extensions": [

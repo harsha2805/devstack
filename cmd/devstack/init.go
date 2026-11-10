@@ -28,6 +28,7 @@ func cmdInit(ctx context.Context, e *env, args []string) error {
 	noDownload := fs.Bool("no-download", false, "don't download missing servers")
 	fs.StringVar(&o.PHP, "php", "", "PHP version to use (downloaded if missing)")
 	fs.StringVar(&o.MySQL, "mysql", "", `MySQL version to use (downloaded if missing), or "off"`)
+	fs.StringVar(&o.Mail, "mail", "", `Mailpit version to catch mail with (downloaded if missing), or "off"`)
 	var bins multiFlag
 	fs.Var(&bins, "bin", "extra folder with <service>/<version>/ builds (repeatable)")
 	if pos, err := parse(fs, args); err != nil {
@@ -84,9 +85,9 @@ func cmdInit(ctx context.Context, e *env, args []string) error {
 		return err
 	}
 	fmt.Fprintln(e.stdout, "Servers:")
-	for _, k := range []discover.Kind{discover.Nginx, discover.PHP, discover.MySQL} {
+	for _, k := range []discover.Kind{discover.Nginx, discover.PHP, discover.MySQL, discover.Mailpit} {
 		for _, b := range res.Found.Builds[k] {
-			fmt.Fprintf(e.stdout, "  %-6s %-8s %s\n", k, b.Version, b.Dir)
+			fmt.Fprintf(e.stdout, "  %-7s %-8s %s\n", k, b.Version, b.Dir)
 		}
 	}
 	if !res.VCRuntime {

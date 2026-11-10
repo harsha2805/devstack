@@ -305,6 +305,9 @@ func cmdDoctor(ctx context.Context, e *env, args []string) error {
 	if st.MySQL != nil {
 		ok("mysql %s, datadir %s", st.MySQL.Build.Version, st.MySQL.DataDir)
 	}
+	if m := st.Mail; m != nil {
+		ok("mailpit %s catches mail on 127.0.0.1:%d, inbox %s", m.Build.Version, m.SMTPPort, m.InboxURL())
+	}
 	inWWW := 0
 	for _, s := range st.Sites {
 		if !s.Project {

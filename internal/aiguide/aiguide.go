@@ -306,6 +306,11 @@ func Render(st *model.Stack, site model.Site, cli string) string {
 	}
 
 	w("")
+	w("## Mail")
+	w("")
+	mailLines(w, st, site)
+
+	w("")
 	w("## Logs")
 	w("")
 	w("- Requests to this site: `%s`", site.AccessLog)
@@ -328,9 +333,36 @@ func Render(st *model.Stack, site model.Site, cli string) string {
 	w("")
 	w("- Per-site settings go in `.devstack.toml` in the project folder (`docroot`, `php`, `aliases`), then reload.")
 	w("- Never edit `%s`: it is regenerated on every reload. Extra nginx config goes in `%s`.", st.Etc, filepath.Join(st.EtcCustom, "nginx"))
-	w("- Don't install, download or upgrade PHP, nginx or MySQL yourself; ask the user to do it in devstack.")
+	w("- Don't install, download or upgrade PHP, nginx, MySQL or Mailpit yourself; ask the user to do it in devstack.")
 	w("- Ask before editing `stack.toml` or stopping the servers: other projects use them too.")
 	return b.String()
+}
+
+// mailLines is the Mail section: where the site's mail goes and how to read it.
+func mailLines(w func(string, ...any), st *model.Stack, site model.Site) {
+	m := st.Mail
+	if m == nil {
+		w("- devstack's Mailpit is off, so mail goes wherever `.env` says, which can be real inboxes. Ask the user before sending test mail.")
+		return
+	}
+	w("- devstack runs Mailpit %s, which catches mail instead of delivering it: nothing reaches real inboxes. SMTP: `127.0.0.1:%d`, no encryption; any login, or none, is accepted.", m.Build.Version, m.SMTPPort)
+	settings := fmt.Sprintf("`MAIL_MAILER=smtp`, `MAIL_HOST=127.0.0.1`, `MAIL_PORT=%d`", m.SMTPPort)
+	em, _ := EnvMail(site.Dir)
+	switch {
+	case em.UsesMailpit(m.SMTPPort):
+		w("- `.env` sends mail to Mailpit (%s).", settings)
+	case em.Mailer != "":
+		to := ""
+		if em.Mailer == "smtp" && em.Host != "" {
+			to = fmt.Sprintf(" to `%s:%s`", em.Host, em.Port)
+		}
+		w("- `.env` sends mail with `MAIL_MAILER=%s`%s, not to Mailpit. To catch it, set %s; the user can also do it from the devstack app (the site's details → Send mail to Mailpit).", em.Mailer, to, settings)
+	case fileExists(filepath.Join(site.Dir, ".env")):
+		w("- `.env` sets no `MAIL_MAILER`. To catch the site's mail, set %s.", settings)
+	}
+	w("- PHP's `mail()` goes to Mailpit too.")
+	w("- Caught mail: %s for the user. To check what the site sent, use Mailpit's API: `GET %s/api/v1/messages` lists messages, newest first; `GET %s/api/v1/message/latest` is the newest, with its HTML and text.", m.InboxURL(), m.InboxURL(), m.InboxURL())
+	w("- Mailpit log: `%s`", filepath.Join(st.Logs, "mailpit.log"))
 }
 
 // pdoDriver is the PHP extension each Laravel DB_CONNECTION needs.
@@ -469,6 +501,35 @@ func (db EnvDB) UsesMySQL(port int) bool {
 		p = "3306"
 	}
 	return p == strconv.Itoa(port)
+}
+
+// EnvMailer is how a project's .env (Laravel's MAIL_* keys) sends mail.
+type EnvMailer struct {
+	Mailer string `json:"mailer"` // MAIL_MAILER: smtp, log, sendmail, ses...
+	Host   string `json:"host,omitempty"`
+	Port   string `json:"port,omitempty"`
+	// Scheme is MAIL_SCHEME (Laravel 11 and newer), "" when unset or null.
+	// "smtps" is TLS from the first byte, which Mailpit doesn't speak.
+	Scheme string `json:"scheme,omitempty"`
+}
+
+// EnvMail reads the MAIL_ keys of dir/.env. ok is false when the project has
+// no .env or it sets no MAIL_MAILER.
+func EnvMail(dir string) (m EnvMailer, ok bool) {
+	env := readEnv(filepath.Join(dir, ".env"))
+	unset := func(v string) string {
+		if strings.EqualFold(v, "null") {
+			return ""
+		}
+		return v
+	}
+	m = EnvMailer{Mailer: env["MAIL_MAILER"], Host: env["MAIL_HOST"], Port: env["MAIL_PORT"], Scheme: unset(env["MAIL_SCHEME"])}
+	return m, m.Mailer != ""
+}
+
+// UsesMailpit reports whether m sends to Mailpit listening on port.
+func (m EnvMailer) UsesMailpit(port int) bool {
+	return m.Mailer == "smtp" && isLocal(m.Host) && m.Port == strconv.Itoa(port) && m.Scheme != "smtps"
 }
 
 // readEnv reads KEY=value lines from a .env file; a missing file reads as empty.
