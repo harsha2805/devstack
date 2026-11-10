@@ -1047,7 +1047,7 @@ func (s *Server) handleDB(w http.ResponseWriter, r *http.Request) {
 }
 
 // unlockFor is how long one Windows check keeps the password visible.
-const unlockFor = 5 * time.Minute
+const unlockFor = time.Minute
 
 // passwordUnlocked: the check is off, or the user passed it recently.
 func (s *Server) passwordUnlocked() bool {

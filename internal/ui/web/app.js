@@ -737,7 +737,7 @@ function extensionsSection() {
 
 // The MySQL password reaches the page only after Windows confirms the user
 // (Settings can turn that off). getPassword asks once, then the server keeps
-// it unlocked for a few minutes; after that the page forgets it again.
+// it unlocked for a minute; after that the page forgets it again.
 let pwShown = false;
 let relockTimer;
 async function getPassword() {
@@ -1318,7 +1318,7 @@ function renderSettings() {
         ${row("Open devstack when you sign in", "Starts in the tray, without a window.", sw("set-autostart", S.settings.autostart, "Open devstack when you sign in"))}
       </div></div>
       <div class="section"><h2>Privacy</h2><div class="rows">
-        ${row("Ask Windows before showing the MySQL password", "Windows Hello, or your Windows password, before the password is shown or copied. Then it stays visible for 5 minutes.", sw("set-pwcheck", S.settings.password_check, "Ask Windows before showing the MySQL password"))}
+        ${row("Ask Windows before showing the MySQL password", "Windows Hello, or your Windows password, before the password is shown or copied. Then it stays visible for one minute.", sw("set-pwcheck", S.settings.password_check, "Ask Windows before showing the MySQL password"))}
       </div></div>
       <div class="section"><h2>Updates</h2><div class="rows">
         <div class="rowi" id="update-card"></div>

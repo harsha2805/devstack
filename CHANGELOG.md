@@ -5,6 +5,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions
 The release scripts need a section for the version they build and take the in-app update notes from the
 bold lead-ins under it, so write each feature up here when it lands.
 
+## [1.3.1] — 2026-11-09
+
+### Changed
+- **The MySQL password locks again after one minute.** After Windows confirms it's you, the password now stays
+  available for one minute instead of five.
+
 ## [1.3.0] — 2026-11-09
 
 ### Added
