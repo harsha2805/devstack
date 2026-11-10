@@ -43,7 +43,7 @@ jobs:
         env:
           KEY_PEM: ${{ secrets.DEVSTACK_UPDATE_KEY }}
         run: |
-          $v = '${{ github.ref_name }}'.TrimStart('v')
+          $v = $env:GITHUB_REF_NAME.TrimStart('v')   # not ${{ }}: a tag name is text, never script
           if ($v -notmatch '^\d+\.\d+\.\d+$') { throw "Tags must look like v1.2.3" }
           . .\release-lib.ps1
           $null = Get-UpdateNotes $v   # the changelog must describe it
@@ -94,7 +94,7 @@ jobs:
       - name: Release
         run: |
           . .\release-lib.ps1
-          $tag = '${{ github.ref_name }}'
+          $tag = $env:GITHUB_REF_NAME
           $files = "dist\release\devstack_setup_$env:VERSION.exe", "dist\release\devstack_$($env:VERSION)_portable.zip",
                    "dist\release\SHA256SUMS.txt", "dist\release\changelog.json"
           if ($env:SIGN -eq 'true') { $files += "dist\release\latest.json" }

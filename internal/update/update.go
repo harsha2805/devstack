@@ -271,6 +271,7 @@ func Download(ctx context.Context, i Info, dir string, progress func(done, total
 	}
 	h := sha256.New()
 	var done int64
+	var last time.Time
 	buf := make([]byte, 64<<10)
 	for {
 		n, rerr := resp.Body.Read(buf)
@@ -281,7 +282,9 @@ func Download(ctx context.Context, i Info, dir string, progress func(done, total
 				return "", err
 			}
 			done += int64(n)
-			if progress != nil {
+			// The app takes a lock per call; ten a second is plenty for a progress bar.
+			if progress != nil && (time.Since(last) > 100*time.Millisecond || done == total) {
+				last = time.Now()
 				progress(done, total)
 			}
 		}

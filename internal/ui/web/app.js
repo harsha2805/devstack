@@ -32,12 +32,13 @@ const ICONS = {
 };
 const icon = (name, cls = "") => `<svg class="${cls}" viewBox="0 0 16 16" aria-hidden="true">${ICONS[name]}</svg>`;
 
-async function api(path, body) {
+async function api(path, body, signal) {
   const opts = body === undefined ? {} : {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-Devstack": "1" },
     body: JSON.stringify(body),
   };
+  if (signal) opts.signal = signal;
   const r = await fetch(path, opts);
   const data = await r.json().catch(() => ({}));
   if (!r.ok) throw Object.assign(new Error(data.error || r.statusText), { status: r.status, data });
@@ -62,6 +63,7 @@ async function act(path, body, okMsg) {
     return res;
   } catch (e) {
     toast(e.message, true);
+    redrawAll(); // a switch or select the user just changed goes back to what the server has
     poll(true);
     throw e;
   }
@@ -91,21 +93,63 @@ function draw(section, key, fn) {
   const k = JSON.stringify(key);
   if (drawn[section] === k) return;
   drawn[section] = k;
+  // A redraw replaces the focused control; put focus back on its replacement.
+  const had = document.activeElement;
+  const sel = had && had !== document.body ? focusSelector(had) : null;
   fn();
+  if (sel && !had.isConnected) document.querySelector(sel)?.focus({ preventScroll: true });
 }
 
-let pollTimer;
-async function poll(now) {
+function focusSelector(el) {
+  if (el.id) return "#" + CSS.escape(el.id);
+  const d = [...el.attributes].find((a) => a.name.startsWith("data-"));
+  return d ? `${el.tagName.toLowerCase()}[${d.name}="${CSS.escape(d.value)}"]` : null;
+}
+
+// redrawAll forgets what is on screen, so the next render repaints every section.
+function redrawAll() {
+  for (const k of Object.keys(drawn)) if (k !== "logsActive") delete drawn[k];
+}
+
+let pollTimer, pollSeq = 0, jobFailed = false;
+async function poll() {
   clearTimeout(pollTimer);
+  const seq = ++pollSeq; // an action polls at once; an older answer still on its way must not repaint over it
+  let next;
   try {
-    S = await api("/api/state");
+    next = await api("/api/state", undefined, AbortSignal.timeout(10000));
+  } catch (e) {
+    if (seq !== pollSeq) return;
+    const line = $("#state-line");
+    if (line) line.textContent = "Lost contact with the devstack app: " + e.message;
+    schedule();
+    return;
+  }
+  if (seq !== pollSeq) return;
+  S = next;
+  if (S.job) S.job.steps ||= [];
+  // A failed job (a declined Windows prompt) leaves the server unchanged: repaint
+  // so the switch that started it shows that.
+  const failed = !!(S.job && S.job.error);
+  if (failed && !jobFailed) redrawAll();
+  jobFailed = failed;
+  try {
     render();
   } catch (e) {
-    $("#state-line") && ($("#state-line").textContent = "Lost contact with the devstack app: " + e.message);
+    console.error(e);
+    toast("Couldn't draw the page: " + e.message, true);
   }
+  schedule();
+}
+
+// A hidden window stops asking; it catches up the moment it shows again.
+function schedule() {
+  clearTimeout(pollTimer);
+  if (document.hidden) return;
   const busy = S && S.job && !S.job.finished;
   pollTimer = setTimeout(poll, busy ? 400 : 1500);
 }
+document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
 
 function render() {
   const setupMode = S.needs_setup || (S.job && S.job.title === "Setting up devstack");
@@ -246,7 +290,8 @@ function renderAlerts() {
         <button class="btn small" data-log="${esc(logFor(g.name))}">Log</button>
         <button class="btn small primary" data-restart="${esc(g.name)}">Restart</button></div>`;
     });
-    for (const e of S.errors) rows.push(`<div class="alert"><i class="mark bad"></i><div class="grow">${esc(e.split("\n")[0])}</div>
+    // A stopped server already has its own row above.
+    for (const e of S.errors.filter((e) => !bad.some((g) => e.startsWith(g.name + ": ")))) rows.push(`<div class="alert"><i class="mark bad"></i><div class="grow">${esc(e.split("\n")[0])}</div>
       <button class="btn small" data-log="devstack.log">Log</button></div>`);
     if (job) rows.push(`<div class="alert"><i class="mark bad"></i><div class="grow"><b>${esc(job.title)} failed.</b> ${esc(job.error.split("\n")[0])}</div>
       <button class="btn small ghost" id="job-dismiss">Dismiss</button></div>`);
@@ -656,7 +701,8 @@ function wireVersions(el) {
 function finishInstallJob() {
   const job = installJob();
   if (!job || !job.finished) return;
-  if (job.error) toast(job.error, true); else toast(job.title.replace("Installing", "Installed"));
+  S.job = null; // report it once: the reload below renders again before the next poll
+  if (job.error) toast(job.error, true);
   api("/api/job/dismiss", {}).then(() => loadServerData()).catch(() => {});
 }
 
@@ -756,7 +802,13 @@ async function getPassword() {
     const r = await api("/api/db/reveal", {});
     db.password = r.password;
     clearTimeout(relockTimer);
-    if (r.unlocked_ms) relockTimer = setTimeout(() => { pwShown = false; loadServerData(); }, r.unlocked_ms);
+    if (r.unlocked_ms) relockTimer = setTimeout(() => {
+      pwShown = false;
+      if (db) { delete db.password; db.locked = true; }
+      delete drawn.db; delete drawn.panel;
+      if (S) render();
+      loadServerData();
+    }, r.unlocked_ms);
     return r.password;
   } catch (e) {
     if (!/cancel/i.test(e.message)) toast(e.message, true);
@@ -1325,7 +1377,7 @@ async function saveINI() {
     const res = await api("/api/phpini", { php, rev: ed.data.rev, set: ch.set, unset: ch.unset, extensions: ch.extensions });
     await loadINI();
     ed.saved = res.error ? `<span class="error-text">Saved, but PHP ${esc(php)} didn't restart: ${esc(res.error.split("\n")[0])}</span> See the Logs page.`
-      : res.running ? `Saved. ${res.actions.some((a) => a.includes("php-" + php)) ? `PHP ${esc(php)} restarted with the new settings.` : "Applied."}`
+      : res.running ? `Saved. ${(res.actions || []).some((a) => a.includes("php-" + php)) ? `PHP ${esc(php)} restarted with the new settings.` : "Applied."}`
       : "Saved. The servers use it when they start, and php in terminals uses it now.";
     drawFoot();
     poll(true);
@@ -1391,7 +1443,9 @@ async function refreshLog() {
   clearTimeout(logTimer);
   if (page !== "logs") { drawn.logsActive = false; return; }
   try {
-    const r = await api("/api/logs?name=" + encodeURIComponent(logName));
+    const asked = logName;
+    const r = await api("/api/logs?name=" + encodeURIComponent(asked));
+    if (asked !== logName || page !== "logs") return;
     logFiles = r.files;
     if (r.files.length && !r.files.includes(logName)) {
       // That log isn't written yet (a server that never logged an error): show the
@@ -1411,7 +1465,6 @@ async function refreshLog() {
     }
   } catch (e) { toast(e.message, true); }
   if ($("#log-follow").checked) logTimer = setTimeout(refreshLog, 2000);
-  else drawn.logsActive = false;
 }
 
 function drawLogFiles() {

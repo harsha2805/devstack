@@ -71,7 +71,7 @@ class SiteController extends Controller
             return null;
         }
         $feed = json_decode((string) file_get_contents($path), true);
-        if (! is_array($feed) || empty($feed['version']) || empty($feed['url']) || ! str_starts_with($feed['url'], 'https://')) {
+        if (! is_array($feed) || empty($feed['version']) || empty($feed['url']) || ! is_string($feed['url']) || ! str_starts_with($feed['url'], Releases::DOWNLOADS)) {
             return null;
         }
 

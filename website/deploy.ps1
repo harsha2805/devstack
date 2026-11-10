@@ -55,8 +55,11 @@ if ($feed) {
         Write-Host "latest.json: $url is live, included." -ForegroundColor Green
     } catch {
         Write-Warning "latest.json not included: $url isn't reachable yet. Publish the GitHub release first (..\publish-release.ps1)."
+        # An old copy from an earlier deploy must not ship and replace the server's newer feed.
+        Remove-Item public\latest.json -ErrorAction SilentlyContinue
     }
 } else {
+    Remove-Item public\latest.json -ErrorAction SilentlyContinue
     Write-Warning "No signed latest.json on GitHub or in ..\dist\release; the site shows 'coming soon' until a release is published."
 }
 Remove-Item $fromGitHub -Recurse -Force -ErrorAction SilentlyContinue
@@ -85,6 +88,8 @@ try {
     foreach ($d in "storage\framework\cache\data", "storage\framework\sessions", "storage\framework\views", "storage\logs") {
         Get-ChildItem (Join-Path $stage $d) -File -ErrorAction SilentlyContinue | Where-Object Name -ne .gitignore | Remove-Item
     }
+    # Cache entries sit two folders down; this machine's would replace the server's.
+    Get-ChildItem (Join-Path $stage "storageramework\cache\data") -Directory -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
     # Composer reports progress on stderr, which Windows PowerShell turns into an
     # error under 'Stop'; merge it inside cmd and judge by the exit code.
     cmd /c "composer install --no-dev --optimize-autoloader --no-interaction --no-progress --working-dir `"$stage`" 2>&1" | Select-Object -Last 2

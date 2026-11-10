@@ -15,6 +15,7 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -142,6 +143,10 @@ func (s *Server) routes() http.Handler {
 			return
 		}
 		w.Header().Set("Cache-Control", "no-store")
+		// The page builds its HTML from site names, .env values and log lines;
+		// should one ever slip through unescaped, it still can't run as script.
+		w.Header().Set("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
 		files.ServeHTTP(w, r)
 	})
 
@@ -334,7 +339,13 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 		Links: map[string]string{"vc_redist": setup.VCRedistURL, "odbc": packages.ODBCDriverURL}}
 	s.mu.Lock()
 	if s.job != nil {
+		// Copy the steps too: the job goroutine keeps updating them after the lock is released.
 		j := *s.job
+		j.Steps = make([]*Step, len(s.job.Steps))
+		for i, st := range s.job.Steps {
+			c := *st
+			j.Steps[i] = &c
+		}
 		v.Job = &j
 	}
 	set := s.settings
@@ -510,7 +521,7 @@ func (s *Server) startJob(w http.ResponseWriter, title string, fn func(ctx conte
 		replyErr(w, http.StatusConflict, fmt.Errorf("%s is still in progress", strings.ToLower(s.job.Title)))
 		return
 	}
-	j := &Job{Title: title}
+	j := &Job{Title: title, Steps: []*Step{}}
 	s.job = j
 	s.mu.Unlock()
 	go func() {
@@ -1215,21 +1226,12 @@ func inProject(root, p string) bool {
 }
 
 func localURL(u string) bool {
-	var host string
-	switch {
-	case strings.HasPrefix(u, "http://"):
-		host = strings.TrimPrefix(u, "http://")
-	case strings.HasPrefix(u, "https://"):
-		host = strings.TrimPrefix(u, "https://")
-	default:
+	// Parsed the way a browser will: "http://a.test:x@evil.example/" is not local.
+	p, err := url.Parse(u)
+	if err != nil || (p.Scheme != "http" && p.Scheme != "https") || p.User != nil || strings.ContainsAny(u, `\ `) {
 		return false
 	}
-	if i := strings.IndexAny(host, "/?#"); i >= 0 {
-		host = host[:i]
-	}
-	if h, _, err := net.SplitHostPort(host); err == nil {
-		host = h
-	}
+	host := strings.ToLower(p.Hostname())
 	return host == "localhost" || host == "127.0.0.1" || strings.HasSuffix(host, ".localhost") || strings.HasSuffix(host, ".test")
 }
 

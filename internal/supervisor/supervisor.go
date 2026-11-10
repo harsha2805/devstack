@@ -362,6 +362,9 @@ func (u *Unit) launch() error {
 	cmd.Env = sp.Env
 	cmd.Stdout = sp.Log
 	cmd.Stderr = sp.Log
+	// A child that outlives the server (an nginx worker) keeps the log pipe
+	// open; don't let that hide the exit.
+	cmd.WaitDelay = 5 * time.Second
 	winproc.HideWindow(cmd)
 	if err := cmd.Start(); err != nil {
 		return err
@@ -442,15 +445,16 @@ func (u *Unit) stopping() bool {
 func (u *Unit) stop(ctx context.Context) {
 	u.mu.Lock()
 	stopCh, doneCh := u.stopCh, u.doneCh
-	u.mu.Unlock()
 	if stopCh == nil {
+		u.mu.Unlock()
 		return
 	}
-	select {
+	select { // under the lock, so two stops can't both close it
 	case <-stopCh:
 	default:
 		close(stopCh)
 	}
+	u.mu.Unlock()
 	<-doneCh
 
 	// The run loop has exited. Only a Running unit still owns a live process;

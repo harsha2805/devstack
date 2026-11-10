@@ -14,6 +14,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/harsha2805/devstack/internal/config"
 	"github.com/harsha2805/devstack/internal/discover"
@@ -402,15 +403,16 @@ func (s Stack) Ports() map[int]string {
 	return out
 }
 
-// ipv6Loopback reports whether this machine can listen on [::1].
-var ipv6Loopback = func() bool {
+// ipv6Loopback reports whether this machine can listen on [::1]. Asked once:
+// the app resolves the stack on every poll.
+var ipv6Loopback = sync.OnceValue(func() bool {
 	ln, err := net.Listen("tcp6", "[::1]:0")
 	if err != nil {
 		return false
 	}
 	ln.Close()
 	return true
-}
+})
 
 func exists(p string) bool {
 	_, err := os.Stat(p)

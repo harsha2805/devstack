@@ -118,14 +118,12 @@ svg { width: 14px; height: 14px; flex: none; }
   border: 1px solid var(--rule-strong); background: var(--card); color: var(--ink);
   cursor: pointer;
 }
-.btn:hover { background: var(--hover); }
+.btn:not(:disabled):hover { background: var(--hover); }
 .btn:disabled { opacity: .45; cursor: default; }
-.btn:disabled:hover { background: var(--card); }
 .btn.primary { background: var(--act); border-color: var(--act); color: var(--on-act); }
-.btn.primary:hover { background: var(--act-hover); border-color: var(--act-hover); }
-.btn.primary:disabled:hover { background: var(--act); }
+.btn.primary:not(:disabled):hover { background: var(--act-hover); border-color: var(--act-hover); }
 .btn.ghost { background: transparent; border-color: transparent; color: var(--ink-2); }
-.btn.ghost:hover { background: var(--hover); color: var(--ink); }
+.btn.ghost:not(:disabled):hover { background: var(--hover); color: var(--ink); }
 .btn.danger { color: var(--fail); }
 .btn.small { height: 26px; padding: 0 9px; font-size: 12px; }
 .btn.icon-only { width: 30px; padding: 0; }
@@ -172,9 +170,9 @@ select { padding-right: 4px; }
 .status-word { font: 600 15px var(--display); color: var(--rail-on); }
 .status-line { font-size: 12px; color: var(--rail-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .status .btn { background: transparent; color: var(--rail-on); border-color: var(--rail-line); }
-.status .btn:hover { background: var(--rail-hover); }
+.status .btn:not(:disabled):hover { background: var(--rail-hover); }
 .status .btn.primary { background: var(--act); border-color: var(--act); color: var(--on-act); }
-.status .btn.primary:hover { background: var(--act-hover); }
+.status .btn.primary:not(:disabled):hover { background: var(--act-hover); }
 .status.busy .status-word { color: var(--warn-rail); }
 .status.bad .status-word { color: var(--fail-rail); }
 .rail :focus-visible { outline-color: var(--rail-on); }
@@ -468,7 +466,7 @@ dialog.sheet::backdrop { background: rgb(20 22 26 / .45); }
   opacity: 0; pointer-events: none; transition: opacity .18s ease;
 }
 #toast.show { opacity: 1; pointer-events: auto; }
-#toast.error { background: var(--fail); color: #fff; }
+#toast.error { background: var(--fail); color: var(--card); }
 
 /* ---- narrower windows ---- */
 @media (max-width: 900px) {

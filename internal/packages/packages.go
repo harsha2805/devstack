@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/harsha2805/devstack/internal/discover"
@@ -147,14 +148,17 @@ func NeedsODBC(name string) bool { return name == "sqlsrv" || name == "pdo_sqlsr
 var catalogJSON []byte
 
 // Default is the catalog built into this executable.
-func Default() (Catalog, error) {
+func Default() (Catalog, error) { return defaultCatalog() }
+
+// Parsed once; callers only read it.
+var defaultCatalog = sync.OnceValues(func() (Catalog, error) {
 	var c Catalog
 	if err := json.Unmarshal(catalogJSON, &c); err != nil {
 		return c, fmt.Errorf("built-in catalog: %w", err)
 	}
 	c.sort()
 	return c, nil
-}
+})
 
 func (c *Catalog) sort() {
 	sort.SliceStable(c.Entries, func(i, j int) bool {
@@ -456,8 +460,23 @@ func writeEntry(f *zip.File, target string) error {
 	return out.Close()
 }
 
+func removableKind(k discover.Kind) bool {
+	switch k {
+	case discover.Nginx, discover.PHP, discover.MySQL, discover.PhpMyAdmin, discover.Mailpit:
+		return true
+	}
+	return false
+}
+
 // Remove deletes an installed version.
 func Remove(binRoot string, kind discover.Kind, version string) error {
+	// kind and version become a folder to delete: nothing but the plain names.
+	if !removableKind(kind) {
+		return fmt.Errorf("unknown package kind %q", kind)
+	}
+	if v, err := discover.ParseVersion(version); err != nil || v.String() != version {
+		return fmt.Errorf("%q is not a version like 8.3.36", version)
+	}
 	dir := Dir(binRoot, kind, version)
 	if _, err := os.Stat(dir); err != nil {
 		return fmt.Errorf("%s %s is not installed in %s", kind, version, binRoot)

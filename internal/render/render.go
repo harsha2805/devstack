@@ -312,6 +312,7 @@ func Dirs(st *model.Stack) error {
 	dirs := []string{
 		st.Etc, st.Logs, filepath.Join(st.Logs, "sites"),
 		filepath.Join(st.EtcCustom, "nginx"),
+		filepath.Join(st.EtcCustom, "mysql"), // my.ini's !includedir fails if it is missing
 		filepath.Join(st.Data, "devstack"),
 		filepath.Join(st.Tmp, "nginx", "logs"), // nginx opens <prefix>/logs/error.log before reading its config
 		filepath.Join(st.Tmp, "nginx", "temp"),

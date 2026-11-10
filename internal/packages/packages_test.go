@@ -226,3 +226,22 @@ func TestComposer(t *testing.T) {
 		t.Errorf("FindComposer = %s, want the newest (2.10.3)", p)
 	}
 }
+
+func TestRemoveRefusesPathsOutsideBin(t *testing.T) {
+	root := t.TempDir()
+	keep := filepath.Join(root, "www")
+	os.MkdirAll(keep, 0o755)
+	bin := filepath.Join(root, "bin")
+	os.MkdirAll(filepath.Join(bin, "php", "8.3.1"), 0o755)
+	for _, c := range [][2]string{{"..", "www"}, {"php", `..\..\www`}, {"php", ".."}, {`..\www`, "1.0.0"}, {"php", ""}} {
+		if err := Remove(bin, discover.Kind(c[0]), c[1]); err == nil {
+			t.Errorf("Remove(%q, %q) should be refused", c[0], c[1])
+		}
+	}
+	if _, err := os.Stat(keep); err != nil {
+		t.Fatalf("www was deleted: %v", err)
+	}
+	if err := Remove(bin, discover.PHP, "8.3.1"); err != nil {
+		t.Errorf("removing an installed version: %v", err)
+	}
+}

@@ -186,6 +186,10 @@ func (d *Daemon) startAll(ctx context.Context) error {
 }
 
 func (d *Daemon) stopAll() {
+	// Wait for a reload or restart in progress, or it would start units after
+	// this stopped them.
+	d.opMu.Lock()
+	defer d.opMu.Unlock()
 	d.mu.Lock()
 	d.phase = api.PhaseStopping
 	d.mu.Unlock()

@@ -231,6 +231,11 @@ func LoadSite(dir string) (Site, bool, error) {
 	if filepath.IsAbs(s.Docroot) || strings.Contains(filepath.ToSlash(s.Docroot), "..") {
 		return s, true, fmt.Errorf("%s: docroot must be a folder inside the site", path)
 	}
+	// The docroot goes into nginx's config, and this file travels with the
+	// project: nothing that could end the quoted path and add directives.
+	if strings.ContainsFunc(s.Docroot, func(r rune) bool { return r < ' ' || strings.ContainsRune("\"';{}$#", r) }) {
+		return s, true, fmt.Errorf("%s: docroot can't contain quotes, ; { } $ or #", path)
+	}
 	return s, true, nil
 }
 

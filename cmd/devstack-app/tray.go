@@ -5,6 +5,8 @@ import (
 	_ "embed"
 	"fmt"
 	"os"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"fyne.io/systray"
@@ -30,11 +32,16 @@ type trayApp struct {
 	srv *ui.Server
 	win *window
 
-	toggle   *systray.MenuItem
-	sites    *systray.MenuItem
+	toggle *systray.MenuItem
+	sites  *systray.MenuItem
+
+	// mu guards the fields below: the ticker and a menu click both refresh.
+	mu       sync.Mutex
 	siteItem map[string]*systray.MenuItem
 	siteURL  map[string]string
-	quitting bool
+	ticks    int // refreshes so far
+	shown    int // sites in the submenu
+	quitting atomic.Bool
 }
 
 func (a *trayApp) run() {
@@ -98,9 +105,11 @@ func (a *trayApp) running() bool {
 
 // refresh updates the icon, tooltip, toggle label and the Sites submenu.
 func (a *trayApp) refresh() {
-	if a.quitting {
+	if a.quitting.Load() {
 		return
 	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	root := a.srv.Root()
 	busy := a.srv.Busy()
 	state, tip := "stopped", "devstack: stopped"
@@ -143,11 +152,22 @@ func (a *trayApp) refresh() {
 		a.toggle.Enable()
 	}
 	a.refreshSites(root, state != "stopped")
+	a.ticks++
 }
 
+// refreshSites runs with a.mu held. The site list is re-read every tenth
+// second; the rest of the menu follows the servers every tick.
 func (a *trayApp) refreshSites(root string, running bool) {
 	if root == "" {
 		a.sites.Disable()
+		return
+	}
+	if a.ticks%5 != 0 {
+		if running && a.shown > 0 {
+			a.sites.Enable()
+		} else {
+			a.sites.Disable()
+		}
 		return
 	}
 	l, err := stack.Load(context.Background(), root)
@@ -167,7 +187,10 @@ func (a *trayApp) refreshSites(root string, running bool) {
 		slug := s.Slug
 		go func() {
 			for range item.ClickedCh {
-				winproc.ShellOpen(a.siteURL[slug])
+				a.mu.Lock()
+				url := a.siteURL[slug]
+				a.mu.Unlock()
+				winproc.ShellOpen(url)
 			}
 		}()
 	}
@@ -178,6 +201,7 @@ func (a *trayApp) refreshSites(root string, running bool) {
 			item.Hide()
 		}
 	}
+	a.shown = len(seen)
 	if running && len(seen) > 0 {
 		a.sites.Enable()
 	} else {
@@ -187,10 +211,9 @@ func (a *trayApp) refreshSites(root string, running bool) {
 
 // quit stops the servers, then exits.
 func (a *trayApp) quit() {
-	if a.quitting {
+	if a.quitting.Swap(true) {
 		return
 	}
-	a.quitting = true
 	systray.SetTooltip("devstack: stopping…")
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()

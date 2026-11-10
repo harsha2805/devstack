@@ -5,6 +5,48 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions
 The release scripts need a section for the version they build and take the in-app update notes from the
 bold lead-ins under it, so write each feature up here when it lands.
 
+## [1.4.1] — unreleased
+
+### Security
+- **A project's `.devstack.toml` can't add to nginx's config.** A `docroot` with quotes, `;`, `{`, `}`, `$` or `#`
+  is refused, so a cloned project can't make nginx listen on the network or serve other folders.
+- **Removing a version only removes a version.** `devstack pkg remove` and the app's Remove button accept the five
+  known packages and a plain version number; a path in their place is refused instead of deleted.
+- **A site can't take over MySQL's own accounts.** Create user refuses a site named `root` (and MySQL's other
+  built-in users) and a `.env` whose `DB_DATABASE` is `mysql`, `sys`, `information_schema` or
+  `performance_schema`.
+- **Open in browser only opens local addresses.** An address written to look local, such as
+  `http://a.test:x@elsewhere.example/`, is refused.
+- **The dashboard can't run script it didn't ship with.** Its pages carry a Content-Security-Policy.
+- **Paths with a `'` are written safely into phpMyAdmin's config.**
+- **The release workflow reads the tag as text.** A tag name can no longer run as part of the build script.
+
+### Fixed
+- **A slow PHP request no longer holds up others.** nginx sends each request to an idle PHP worker (`least_conn`)
+  instead of taking turns, so a long report, upload or Xdebug session doesn't make every fourth request wait.
+- **The app could crash while downloads ran.** The dashboard read a job's progress while it was being updated, and
+  the tray menu could be rebuilt from two places at once.
+- **Switches go back when an action fails.** Declining a Windows prompt (`.test` addresses, HTTPS, PATH) or a failed
+  PHP change left the switch or picker showing what you asked for, not what devstack has.
+- **Setup and extension installs don't stall on "Lost contact".** The page stumbled on a job that had no steps yet.
+- **Keyboard focus stays where it was** when part of the page redraws (opening a site, a switch, the password eye).
+- **Follow off stops the log refreshing**; before, it made it refresh faster. Switching logs quickly no longer
+  shows one file's text under another's name.
+- **Saving php.ini no longer reports an error after a successful save** when no server needed a restart.
+- **A stopped server shows one alert, not two.** The dark theme's error message is readable.
+- **The MySQL password is forgotten after its minute** even when the app can't be reached at that moment.
+- **Stopping waits for a reload in progress**, so a server started by that reload isn't left running and then killed.
+- **A server whose child process outlives it is still noticed as stopped.**
+
+### Changed
+- **MySQL is set up for development speed.** New `my.ini` settings turn the binary log off and flush the InnoDB log
+  once a second (`innodb_flush_log_at_trx_commit = 2`): migrations, seeders and tests commit much faster, and a
+  power cut can lose the last second of writes.
+- **Your own MySQL settings.** Any `.cnf` file in `etc-custom\mysql` is read after the generated `my.ini`, so
+  its values win: put `[mysqld]` and `innodb_flush_log_at_trx_commit = 1` there to get the safe default back.
+- **The dashboard rests while its window is hidden**, and the tray re-reads the site list every ten seconds
+  instead of every two.
+
 ## [1.4.0] — 2026-11-10
 
 ### Added

@@ -96,6 +96,15 @@ func TestLoadSite(t *testing.T) {
 	if _, _, err := LoadSite(dir); err == nil {
 		t.Error("docroot escaping the site should fail")
 	}
+	// The docroot lands in nginx's config: it can't close the quote and add directives.
+	os.WriteFile(filepath.Join(dir, SiteFileName), []byte(`docroot = "x\";\n listen 0.0.0.0:8088;#"`), 0o644)
+	if _, _, err := LoadSite(dir); err == nil {
+		t.Error("docroot with nginx syntax should fail")
+	}
+	os.WriteFile(filepath.Join(dir, SiteFileName), []byte(`docroot = "public/web-1.0"`), 0o644)
+	if s, _, err := LoadSite(dir); err != nil || s.Docroot != "public/web-1.0" {
+		t.Errorf("plain docroot: %q, %v", s.Docroot, err)
+	}
 }
 
 func TestFindRoot(t *testing.T) {

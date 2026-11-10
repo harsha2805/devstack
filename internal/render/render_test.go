@@ -113,7 +113,7 @@ func TestWritePrunesAndIsIdempotent(t *testing.T) {
 	if res.Changed() {
 		t.Errorf("second write should change nothing: %+v", res)
 	}
-	for _, d := range []string{"tmp/nginx/logs", "tmp/php/sessions", "etc-custom/nginx", "logs/sites"} {
+	for _, d := range []string{"tmp/nginx/logs", "tmp/php/sessions", "etc-custom/nginx", "etc-custom/mysql", "logs/sites"} {
 		if _, err := os.Stat(filepath.Join(st.Root, d)); err != nil {
 			t.Errorf("runtime dir %s missing", d)
 		}

@@ -58,6 +58,14 @@ func SiteDBUser(ctx context.Context, root, slug string) (SiteUser, error) {
 		return SiteUser{}, fmt.Errorf("devstack can only make users for database names of letters, digits, _ and $ (.env has %q)", env.Name)
 	}
 	user := SiteUserName(slug)
+	// A site named "root", or a .env naming a system schema, must not hand the
+	// site MySQL's own accounts or tables.
+	if reservedDBUsers[strings.ToLower(user)] {
+		return SiteUser{}, fmt.Errorf("%q is one of MySQL's own users; rename the site to give it a user", user)
+	}
+	if systemSchemas[strings.ToLower(env.Name)] {
+		return SiteUser{}, fmt.Errorf("%s is one of MySQL's own databases; set DB_DATABASE to the site's database", env.Name)
+	}
 	pw := services.RandomPassword(24)
 
 	db, err := services.RootDB(ctx, st)
@@ -91,6 +99,11 @@ func SiteDBUser(ctx context.Context, root, slug string) (SiteUser, error) {
 
 // envOrder is the order missing keys are added in, Laravel's own.
 var envOrder = []string{"DB_USERNAME", "DB_PASSWORD", "MAIL_MAILER", "MAIL_SCHEME", "MAIL_HOST", "MAIL_PORT"}
+
+var (
+	reservedDBUsers = map[string]bool{"root": true, "mysql.sys": true, "mysql.session": true, "mysql.infoschema": true, "mariadb.sys": true}
+	systemSchemas   = map[string]bool{"mysql": true, "sys": true, "information_schema": true, "performance_schema": true}
+)
 
 // dbNameRe is what SiteDBUser accepts as a database name.
 var dbNameRe = regexp.MustCompile(`^[A-Za-z0-9_$]{1,64}$`)

@@ -44,8 +44,16 @@ class Releases
         if (is_array($cached) && $cached['next'] > now()->getTimestamp()) {
             return $cached['data'];
         }
-
-        return self::refresh();
+        // One visitor refreshes; the rest get the last data rather than each
+        // waiting on GitHub too.
+        if (! Cache::add(self::KEY.':refreshing', true, 60)) {
+            return is_array($cached) ? $cached['data'] : null;
+        }
+        try {
+            return self::refresh();
+        } finally {
+            Cache::forget(self::KEY.':refreshing');
+        }
     }
 
     /** Asks GitHub now (the release hook); keeps the last data if it can't. */
@@ -115,7 +123,11 @@ class Releases
             if ($latest) {
                 $assets = $files[(string) $latest['tag_name']] ?? [];
                 if (isset($assets['latest.json'])) {
-                    self::storeFeed($assets['latest.json'], ltrim((string) $latest['tag_name'], 'v'));
+                    try {
+                        self::storeFeed($assets['latest.json'], ltrim((string) $latest['tag_name'], 'v'));
+                    } catch (Throwable $e) {
+                        report($e); // an unwritable latest.json must not cost the page its downloads and changelog
+                    }
                 }
                 if (isset($assets['changelog.json'])) {
                     $changelog = self::fetchChangelog($assets['changelog.json']);
@@ -130,7 +142,9 @@ class Releases
                 'files' => $files,
                 'changelog' => $changelog,
             ];
-        } catch (Throwable) {
+        } catch (Throwable $e) {
+            report($e);
+
             return null;
         }
     }
@@ -176,6 +190,6 @@ class Releases
 
     private static function http()
     {
-        return Http::timeout(5)->withHeaders(['Accept' => 'application/vnd.github+json', 'User-Agent' => 'devstack-website']);
+        return Http::connectTimeout(3)->timeout(5)->withHeaders(['Accept' => 'application/vnd.github+json', 'User-Agent' => 'devstack-website']);
     }
 }
