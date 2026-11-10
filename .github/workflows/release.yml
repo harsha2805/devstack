@@ -43,7 +43,7 @@ jobs:
         env:
           KEY_PEM: ${{ secrets.DEVSTACK_UPDATE_KEY }}
         run: |
-          $v = $env:GITHUB_REF_NAME.TrimStart('v')   # not ${{ }}: a tag name is text, never script
+          $v = $env:GITHUB_REF_NAME.TrimStart('v')   # read from env, not interpolated: a tag name is text, never script
           if ($v -notmatch '^\d+\.\d+\.\d+$') { throw "Tags must look like v1.2.3" }
           . .\release-lib.ps1
           $null = Get-UpdateNotes $v   # the changelog must describe it
