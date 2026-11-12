@@ -26,8 +26,7 @@
       </ul>
 
       <h2>This website</h2>
-      <p>No analytics and no tracking cookies. The site sets two technical cookies (a session and a security token)
-        that expire after two hours. The web server keeps standard access logs (IP address, page, time, browser)
+      <p>No analytics and no cookies. The web server keeps standard access logs (IP address, page, time, browser)
         for security and troubleshooting. The download count on the home page comes from GitHub's
         public release statistics.</p>
 

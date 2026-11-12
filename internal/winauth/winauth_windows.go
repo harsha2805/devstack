@@ -136,7 +136,8 @@ func hello(owner uintptr, message string) (bool, error) {
 }
 
 // password asks for the current user's Windows password in the standard
-// credential prompt and checks it with LogonUser. Wrong passwords ask again.
+// credential prompt and checks it with LogonUser. Wrong passwords ask again,
+// and so does another account's valid password: only the signed-in user passes.
 func password(owner uintptr, message string) error {
 	caption, _ := windows.UTF16PtrFromString("devstack")
 	text, _ := windows.UTF16PtrFromString(message)
@@ -217,15 +218,30 @@ func logon(user, domain string, pass []uint16) bool {
 	if len(pass) == 0 || pass[len(pass)-1] != 0 {
 		pass = append(pass, 0)
 	}
-	var token windows.Handle
+	var token windows.Token
 	const interactive, defaultProvider = 2, 0
 	r, _, _ := procLogonUser.Call(uintptr(unsafe.Pointer(u)), uintptr(unsafe.Pointer(d)), uintptr(unsafe.Pointer(&pass[0])),
 		interactive, defaultProvider, uintptr(unsafe.Pointer(&token)))
 	if r == 0 {
 		return false
 	}
-	windows.CloseHandle(token)
-	return true
+	defer token.Close()
+	return sameAccount(token, windows.GetCurrentProcessToken())
+}
+
+// sameAccount reports whether two tokens belong to the same Windows account.
+// Compared by SID, since one account has many names (DOMAIN\user, .\user,
+// MicrosoftAccount\name@example.com).
+func sameAccount(a, b windows.Token) bool {
+	ua, err := a.GetTokenUser()
+	if err != nil {
+		return false
+	}
+	ub, err := b.GetTokenUser()
+	if err != nil {
+		return false
+	}
+	return windows.EqualSid(ua.User.Sid, ub.User.Sid)
 }
 
 func hstring(s string) (uintptr, error) {

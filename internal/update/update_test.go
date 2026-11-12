@@ -178,3 +178,17 @@ func TestDownload(t *testing.T) {
 		t.Fatalf("left behind: %v", left)
 	}
 }
+
+// The website checks a release's feed before serving it, with its own copy of
+// the keys (Releases::KEYS). A key added here must be added there.
+func TestWebsiteHasTheReleaseKeys(t *testing.T) {
+	php, err := os.ReadFile("../../website/app/Support/Releases.php")
+	if err != nil {
+		t.Skip("no website folder:", err)
+	}
+	for _, k := range TrustedKeys {
+		if !strings.Contains(string(php), "'"+k+"'") {
+			t.Errorf("website/app/Support/Releases.php KEYS lacks %s", k)
+		}
+	}
+}

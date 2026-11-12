@@ -201,7 +201,7 @@ Unit = one OS process. States: `stopped → starting → running → stopping �
 |---|---|---|---|---|
 | nginx | `nginx.exe -p tmp/nginx/ -c etc/nginx/nginx.conf -e logs/nginx-error.log` | TCP :http | `nginx -s quit` (same `-p -c`) | `nginx -t` runs before start and before reload; reload = `-s reload` |
 | php-X.Y #i | `php-cgi.exe -b 127.0.0.1:<port> -c etc/php/X.Y/php.ini` | TCP :port | kill (stateless) | env `PHP_FCGI_MAX_REQUESTS`, `PHP_FCGI_CHILDREN=0`; nginx `upstream phpXY` lists all workers |
-| mysql | `mysqld.exe --defaults-file=etc/mysql/my.ini --console` | `PING` as root | SQL `SHUTDOWN` | empty datadir → `--initialize-insecure` first; then set the generated root password |
+| mysql | `mysqld.exe --defaults-file=etc/mysql/my.ini --console` | `PING` as root | SQL `SHUTDOWN` | empty datadir → `--initialize-insecure --init-file=<ALTER USER with the saved root password>`, so root never has an empty password |
 
 There is no php-fpm on Windows, and several php-cgi processes can't reliably share one port. Each worker therefore
 gets its own port, and Nginx load-balances across them. If one worker is recycling, Nginx tries the next.

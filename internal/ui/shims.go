@@ -13,8 +13,9 @@ import (
 // shimsView is whether php and composer in terminals run each site's PHP.
 type shimsView struct {
 	shim.PathStatus
-	OK      bool   `json:"ok"`
-	Problem string `json:"problem,omitempty"`
+	OK         bool   `json:"ok"`
+	NeedsAdmin bool   `json:"needs_admin,omitempty"`
+	Problem    string `json:"problem,omitempty"`
 }
 
 // handleTerminal opens a terminal in a site's folder, where php and
@@ -44,7 +45,7 @@ func (s *Server) handleTerminal(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleShimsFix(w http.ResponseWriter, r *http.Request) {
 	s.startJob(w, "Putting devstack's php first on PATH", func(ctx context.Context, j *Job) error {
 		label := "Updating your PATH"
-		if st, ok := control.ShimStatus(); ok && st.BlockerSystem {
+		if st, ok := control.ShimStatus(); ok && st.NeedsAdmin() {
 			label = "Waiting for administrator approval"
 		}
 		s.step(j, label, "running", 0, 0)

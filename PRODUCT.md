@@ -65,7 +65,8 @@ PHP and MySQL versions, then devstack downloads and starts them.
   ODBC driver).
 - Versions: PHP 8.1–8.5, MySQL and nginx builds to install or remove from a pinned catalog.
 - Optional one-time setups: `.test` addresses (one admin prompt), trusted HTTPS (one Windows trust prompt), devstack's
-  php first on PATH (admin prompt only when another PHP is on the system PATH).
+  php first on PATH (admin prompt only when another PHP is on the system PATH; the system PATH then gets an
+  administrators-only copy of the shims in Program Files).
 - Settings: stack folder, `stack.toml`, start servers on open, open at sign-in, daily update check, update download
   with progress, about, sponsor.
 - Constraints: no Node build step for the dashboard; plain files embedded in the Go binary. Polling API, not push.

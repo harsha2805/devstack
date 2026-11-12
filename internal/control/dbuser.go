@@ -2,6 +2,8 @@ package control
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -109,11 +111,14 @@ var (
 var dbNameRe = regexp.MustCompile(`^[A-Za-z0-9_$]{1,64}$`)
 
 // SiteUserName is the MySQL user for a site: its slug with _ for -, at most
-// 32 characters (MySQL's limit).
+// 32 characters (MySQL's limit). A longer slug keeps its first 23 characters
+// and adds _ and 8 hex digits of its hash, so two long slugs that start alike
+// get users of their own.
 func SiteUserName(slug string) string {
 	u := strings.ReplaceAll(slug, "-", "_")
 	if len(u) > 32 {
-		u = u[:32]
+		sum := sha256.Sum256([]byte(slug))
+		u = u[:23] + "_" + hex.EncodeToString(sum[:4])
 	}
 	return u
 }

@@ -8,12 +8,19 @@
 <meta name="description" content="@yield('description', 'devstack runs nginx, PHP and MySQL for every project folder on Windows, with per-site PHP versions, .test addresses, trusted HTTPS and AI guides for coding agents. Free and open source.')">
 <link rel="icon" href="{{ asset('favicon.ico') }}">
 <link rel="stylesheet" href="{{ asset('css/site.css') }}?v={{ filemtime(public_path('css/site.css')) }}">
+<link rel="canonical" href="{{ url()->current() }}">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="devstack">
 <meta property="og:title" content="@yield('title', 'devstack')">
-<meta property="og:description" content="Local nginx, PHP and MySQL for Windows. Free and open source.">
+<meta property="og:description" content="@yield('description', 'Local nginx, PHP and MySQL for Windows. Free and open source.')">
 <meta property="og:image" content="{{ asset('img/dashboard-light.png') }}">
+<meta property="og:image:width" content="2000">
+<meta property="og:image:height" content="960">
 <meta property="og:url" content="{{ url()->current() }}">
+<meta name="twitter:card" content="summary_large_image">
 </head>
 <body>
+<a class="skip" href="#main">Skip to content</a>
 <header class="top">
   <div class="wrap top-row">
     <a class="brand" href="{{ route('home') }}"><img src="{{ asset('img/icon.png') }}" alt="" width="28" height="28"> devstack</a>
@@ -26,7 +33,7 @@
   </div>
 </header>
 
-<main>
+<main id="main">
 @yield('content')
 </main>
 

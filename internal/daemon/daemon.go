@@ -23,6 +23,7 @@ import (
 
 	"github.com/harsha2805/devstack/internal/aiguide"
 	"github.com/harsha2805/devstack/internal/api"
+	"github.com/harsha2805/devstack/internal/appconf"
 	"github.com/harsha2805/devstack/internal/dns"
 	"github.com/harsha2805/devstack/internal/logfile"
 	"github.com/harsha2805/devstack/internal/model"
@@ -89,6 +90,7 @@ func Run(ctx context.Context, opts Options) error {
 		time.Sleep(50 * time.Millisecond)
 	}
 	defer lock.Close()
+	appconf.Trust(opts.Root) // a started stack is trusted (appconf.Trusted); best effort
 
 	lw, err := logfile.Open(filepath.Join(opts.Root, "logs", "devstack.log"))
 	if err != nil {
@@ -100,6 +102,15 @@ func Run(ctx context.Context, opts Options) error {
 		out = io.MultiWriter(lw, opts.Console)
 	}
 	logger := log.New(out, "", log.LstdFlags)
+	// Stacks set up before 1.4.2 inherit the drive's permissions, which let
+	// every local account read secrets.toml and replace bin\. Once per stack.
+	if !winproc.Protected(opts.Root) {
+		if err := winproc.ProtectFolder(opts.Root); err != nil {
+			logger.Printf("limiting %s to this account: %v", opts.Root, err)
+		} else {
+			logger.Printf("limited %s to this account, SYSTEM and Administrators", opts.Root)
+		}
+	}
 
 	d := &Daemon{
 		opts:     opts,
@@ -169,14 +180,23 @@ func (d *Daemon) startAll(ctx context.Context) error {
 	d.www, d.projects, d.scan = l.WWW, l.Projects, fingerprint(l.Sites, st)
 	d.mu.Unlock()
 
+	// In order (MySQL and Mailpit, PHP, nginx), except that the PHP workers,
+	// which need nothing from each other, start together: one by one they took
+	// seconds with several pools.
+	rotateLogs(st, d.log)
 	var errs []string
-	for _, sp := range specs {
+	for i := 0; i < len(specs); {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		if _, err := d.sup.Add(ctx, sp); err != nil {
+		j := i + 1
+		for strings.HasPrefix(specs[i].Group, "php-") && j < len(specs) && strings.HasPrefix(specs[j].Group, "php-") {
+			j++
+		}
+		for _, err := range d.sup.AddAll(ctx, specs[i:j]) {
 			errs = append(errs, err.Error())
 		}
+		i = j
 	}
 	d.mu.Lock()
 	d.phase, d.errs = api.PhaseRunning, errs

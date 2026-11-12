@@ -2,12 +2,13 @@ package daemon
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/harsha2805/devstack/internal/api"
 	"github.com/harsha2805/devstack/internal/model"
-	"github.com/harsha2805/devstack/internal/render"
 	"github.com/harsha2805/devstack/internal/sites"
 )
 
@@ -97,9 +98,13 @@ func fingerprint(list []sites.Site, st *model.Stack) string {
 	var b strings.Builder
 	if st != nil {
 		for _, p := range st.PHP {
+			// Size and time, not the text: this runs every watchInterval. A
+			// save that changes nothing renders the same files, so the reload
+			// it causes leaves the servers alone.
 			b.WriteString(p.Key)
-			b.WriteByte(0)
-			b.WriteString(render.CustomINI(p))
+			if fi, err := os.Stat(p.CustomINI); err == nil {
+				fmt.Fprintf(&b, "\x00%d\x00%d", fi.Size(), fi.ModTime().UnixNano())
+			}
 			b.WriteByte('\n')
 		}
 	}

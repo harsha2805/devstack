@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/harsha2805/devstack/internal/discover"
+	"github.com/harsha2805/devstack/internal/shim"
 )
 
 // Entry is one downloadable build.
@@ -82,22 +83,7 @@ func (c Composer) String() string { return "Composer " + c.Version }
 func ComposerDir(binRoot string) string { return filepath.Join(binRoot, "composer") }
 
 // FindComposer returns the newest installed composer.phar under binRoot.
-func FindComposer(binRoot string) (string, bool) {
-	entries, _ := os.ReadDir(ComposerDir(binRoot))
-	var best discover.Version
-	path := ""
-	for _, e := range entries {
-		v, err := discover.ParseVersion(e.Name())
-		phar := filepath.Join(ComposerDir(binRoot), e.Name(), "composer.phar")
-		if _, serr := os.Stat(phar); err != nil || serr != nil {
-			continue
-		}
-		if path == "" || best.Less(v) {
-			best, path = v, phar
-		}
-	}
-	return path, path != ""
-}
+func FindComposer(binRoot string) (string, bool) { return shim.FindComposer(binRoot) }
 
 // InstallComposer downloads and verifies c into bin/composer/<version>/.
 func InstallComposer(ctx context.Context, binRoot string, c Composer, progress Progress) (string, error) {

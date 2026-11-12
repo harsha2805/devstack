@@ -238,9 +238,15 @@ begin
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
+var
+  Code: Integer;
 begin
   if CurStep = ssPostInstall then
   begin
+    { A folder at a drive root inherits "Authenticated Users: Modify". Limit it
+      to this account, SYSTEM and Administrators before the stack goes in.
+      Upgrades get it too; www keeps its permissions (internal/winproc/acl_windows.go). }
+    Exec(ExpandConstant('{app}\devstack.exe'), 'protect "' + ExpandConstant('{app}') + '"', ExpandConstant('{app}'), SW_HIDE, ewWaitUntilTerminated, Code);
     AddToPath(ExpandConstant('{app}'));
     PrependToPath(ExpandConstant('{app}\shims'));
   end;
@@ -290,6 +296,10 @@ begin
       RegDeleteValue(HKCU, RunKey, RunValue);
     RemoveFromPath(ExpandConstant('{app}'));
     RemoveFromPath(ExpandConstant('{app}\shims'));
+    { "Fix PATH" may have put an administrators-only copy of the shims on the
+      system PATH; taking it off needs administrator approval. }
+    if DirExists(ExpandConstant('{commonpf64}\devstack\shims')) and FileExists(ExpandConstant('{app}\devstack.exe')) then
+      ShellExec('runas', ExpandConstant('{app}\devstack.exe'), 'shims remove-system', ExpandConstant('{app}'), SW_HIDE, ewWaitUntilTerminated, Code);
   end;
   if (CurUninstallStep = usPostUninstall) and (StackRoot <> '') and DirExists(StackRoot) and not UninstallSilent then
     MsgBox('devstack is removed. Your stack folder was kept, with your sites and databases:' + #13#10#13#10 +

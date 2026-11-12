@@ -65,6 +65,11 @@ func CheckDNS(ctx context.Context, root string, probe bool) (DNSStatus, error) {
 	if err != nil {
 		return DNSStatus{}, err
 	}
+	return DNSStatusOf(ctx, cfg, probe), nil
+}
+
+// DNSStatusOf is CheckDNS for a config already loaded.
+func DNSStatusOf(ctx context.Context, cfg config.Stack, probe bool) DNSStatus {
 	s := DNSStatus{TLD: cfg.TLD, On: cfg.Services.DNS == "on", Rule: dns.RuleInstalled(cfg.TLD)}
 	if probe && s.On && s.Rule {
 		ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
@@ -72,7 +77,7 @@ func CheckDNS(ctx context.Context, root string, probe bool) (DNSStatus, error) {
 		addrs, err := net.DefaultResolver.LookupHost(ctx, "devstack-check."+cfg.TLD)
 		s.Answers = err == nil && len(addrs) > 0 && (addrs[0] == "127.0.0.1" || addrs[0] == "::1")
 	}
-	return s, nil
+	return s
 }
 
 // ErrDNSDeclined is returned when the user says no to the administrator prompt.

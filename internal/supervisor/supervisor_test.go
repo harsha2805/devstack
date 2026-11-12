@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -161,5 +162,29 @@ func TestReplaceKeepsPosition(t *testing.T) {
 	}
 	if a.Status().State != Stopped {
 		t.Error("old unit should be stopped")
+	}
+}
+
+func TestAddAllStartsTogetherInOrder(t *testing.T) {
+	s := New(nil)
+	defer s.StopAll(context.Background())
+	specs := []Spec{
+		helperSpec(t, "php#0", "listen", freePort(t)),
+		helperSpec(t, "php#1", "fail", freePort(t)),
+		helperSpec(t, "php#2", "listen", freePort(t)),
+	}
+	errs := s.AddAll(context.Background(), specs)
+	if len(errs) != 1 || !strings.Contains(errs[0].Error(), "php#1") {
+		t.Errorf("errors = %v; want php#1's", errs)
+	}
+	var names []string
+	for _, st := range s.Statuses() {
+		names = append(names, st.Name)
+	}
+	if got := strings.Join(names, ","); got != "php#0,php#1,php#2" {
+		t.Errorf("units listed as %s", got)
+	}
+	if s.Units()[0].Status().State != Running || s.Units()[2].Status().State != Running {
+		t.Error("the good units aren't running")
 	}
 }

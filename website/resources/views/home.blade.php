@@ -38,7 +38,12 @@
     </div>
     <figure class="shot">
       <picture>
+        {{-- WebP at 1x and 2x; the PNG stays as the fallback and the social preview image. --}}
+        <source type="image/webp" media="(prefers-color-scheme: dark)" sizes="(max-width: 1040px) 100vw, 1000px"
+          srcset="{{ asset('img/dashboard-dark-1000.webp') }} 1000w, {{ asset('img/dashboard-dark.webp') }} 2000w">
         <source srcset="{{ asset('img/dashboard-dark.png') }}" media="(prefers-color-scheme: dark)">
+        <source type="image/webp" sizes="(max-width: 1040px) 100vw, 1000px"
+          srcset="{{ asset('img/dashboard-light-1000.webp') }} 1000w, {{ asset('img/dashboard-light.webp') }} 2000w">
         <img src="{{ asset('img/dashboard-light.png') }}" width="1000" height="480"
           alt="The devstack dashboard: servers running, and four sites with their .test addresses, PHP versions and AI guide switches.">
       </picture>

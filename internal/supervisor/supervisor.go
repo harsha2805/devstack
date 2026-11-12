@@ -192,6 +192,38 @@ func (s *Supervisor) Add(ctx context.Context, spec Spec) (*Unit, error) {
 	return u, u.start(ctx)
 }
 
+// AddAll is Add for specs that don't depend on each other (the workers of the
+// PHP pools): they start at the same time, and are listed in order. It returns
+// one error per spec that failed to start.
+func (s *Supervisor) AddAll(ctx context.Context, specs []Spec) []error {
+	units := make([]*Unit, len(specs))
+	s.mu.Lock()
+	for i, spec := range specs {
+		u := &Unit{spec: spec, state: Stopped, since: time.Now(), confKey: spec.ConfKey}
+		u.logf = func(format string, args ...any) { s.log.Printf(spec.Name+": "+format, args...) }
+		units[i] = u
+		s.units = append(s.units, u)
+	}
+	s.mu.Unlock()
+	errs := make([]error, len(units))
+	var wg sync.WaitGroup
+	for i, u := range units {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errs[i] = u.start(ctx)
+		}()
+	}
+	wg.Wait()
+	var out []error
+	for _, err := range errs {
+		if err != nil {
+			out = append(out, err)
+		}
+	}
+	return out
+}
+
 // Remove stops a unit and forgets it.
 func (s *Supervisor) Remove(ctx context.Context, u *Unit) {
 	u.stop(ctx)

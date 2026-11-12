@@ -24,6 +24,10 @@ func TestSiteUserName(t *testing.T) {
 	if got := SiteUserName("chess-analysis"); got != "chess_analysis" {
 		t.Errorf("got %q", got)
 	}
+	a, b := SiteUserName("a-very-long-site-name-that-goes-past-the-limit"), SiteUserName("a-very-long-site-name-that-goes-past-the-other")
+	if a == b {
+		t.Errorf("two long slugs with the same start share user %s", a)
+	}
 	if got := SiteUserName("a-very-long-site-name-that-goes-past-the-limit"); len(got) != 32 {
 		t.Errorf("not cut to 32: %q", got)
 	}

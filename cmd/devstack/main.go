@@ -16,6 +16,7 @@ import (
 
 	"github.com/harsha2805/devstack/internal/config"
 	"github.com/harsha2805/devstack/internal/packages"
+	"github.com/harsha2805/devstack/internal/winproc"
 )
 
 // version is set at build time: -ldflags "-X main.version=0.1.0".
@@ -67,6 +68,7 @@ func init() {
 		{"terminal", "SITE", "open a terminal in a site's folder, with its PHP", false, cmdTerminal},
 		{"version", "", "print the version", false, cmdVersion},
 		{"daemon", "", "run the supervisor (started by `up`)", true, cmdDaemon},
+		{"protect", "DIR", "limit a stack folder to this account (run by Setup)", true, cmdProtect},
 	}
 }
 
@@ -128,7 +130,9 @@ func usage(w io.Writer) {
 	tw.Flush()
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "The root is the folder holding stack.toml: --root, else DEVSTACK_ROOT, else the")
-	fmt.Fprintln(w, "nearest parent of the current folder, else the folder of devstack.exe.")
+	fmt.Fprintln(w, "nearest parent of the current folder, else the folder of devstack.exe. A stack.toml")
+	fmt.Fprintln(w, "found in a parent is only used once the stack has been set up, started or passed")
+	fmt.Fprintln(w, "with --root on this account, so a cloned project can't bring its own.")
 }
 
 // extractRoot pulls --root DIR / --root=DIR from anywhere in args.
@@ -176,4 +180,17 @@ func parse(fs *flag.FlagSet, args []string) ([]string, error) {
 func cmdVersion(_ context.Context, e *env, _ []string) error {
 	fmt.Fprintln(e.stdout, "devstack", version)
 	return nil
+}
+
+// cmdProtect limits a folder to this account, SYSTEM and Administrators.
+// Setup runs it on the install folder, which by default sits at a drive root
+// whose permissions let every local account change it.
+func cmdProtect(_ context.Context, e *env, args []string) error {
+	if len(args) != 1 {
+		return usageError{"usage: protect DIR"}
+	}
+	if winproc.Protected(args[0]) {
+		return nil
+	}
+	return winproc.ProtectFolder(args[0])
 }

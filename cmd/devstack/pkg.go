@@ -66,6 +66,24 @@ func cmdPkg(ctx context.Context, e *env, args []string) error {
 			fmt.Fprintln(e.stdout, "Run `devstack reload` (or `up`) to use it.")
 		}
 		return err
+	case "composer":
+		// Run by the php-shim (as composer.exe) the first time Composer is
+		// used; it prints to stderr, which the shim passes through.
+		if p, ok := packages.FindComposer(bin); ok {
+			fmt.Fprintln(e.stdout, p)
+			return nil
+		}
+		if cat.Composer == nil {
+			return errors.New("this devstack has no Composer to install")
+		}
+		fmt.Fprintf(e.stderr, "devstack: downloading %s (once) ...\n", cat.Composer)
+		p, err := packages.InstallComposer(ctx, bin, *cat.Composer, nil)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(e.stderr, "devstack: %s verified and installed in %s\n\n", cat.Composer, filepath.Dir(p))
+		fmt.Fprintln(e.stdout, p)
+		return nil
 	case "remove", "rm":
 		if len(rest) > 0 && rest[0] == "ext" {
 			return pkgExt(ctx, e, root, rest[1:], false)

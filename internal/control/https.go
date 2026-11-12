@@ -106,10 +106,15 @@ func CheckHTTPS(root string) (HTTPSStatus, error) {
 	if err != nil {
 		return HTTPSStatus{}, err
 	}
+	return HTTPSStatusOf(cfg), nil
+}
+
+// HTTPSStatusOf is CheckHTTPS for a config already loaded.
+func HTTPSStatusOf(cfg config.Stack) HTTPSStatus {
 	s := HTTPSStatus{On: cfg.Services.HTTPS == "on", Port: cfg.Ports.HTTPS}
 	if ca, err := certs.Load(); err == nil {
 		s.Trusted = ca.Trusted()
 		s.CA = ca.Path
 	}
-	return s, nil
+	return s
 }

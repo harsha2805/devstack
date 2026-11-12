@@ -12,6 +12,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/harsha2805/devstack/internal/appconf"
 	"github.com/harsha2805/devstack/internal/config"
 	"github.com/harsha2805/devstack/internal/discover"
 	"github.com/harsha2805/devstack/internal/model"
@@ -170,6 +171,13 @@ func Init(ctx context.Context, o Options, ev Events) (Result, error) {
 	if err := os.MkdirAll(o.Root, 0o755); err != nil {
 		return res, err
 	}
+	// Before anything is written: a folder at a drive root lets every local
+	// account read and change what goes in it (the MySQL password, servers).
+	// Best effort: drives without permissions (FAT, exFAT) refuse it, and the
+	// daemon tries again and logs why on every start.
+	if !winproc.Protected(o.Root) {
+		winproc.ProtectFolder(o.Root)
+	}
 
 	bins := binRoots(o)
 	found := discover.Scan(ctx, bins)
@@ -236,6 +244,11 @@ func Init(ctx context.Context, o Options, ev Events) (Result, error) {
 		return res, err
 	}
 	if err := os.WriteFile(res.ConfigPath, []byte(strings.ReplaceAll(sb.String(), "\n", "\r\n")), 0o644); err != nil {
+		return res, err
+	}
+	// The CLI and the shims only use a stack.toml / php-shims.json found above
+	// the current folder when its root was set up or started here.
+	if err := appconf.Trust(o.Root); err != nil {
 		return res, err
 	}
 

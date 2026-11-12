@@ -71,14 +71,26 @@ func TestFindRootAndMap(t *testing.T) {
 	if err := Write(root, m); err != nil {
 		t.Fatal(err)
 	}
-	if got := FindRoot(site, "", "elsewhere"); got != root {
+	trusted := func(d string) bool { return d == root }
+	if got := FindRoot(site, "", "elsewhere", trusted); got != root {
 		t.Errorf("FindRoot from a site: %s", got)
 	}
-	if got := FindRoot(t.TempDir(), "", "elsewhere"); got != "elsewhere" {
+	if got := FindRoot(t.TempDir(), "", "elsewhere", trusted); got != "elsewhere" {
 		t.Errorf("FindRoot outside a stack: %s", got)
 	}
-	if got := FindRoot(site, `D:\set`, "elsewhere"); got != `D:\set` {
+	if got := FindRoot(site, `D:\set`, "elsewhere", trusted); got != `D:\set` {
 		t.Errorf("DEVSTACK_ROOT ignored: %s", got)
+	}
+	// A cloned project inside www shipping its own map, naming its own php.exe:
+	// passed over for the trusted stack above it.
+	if err := Write(site, Map{Default: "x", PHP: map[string]Build{"x": {Exe: `C:\evil.exe`}}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := FindRoot(filepath.Join(site, "src"), "", "elsewhere", trusted); got != root {
+		t.Errorf("FindRoot used an untrusted map: %s", got)
+	}
+	if got := FindRoot(site, "", "elsewhere", func(string) bool { return false }); got != "elsewhere" {
+		t.Errorf("FindRoot with nothing trusted: %s", got)
 	}
 	got, err := Load(root)
 	if err != nil || got.PHP["8.3"].Version != "8.3.36" {
@@ -94,7 +106,8 @@ func TestCheckPath(t *testing.T) {
 	shims := filepath.Join(base, "devstack", "shims")
 	other := filepath.Join(base, "php")
 	plain := filepath.Join(base, "tools")
-	for _, d := range []string{shims, other, plain} {
+	pf := filepath.Join(base, "Program Files", "devstack", "shims")
+	for _, d := range []string{shims, other, plain, pf} {
 		os.MkdirAll(d, 0o755)
 	}
 	os.WriteFile(filepath.Join(other, "php.exe"), nil, 0o644)
@@ -109,9 +122,13 @@ func TestCheckPath(t *testing.T) {
 		{"behind a user PHP", plain, other + ";" + shims, false, other, false},
 		{"behind a system PHP", other, shims, false, other, true},
 		{"not on PATH", other, plain, false, "", false},
+		// 1.4.1 and earlier put the user-writable folder on the system PATH.
+		{"user-writable folder on the system PATH", shims, "", false, "", false},
+		{"admin copy first on the system PATH", pf + ";" + other, shims, true, "", false},
+		{"admin copy behind a system PHP", other + ";" + pf, "", false, other, true},
 		{"trailing slash and quotes", "", `"` + shims + `\"`, true, "", false},
 	} {
-		s := CheckPath(shims, c.system, c.user)
+		s := CheckPath(shims, pf, c.system, c.user)
 		if s.OK() != c.ok || s.Blocker != c.blocker || s.BlockerSystem != c.system_ {
 			t.Errorf("%s: %+v", c.name, s)
 		}
@@ -120,7 +137,32 @@ func TestCheckPath(t *testing.T) {
 		}
 	}
 
+	if s := CheckPath(shims, pf, shims, ""); !s.Unsafe || !s.NeedsAdmin() {
+		t.Errorf("shims on the system PATH: %+v", s)
+	}
+	if s := CheckPath(shims, pf, pf, ""); s.System != pf {
+		t.Errorf("admin copy: %+v", s)
+	}
+	if got := Remove(shims+";"+other, shims); got != other {
+		t.Errorf("Remove: %s", got)
+	}
 	if got := Prepend(other+";"+shims+";;"+plain, shims); got != shims+";"+other+";"+plain {
 		t.Errorf("Prepend: %s", got)
+	}
+}
+
+func TestFindComposer(t *testing.T) {
+	bin := t.TempDir()
+	for _, v := range []string{"2.8.9", "2.8.12", "2.10.0", "junk"} {
+		os.MkdirAll(filepath.Join(bin, "composer", v), 0o755)
+		os.WriteFile(filepath.Join(bin, "composer", v, "composer.phar"), nil, 0o644)
+	}
+	os.MkdirAll(filepath.Join(bin, "composer", "3.0.0"), 0o755) // no phar
+	got, ok := FindComposer(bin)
+	if want := filepath.Join(bin, "composer", "2.10.0", "composer.phar"); !ok || got != want {
+		t.Errorf("FindComposer = %s, %v; want %s", got, ok, want)
+	}
+	if _, ok := FindComposer(t.TempDir()); ok {
+		t.Error("found a composer in an empty bin")
 	}
 }

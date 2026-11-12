@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -25,13 +26,21 @@ class Changelog
     {
         $versions = Releases::changelog() ?? self::fromMarkdown(self::bundled());
 
-        return array_map(fn ($v) => [
-            'version' => $v['version'],
-            'date' => self::longDate($v['date']),
-            'iso' => $v['date'] ?: null,
-            'latest' => $v['version'] === $latest,
-            'groups' => self::groups($v['markdown']),
-        ], $versions);
+        // Rendering every version's markdown is most of the page's time, and
+        // it only changes with a release: keep the HTML until the source does.
+        $hash = md5(serialize($versions));
+        $cached = Cache::get('changelog-html');
+        if (! is_array($cached) || ($cached['hash'] ?? null) !== $hash) {
+            $cached = ['hash' => $hash, 'entries' => array_map(fn ($v) => [
+                'version' => $v['version'],
+                'date' => self::longDate($v['date']),
+                'iso' => $v['date'] ?: null,
+                'groups' => self::groups($v['markdown']),
+            ], $versions)];
+            Cache::forever('changelog-html', $cached);
+        }
+
+        return array_map(fn ($e) => $e + ['latest' => $e['version'] === $latest], $cached['entries']);
     }
 
     /**

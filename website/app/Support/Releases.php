@@ -18,14 +18,27 @@ use Throwable;
  * 10 minutes, so a page view never stalls on GitHub more than once.
  *
  * The feed is written to public/latest.json, where the app (and the web server,
- * as a plain file) reads it. Only a newer, well-formed feed replaces it; the
- * app checks the signature itself. deploy.ps1 ships the current one as a start.
+ * as a plain file) reads it. Only a newer, well-formed feed signed with one of
+ * KEYS replaces it, so the home page never links an installer the app would
+ * refuse; the app checks the signature again itself. deploy.ps1 ships the
+ * current one as a start.
  */
 class Releases
 {
     public const API = 'https://api.github.com/repos/harsha2805/devstack/releases';
 
     public const DOWNLOADS = 'https://github.com/harsha2805/devstack/releases/download/';
+
+    /**
+     * The release signing keys (base64 Ed25519 public keys): the same list as
+     * TrustedKeys in internal/update/update.go, which a Go test compares.
+     */
+    public const KEYS = [
+        'n40UCrPqQCdg6/uEsdNj83sUDJp7kFTj3EpIf1tpFsQ=', // 2026-10-26
+    ];
+
+    /** @var list<string>|null tests sign with keys of their own */
+    public static ?array $keys = null;
 
     private const KEY = 'github-releases';
 
@@ -117,8 +130,11 @@ class Releases
                     ->mapWithKeys(fn ($a) => [(string) $a['name'] => (string) $a['browser_download_url']])->all();
             }
 
-            // GitHub lists the newest release first.
-            $latest = $releases->first();
+            // The highest version, not GitHub's first entry: that is ordered by
+            // date, so a fix released for an older line would come first.
+            $latest = $releases->sort(fn ($a, $b) => version_compare(
+                ltrim((string) ($b['tag_name'] ?? ''), 'v'), ltrim((string) ($a['tag_name'] ?? ''), 'v'),
+            ))->first();
             $changelog = null;
             if ($latest) {
                 $assets = $files[(string) $latest['tag_name']] ?? [];
@@ -158,6 +174,11 @@ class Releases
             || ! str_starts_with((string) ($feed['url'] ?? ''), self::DOWNLOADS)) {
             return;
         }
+        if (! self::signed($feed)) {
+            report(new \RuntimeException("latest.json of $version failed its signature check; public/latest.json was kept"));
+
+            return;
+        }
         $path = public_path('latest.json');
         $current = is_file($path) ? json_decode((string) file_get_contents($path), true) : null;
         if (is_array($current) && version_compare((string) ($current['version'] ?? '0'), $version, '>')) {
@@ -170,6 +191,45 @@ class Releases
         $tmp = $path.'.tmp';
         file_put_contents($tmp, $body);
         rename($tmp, $path);
+    }
+
+    /**
+     * Whether a feed carries a valid signature from one of the keys. The
+     * signed bytes are update.Payload's: every field the app acts on, one per
+     * line, notes last.
+     */
+    public static function signed(array $feed): bool
+    {
+        if (! function_exists('sodium_crypto_sign_verify_detached')) {
+            throw new \RuntimeException("PHP has no sodium extension, so release feeds can't be verified");
+        }
+        $fields = [];
+        foreach (['version', 'url', 'sha256', 'page', 'notes'] as $name) {
+            $value = $feed[$name] ?? '';
+            if (! is_string($value) || ($name !== 'notes' && preg_match('/[\r\n]/', $value))) {
+                return false;
+            }
+            $fields[$name] = $value;
+        }
+        $payload = "devstack update feed v1\n"
+            ."version={$fields['version']}\n"
+            ."url={$fields['url']}\n"
+            ."sha256={$fields['sha256']}\n"
+            ."page={$fields['page']}\n"
+            ."notes={$fields['notes']}";
+        $signature = base64_decode((string) ($feed['signature'] ?? ''), true);
+        if ($signature === false || strlen($signature) !== SODIUM_CRYPTO_SIGN_BYTES) {
+            return false;
+        }
+        foreach (self::$keys ?? self::KEYS as $key) {
+            $public = base64_decode($key, true);
+            if ($public !== false && strlen($public) === SODIUM_CRYPTO_SIGN_PUBLICKEYBYTES
+                && sodium_crypto_sign_verify_detached($signature, $payload, $public)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** @return list<array{version: string, date: string, markdown: string}>|null */

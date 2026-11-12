@@ -151,14 +151,16 @@ func within(dir, base string) bool {
 }
 
 // FindRoot is the stack whose map a shim started in dir should use:
-// DEVSTACK_ROOT, else the nearest folder above dir holding a map, else
-// fallback (the app's stack).
-func FindRoot(dir, env, fallback string) string {
+// DEVSTACK_ROOT, else the nearest folder above dir holding a map that trusted
+// accepts, else fallback (the app's stack). A map in a folder devstack never
+// set up (one shipped inside a cloned project) is passed over: it names the
+// php.exe to run.
+func FindRoot(dir, env, fallback string, trusted func(string) bool) string {
 	if env != "" {
 		return env
 	}
 	for d := filepath.Clean(dir); ; d = filepath.Dir(d) {
-		if _, err := os.Stat(filepath.Join(d, MapFile)); err == nil {
+		if _, err := os.Stat(filepath.Join(d, MapFile)); err == nil && trusted(d) {
 			return d
 		}
 		if filepath.Dir(d) == d {

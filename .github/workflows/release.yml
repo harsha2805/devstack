@@ -33,9 +33,10 @@ jobs:
       run:
         shell: pwsh
     steps:
-      - uses: actions/checkout@v5
+      # Pinned to commits: a moved tag can't change what runs next to the signing key.
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: go.mod
 
@@ -59,10 +60,16 @@ jobs:
 
       - name: Build the installer
         run: |
-          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
-            choco install innosetup -y --no-progress
-            if ($LASTEXITCODE) { throw "Installing Inno Setup failed" }
+          # A pinned, checksummed Inno Setup, not whatever the runner image has:
+          # this job holds the update signing key. Installed per user, which
+          # release-lib.ps1 looks for first.
+          $is = Join-Path $env:RUNNER_TEMP 'innosetup-6.7.3.exe'
+          Invoke-WebRequest https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe -OutFile $is
+          if ((Get-FileHash $is -Algorithm SHA256).Hash -ne '9C73C3BAE7ED48D44112A0F48E66742C00090BDB5BEF71D9D3C056C66E97B732') {
+            throw "Inno Setup download doesn't match its pinned checksum"
           }
+          Start-Process $is -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CURRENTUSER' -Wait
+          if (-not (Test-Path "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe")) { throw "Installing Inno Setup failed" }
           . .\release-lib.ps1
           New-Installer $env:VERSION dist\release\bin
 

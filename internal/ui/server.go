@@ -362,23 +362,30 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v.Root = root
-	if ds, err := control.CheckDNS(r.Context(), root, false); err == nil {
-		v.DNS = &dnsView{DNSStatus: ds, Asked: set.DNSAsked}
-	}
-	if hs, err := control.CheckHTTPS(root); err == nil {
+	// stack.Load reads stack.toml and scans the servers once; everything below
+	// works from that rather than each loading and scanning again.
+	l, err := stack.Load(r.Context(), root)
+	if l != nil {
+		cfg := l.Config
+		v.DNS = &dnsView{DNSStatus: control.DNSStatusOf(r.Context(), cfg, false), Asked: set.DNSAsked}
+		hs := control.HTTPSStatusOf(cfg)
 		v.HTTPS = &hs
-	}
-	if xs, odbc, err := control.CheckExtensions(r.Context(), root); err == nil {
-		v.Extensions, v.ODBC = xs, &odbc
+		found := l.Found
+		if bin := filepath.Join(root, "bin"); !slices.ContainsFunc(stack.BinRoots(cfg), func(b string) bool { return strings.EqualFold(filepath.Clean(b), bin) }) {
+			found = discover.Scan(r.Context(), []string{bin}) // bin isn't a server folder in stack.toml
+		}
+		if xs, odbc, err := control.ExtensionsOf(root, cfg, found); err == nil {
+			v.Extensions, v.ODBC = xs, &odbc
+		}
 	}
 	if ss, ok := control.ShimStatus(); ok {
-		v.Shims = &shimsView{PathStatus: ss, OK: ss.OK(), Problem: ss.Problem()}
+		v.Shims = &shimsView{PathStatus: ss, OK: ss.OK(), NeedsAdmin: ss.NeedsAdmin(), Problem: ss.Problem()}
 	}
 	var st *model.Stack
-	if l, err := stack.Load(r.Context(), root); err != nil {
+	if err != nil {
 		v.Errors = append(v.Errors, err.Error())
 	} else if st = l.Stack; st != nil {
-		s.fillStack(&v, st)
+		s.fillStack(&v, st, l.Found)
 	}
 	if c, err := api.Connect(root); err == nil {
 		if ds, err := c.Status(r.Context()); err == nil {
@@ -389,7 +396,7 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if st != nil {
-		v.Mail = mailState(r.Context(), st, v.Running)
+		v.Mail = mailState(r.Context(), st, l.Found, v.Running)
 	}
 	for _, g := range v.Groups {
 		if g.State != supervisor.Running && g.LastError != "" {
@@ -399,7 +406,7 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 	reply(w, v)
 }
 
-func (s *Server) fillStack(v *stateView, st *model.Stack) {
+func (s *Server) fillStack(v *stateView, st *model.Stack, found discover.Result) {
 	v.WWW = st.WWW
 	v.RootURL = st.RootURL()
 	// Missing extensions devstack can download show on the extensions card
@@ -432,10 +439,10 @@ func (s *Server) fillStack(v *stateView, st *model.Stack) {
 		v.Planned = append(v.Planned, plannedService{"mailpit", m.Build.Version.String(), fmt.Sprintf("%d %d", m.SMTPPort, m.InboxPort)})
 	}
 	seen := map[string]bool{}
-	for _, b := range s.installedPHP(st) {
-		if !seen[b] {
-			seen[b] = true
-			v.PHPs = append(v.PHPs, b)
+	for _, b := range found.Builds[discover.PHP] { // newest first
+		if mm := b.Version.MajorMinor(); !seen[mm] {
+			seen[mm] = true
+			v.PHPs = append(v.PHPs, mm)
 		}
 	}
 	for _, site := range st.Sites {
@@ -444,31 +451,18 @@ func (s *Server) fillStack(v *stateView, st *model.Stack) {
 		if site.PHP != nil {
 			sv.PHP = site.PHP.Key
 		}
-		if db, ok := aiguide.EnvDatabase(site.Dir); ok {
+		env := aiguide.ReadEnv(site.Dir) // one read for the database and the mailer
+		if db, ok := env.Database(); ok {
 			sv.DB = &siteDBView{EnvDB: db, Ours: st.MySQL != nil && db.UsesMySQL(st.MySQL.Port)}
 		}
 		if _, err := os.Stat(filepath.Join(site.Dir, ".env")); err == nil {
-			em, _ := aiguide.EnvMail(site.Dir)
+			em, _ := env.Mail()
 			sv.Mail = &siteMailView{Mailer: em.Mailer, Host: em.Host, Port: em.Port,
 				Ours: st.Mail != nil && em.UsesMailpit(st.Mail.SMTPPort)}
 		}
 		v.Sites = append(v.Sites, sv)
 	}
 	v.Unserved = unserved(st.Projects, v.Sites)
-}
-
-// installedPHP lists installed PHP minors, newest first.
-func (s *Server) installedPHP(st *model.Stack) []string {
-	cfg, err := config.Load(st.Root)
-	if err != nil {
-		return nil
-	}
-	found := discover.Scan(context.Background(), stack.BinRoots(cfg))
-	var out []string
-	for _, b := range found.Builds[discover.PHP] {
-		out = append(out, b.Version.MajorMinor())
-	}
-	return out
 }
 
 // suggestedRoot is the folder the first-run screen offers for the stack: the

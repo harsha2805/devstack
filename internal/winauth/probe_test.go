@@ -5,6 +5,8 @@ package winauth
 import (
 	"testing"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 // TestHelloFactory checks the WinRT class and interop IID resolve, without
@@ -27,4 +29,14 @@ func TestHelloFactory(t *testing.T) {
 		t.Fatalf("RoGetActivationFactory(interop) = 0x%x", hr)
 	}
 	factory.release()
+}
+
+func TestSameAccount(t *testing.T) {
+	me := windows.GetCurrentProcessToken()
+	if !sameAccount(me, me) {
+		t.Error("the signed-in user's token doesn't match itself")
+	}
+	if sameAccount(me, windows.Token(0)) {
+		t.Error("an invalid token matches")
+	}
 }

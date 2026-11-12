@@ -15,7 +15,7 @@
     @forelse ($entries as $entry)
       <article class="release" id="v{{ $entry['version'] }}" aria-labelledby="v{{ $entry['version'] }}-title">
         <div class="release-meta">
-          <a class="release-tag" id="v{{ $entry['version'] }}-title" href="#v{{ $entry['version'] }}">{{ $entry['version'] }}</a>
+          <h2 class="release-title"><a class="release-tag" id="v{{ $entry['version'] }}-title" href="#v{{ $entry['version'] }}">{{ $entry['version'] }}</a></h2>
           @if ($entry['date'])
             <time datetime="{{ $entry['iso'] }}">{{ $entry['date'] }}</time>
           @else

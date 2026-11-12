@@ -242,6 +242,12 @@ func LoadSite(dir string) (Site, bool, error) {
 // FindRoot picks the stack root: explicit flag, then DEVSTACK_ROOT, then the
 // nearest parent of cwd holding stack.toml, then the folder of the executable,
 // then the root saved by the desktop app.
+//
+// A stack.toml found by walking up from cwd is used only when its folder is a
+// trusted root (appconf.Trusted): loading a stack runs the servers it points
+// at (`nginx -v`, `php-cgi -v`), and a cloned project could ship one. Passing
+// the folder with --root trusts it from then on.
+//
 // The result is always a long path (no 8.3 short names; nginx rejects them).
 func FindRoot(flag string) (string, error) {
 	root, err := findRoot(flag)
@@ -251,28 +257,45 @@ func FindRoot(flag string) (string, error) {
 	return winproc.LongPath(root), nil
 }
 
+// ErrUntrusted is returned by FindRoot for a stack.toml above the current
+// folder that devstack has not been told to trust.
+type ErrUntrusted struct{ Root string }
+
+func (e ErrUntrusted) Error() string {
+	return fmt.Sprintf("%s has a %s that devstack hasn't run before, so it isn't used.\n"+
+		"If it is your stack, run `devstack --root \"%s\" <command>` once to trust it", e.Root, FileName, e.Root)
+}
+
 func findRoot(flag string) (string, error) {
 	if flag != "" {
-		return filepath.Abs(flag)
+		abs, err := filepath.Abs(flag)
+		if err == nil && fileExists(filepath.Join(abs, FileName)) {
+			appconf.Trust(winproc.LongPath(abs)) // best effort: still works this time
+		}
+		return abs, err
 	}
 	if env := os.Getenv("DEVSTACK_ROOT"); env != "" {
 		return filepath.Abs(env)
 	}
+	exeDir := ""
+	if exe, err := os.Executable(); err == nil {
+		exeDir = filepath.Dir(exe)
+	}
 	if wd, err := os.Getwd(); err == nil {
 		for dir := wd; ; dir = filepath.Dir(dir) {
 			if fileExists(filepath.Join(dir, FileName)) {
-				return dir, nil
+				if appconf.SamePath(dir, exeDir) || appconf.Trusted(dir) || appconf.Trusted(winproc.LongPath(dir)) {
+					return dir, nil
+				}
+				return "", ErrUntrusted{winproc.LongPath(dir)}
 			}
 			if filepath.Dir(dir) == dir {
 				break
 			}
 		}
 	}
-	if exe, err := os.Executable(); err == nil {
-		dir := filepath.Dir(exe)
-		if fileExists(filepath.Join(dir, FileName)) {
-			return dir, nil
-		}
+	if exeDir != "" && fileExists(filepath.Join(exeDir, FileName)) {
+		return exeDir, nil
 	}
 	// The stack the desktop app manages, so the CLI works from any folder.
 	if s, err := appconf.Load(); err == nil && s.Root != "" && fileExists(filepath.Join(s.Root, FileName)) {

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -115,6 +116,16 @@ func TestFindRoot(t *testing.T) {
 	os.MkdirAll(sub, 0o755)
 	t.Chdir(sub)
 	t.Setenv("DEVSTACK_ROOT", "")
+	t.Setenv("DEVSTACK_APPDATA", t.TempDir())
+	// Not trusted yet: a stack.toml above cwd could have come with a cloned
+	// project, and loading it runs the servers it names.
+	var untrusted ErrUntrusted
+	if _, err := FindRoot(""); !errors.As(err, &untrusted) || untrusted.Root != root {
+		t.Errorf("FindRoot from an untrusted subfolder = %v; want ErrUntrusted", err)
+	}
+	if got, _ := FindRoot(root); got != root { // --root trusts it
+		t.Errorf("flag ignored: %q", got)
+	}
 	got, err := FindRoot("")
 	if err != nil || got != root {
 		t.Errorf("FindRoot from subfolder = %q, %v; want %q", got, err, root)

@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync/atomic"
 	"time"
 
-	"github.com/harsha2805/devstack/internal/config"
 	"github.com/harsha2805/devstack/internal/control"
 	"github.com/harsha2805/devstack/internal/discover"
 	"github.com/harsha2805/devstack/internal/model"
@@ -40,29 +40,36 @@ type siteMailView struct {
 
 // mailState is what the app shows about Mailpit: the installed version while
 // it's off, and the inbox counts while it runs.
-func mailState(ctx context.Context, st *model.Stack, running bool) *mailView {
+func mailState(ctx context.Context, st *model.Stack, found discover.Result, running bool) *mailView {
 	m := st.Mail
 	if m == nil {
 		v := &mailView{}
-		if cfg, err := config.Load(st.Root); err == nil {
-			if b, err := discover.Scan(ctx, stack.BinRoots(cfg)).Pick(discover.Mailpit, ""); err == nil {
-				v.Installed = b.Version.String()
-			}
+		if b, err := found.Pick(discover.Mailpit, ""); err == nil {
+			v.Installed = b.Version.String()
 		}
 		return v
 	}
 	v := &mailView{Enabled: true, Version: m.Build.Version.String(), SMTPPort: m.SMTPPort, Inbox: m.InboxURL()}
-	if running {
+	if running && time.Now().UnixNano() >= mailpitQuietUntil.Load() {
 		var sum struct {
 			Total  int `json:"total"`
 			Unread int `json:"unread"`
 		}
 		if mailpitGet(ctx, m, "/api/v1/messages?limit=1", &sum) == nil {
 			v.Counted, v.Total, v.Unread = true, sum.Total, sum.Unread
+		} else {
+			// Down or starting: on Windows a refused local connection still
+			// takes the whole timeout, so don't make every state poll wait.
+			mailpitQuietUntil.Store(time.Now().Add(mailpitQuiet).UnixNano())
 		}
 	}
 	return v
 }
+
+// After Mailpit fails to answer, the state poll leaves it alone this long.
+const mailpitQuiet = 10 * time.Second
+
+var mailpitQuietUntil atomic.Int64
 
 // mailpitClient talks to Mailpit's API on 127.0.0.1; the state poll can't wait long.
 var mailpitClient = &http.Client{Timeout: 700 * time.Millisecond}

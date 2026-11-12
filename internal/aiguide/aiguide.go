@@ -57,7 +57,7 @@ func Installed(dir string) bool {
 // Install writes the guide for site and adds the pointer blocks. Running it
 // again refreshes everything.
 func Install(st *model.Stack, site model.Site, cli string) error {
-	if err := writeGuide(st, site, cli); err != nil {
+	if err := writeGuide(site, Render(st, site, cli)); err != nil {
 		return err
 	}
 	if err := upsertBlock(filepath.Join(site.Dir, "AGENTS.md"), pointer); err != nil {
@@ -95,16 +95,18 @@ func Remove(dir string) error {
 func Sync(st *model.Stack, cli string) ([]string, error) {
 	var changed []string
 	var errs []error
+	shims := shimsOnce()
 	for _, site := range st.Sites {
 		if !Installed(site.Dir) {
 			continue
 		}
 		path := filepath.Join(site.Dir, Dir, File)
 		old, _ := os.ReadFile(path)
-		if string(old) == Render(st, site, cli) {
+		text := render(st, site, cli, shims)
+		if string(old) == text {
 			continue
 		}
-		if err := writeGuide(st, site, cli); err != nil {
+		if err := writeGuide(site, text); err != nil {
 			errs = append(errs, fmt.Errorf("%s: %w", site.Slug, err))
 			continue
 		}
@@ -134,7 +136,7 @@ func CLI() string {
 	return p
 }
 
-func writeGuide(st *model.Stack, site model.Site, cli string) error {
+func writeGuide(site model.Site, text string) error {
 	dir := filepath.Join(site.Dir, Dir)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
@@ -145,11 +147,27 @@ func writeGuide(st *model.Stack, site model.Site, cli string) error {
 			return err
 		}
 	}
-	return os.WriteFile(filepath.Join(dir, File), []byte(Render(st, site, cli)), 0o644)
+	return os.WriteFile(filepath.Join(dir, File), []byte(text), 0o644)
 }
 
 // Render is the guide's text for site.
 func Render(st *model.Stack, site model.Site, cli string) string {
+	return render(st, site, cli, shimsOnce())
+}
+
+// shimsAnswer is shimsFirst's result: it reads the PATH from the registry and
+// looks for php.exe along it, so Sync asks once for all sites.
+type shimsAnswer struct {
+	dir string
+	ok  bool
+}
+
+func shimsOnce() shimsAnswer {
+	dir, ok := shimsFirst()
+	return shimsAnswer{dir, ok}
+}
+
+func render(st *model.Stack, site model.Site, cli string, shims shimsAnswer) string {
 	var b strings.Builder
 	w := func(format string, a ...any) { fmt.Fprintf(&b, format+"\n", a...) }
 	url := st.URL(site)
@@ -201,7 +219,7 @@ func Render(st *model.Stack, site model.Site, cli string) string {
 		w("")
 		w("The site runs PHP %s (`php-cgi`). Command-line PHP and Composer must use the same build with the same php.ini.", p.Build.Version)
 		w("")
-		if dir, ok := shimsFirst(); ok {
+		if dir, ok := shims.dir, shims.ok; ok {
 			w("devstack's `php` and `composer` (`%s`) come first on PATH and pick each site's PHP by folder, so here", dir)
 			w("plain `php artisan ...` and `composer install` already run PHP %s with its php.ini. Check with `php -v`.", p.Build.Version)
 			w("If it shows another version, the terminal was opened before devstack set that up; set it by hand:")
@@ -378,7 +396,8 @@ var shimsFirst = func() (string, bool) {
 		return "", false
 	}
 	system, user := winproc.EnvPaths()
-	return dir, shim.CheckPath(dir, system, user).OK()
+	s := shim.CheckPath(dir, winproc.SystemShimDir(), system, user)
+	return dir, s.OnPath && s.Blocker == "" // terminals run a shim, if not the safest copy
 }
 
 // odbcDrivers lists the installed ODBC Drivers for SQL Server; tests replace it.
@@ -479,7 +498,18 @@ type EnvDB struct {
 // EnvDatabase reads the DB_ keys of dir/.env. ok is false when the project
 // has no .env or it sets no DB_CONNECTION.
 func EnvDatabase(dir string) (db EnvDB, ok bool) {
-	env := readEnv(filepath.Join(dir, ".env"))
+	return ReadEnv(dir).Database()
+}
+
+// Env is a site's .env, read once for several questions (the state poll asks
+// about the database and the mailer of every site).
+type Env map[string]string
+
+// ReadEnv reads dir's .env; a missing file reads as empty.
+func ReadEnv(dir string) Env { return readEnv(filepath.Join(dir, ".env")) }
+
+// Database is EnvDatabase for an Env already read.
+func (env Env) Database() (db EnvDB, ok bool) {
 	if env["DB_CONNECTION"] == "" {
 		return db, false
 	}
@@ -516,7 +546,11 @@ type EnvMailer struct {
 // EnvMail reads the MAIL_ keys of dir/.env. ok is false when the project has
 // no .env or it sets no MAIL_MAILER.
 func EnvMail(dir string) (m EnvMailer, ok bool) {
-	env := readEnv(filepath.Join(dir, ".env"))
+	return ReadEnv(dir).Mail()
+}
+
+// Mail is EnvMail for an Env already read.
+func (env Env) Mail() (m EnvMailer, ok bool) {
 	unset := func(v string) string {
 		if strings.EqualFold(v, "null") {
 			return ""
@@ -533,8 +567,8 @@ func (m EnvMailer) UsesMailpit(port int) bool {
 }
 
 // readEnv reads KEY=value lines from a .env file; a missing file reads as empty.
-func readEnv(path string) map[string]string {
-	env := map[string]string{}
+func readEnv(path string) Env {
+	env := Env{}
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return env

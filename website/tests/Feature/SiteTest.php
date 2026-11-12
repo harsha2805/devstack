@@ -11,6 +11,9 @@ class SiteTest extends TestCase
 {
     private ?string $savedFeed = null;
 
+    /** The tests' release signing key pair (sodium). */
+    private string $keyPair;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -19,16 +22,29 @@ class SiteTest extends TestCase
         $feed = public_path('latest.json');
         $this->savedFeed = is_file($feed) ? file_get_contents($feed) : null;
         @unlink($feed);
+        $this->keyPair = sodium_crypto_sign_seed_keypair(str_repeat(chr(7), SODIUM_CRYPTO_SIGN_SEEDBYTES));
+        Releases::$keys = [base64_encode(sodium_crypto_sign_publickey($this->keyPair))];
     }
 
     protected function tearDown(): void
     {
+        Releases::$keys = null;
         $feed = public_path('latest.json');
         @unlink($feed);
         if ($this->savedFeed !== null) {
             file_put_contents($feed, $this->savedFeed);
         }
         parent::tearDown();
+    }
+
+    /** $feed with a signature over update.Payload's bytes, as tools/release makes it. */
+    private function sign(array $feed, ?string $keyPair = null): array
+    {
+        $payload = "devstack update feed v1\nversion={$feed['version']}\nurl={$feed['url']}\nsha256=".($feed['sha256'] ?? '')
+            ."\npage=".($feed['page'] ?? '')."\nnotes=".($feed['notes'] ?? '');
+        $feed['signature'] = base64_encode(sodium_crypto_sign_detached($payload, sodium_crypto_sign_secretkey($keyPair ?? $this->keyPair)));
+
+        return $feed;
     }
 
     private function feed(array $data): void
@@ -104,6 +120,17 @@ class SiteTest extends TestCase
         $this->get('/code-signing')->assertRedirect('/');
     }
 
+    public function test_pages_set_no_cookies_and_can_be_cached(): void
+    {
+        foreach (['/', '/changelog', '/privacy'] as $page) {
+            $response = $this->get($page)->assertOk();
+            $this->assertSame([], $response->headers->getCookies(), "$page sets a cookie");
+            $this->assertStringContainsString('public', (string) $response->headers->get('Cache-Control'), $page);
+            $this->assertStringContainsString('max-age=300', (string) $response->headers->get('Cache-Control'), $page);
+            $this->assertNotEmpty($response->headers->get('ETag'), $page);
+        }
+    }
+
     public function test_sponsor_redirects_to_github_sponsors(): void
     {
         $this->get('/sponsor')->assertRedirect(SiteController::SPONSOR);
@@ -144,10 +171,10 @@ class SiteTest extends TestCase
                 $this->asset($tag, 'latest.json', 500),
                 $this->asset($tag, 'changelog.json'),
             ]]]),
-            Releases::DOWNLOADS."$tag/latest.json" => Http::response($feed + [
+            Releases::DOWNLOADS."$tag/latest.json" => Http::response($feed + $this->sign([
                 'version' => '0.2.3', 'url' => Releases::DOWNLOADS."$tag/devstack_setup_0.2.3.exe",
-                'sha256' => str_repeat('a', 64), 'notes' => 'php and composer per site.', 'signature' => 'c2ln',
-            ]),
+                'sha256' => str_repeat('a', 64), 'notes' => 'php and composer per site.',
+            ])),
             Releases::DOWNLOADS."$tag/changelog.json" => Http::response(['versions' => [
                 ['version' => '0.2.3', 'date' => '2026-10-28', 'markdown' => "### Added\n- **Shims.** php and composer per site."],
                 ['version' => '0.2.2', 'date' => '2026-10-28', 'markdown' => "### Fixed\n- **ODBC.** The right driver."],
@@ -198,7 +225,7 @@ class SiteTest extends TestCase
         $this->post('/hooks/release', [], ['Authorization' => 'Bearer hook-secret'])->assertOk()->assertJson(['version' => '0.2.3']);
         $feed = json_decode(file_get_contents(public_path('latest.json')), true);
         $this->assertSame('0.2.3', $feed['version'], 'public/latest.json serves the new signed feed');
-        $this->assertSame('c2ln', $feed['signature']);
+        $this->assertTrue(Releases::signed($feed), 'served exactly as signed');
 
         $this->get('/')->assertSee('Download devstack 0.2.3')
             ->assertSee(Releases::DOWNLOADS.'v0.2.3/devstack_0.2.3_portable.zip', false)
@@ -207,6 +234,22 @@ class SiteTest extends TestCase
         $this->get('/download/portable')->assertRedirect(Releases::DOWNLOADS.'v0.2.3/devstack_0.2.3_portable.zip');
         $this->get('/changelog')->assertSee('October 28, 2026')->assertSee('php and composer per site.');
         Http::assertSentCount(3); // the release list, its latest.json and changelog.json; pages use the cache
+    }
+
+    public function test_the_highest_version_is_the_latest_not_the_first_listed(): void
+    {
+        config(['services.release_hook.token' => 'hook-secret']);
+        $this->release010();
+        $feed = $this->sign(['version' => '0.2.3', 'url' => Releases::DOWNLOADS.'v0.2.3/devstack_setup_0.2.3.exe', 'sha256' => str_repeat('a', 64)]);
+        Http::fake([
+            // A fix for an older line, published after 0.2.3, comes first.
+            Releases::API.'*' => Http::response([
+                ['tag_name' => 'v0.1.9', 'assets' => [$this->asset('v0.1.9', 'latest.json')]],
+                ['tag_name' => 'v0.2.3', 'assets' => [$this->asset('v0.2.3', 'latest.json')]],
+            ]),
+            Releases::DOWNLOADS.'v0.2.3/latest.json' => Http::response($feed),
+        ]);
+        $this->post('/hooks/release', [], ['Authorization' => 'Bearer hook-secret'])->assertJson(['version' => '0.2.3']);
     }
 
     public function test_the_release_hook_is_rate_limited(): void
@@ -255,6 +298,8 @@ class SiteTest extends TestCase
         return [
             'installer elsewhere' => [['url' => 'https://evil.example/setup.exe']],
             'unsigned' => [['signature' => '']],
+            'signature that is not one' => [['signature' => 'c2ln']],
+            'notes changed after signing' => [['notes' => 'Now with a different installer.']],
             'not the release it came with' => [['version' => '0.2.4']],
         ];
     }
@@ -266,6 +311,32 @@ class SiteTest extends TestCase
         $this->release010();
         $this->fakeRelease023($bad);
         $this->post('/hooks/release', [], ['Authorization' => 'Bearer hook-secret'])->assertJson(['version' => '0.1.0']);
+    }
+
+    public function test_a_feed_signed_with_another_key_is_never_served(): void
+    {
+        config(['services.release_hook.token' => 'hook-secret']);
+        $this->release010();
+        $other = sodium_crypto_sign_seed_keypair(str_repeat(chr(8), SODIUM_CRYPTO_SIGN_SEEDBYTES));
+        $this->fakeRelease023($this->sign([
+            'version' => '0.2.3', 'url' => Releases::DOWNLOADS.'v0.2.3/devstack_setup_0.2.3.exe',
+            'sha256' => str_repeat('a', 64), 'notes' => 'php and composer per site.',
+        ], $other));
+        $this->post('/hooks/release', [], ['Authorization' => 'Bearer hook-secret'])->assertJson(['version' => '0.1.0']);
+    }
+
+    public function test_the_release_key_verifies_a_feed_signed_by_the_release_tool(): void
+    {
+        // public/latest.json as published for 0.2.5, signed by tools/release with the real key.
+        Releases::$keys = null;
+        $this->assertTrue(Releases::signed([
+            'version' => '0.2.5',
+            'url' => 'https://github.com/harsha2805/devstack/releases/download/v0.2.5/devstack_setup_0.2.5.exe',
+            'sha256' => 'a1fa4f91f97c7bf9ba4c2ba2306b0ce5bd188d82dd6dc1c38b556a29b0c2c610',
+            'notes' => 'Releases published in one step.',
+            'page' => 'https://devstack.holostack.in',
+            'signature' => 'Mco06BrEyiPKwMy9YehjK4XA4w8hLVRZiioalhycoxqOrz/PpdxQ+dUj9E+EsrpM2wl7gOP+Vc3ZhxXsZzyEBQ==',
+        ]));
     }
 
     public function test_portable_link_before_github_was_asked(): void

@@ -7,9 +7,9 @@
 package main
 
 import (
-	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -17,7 +17,6 @@ import (
 	"strings"
 
 	"github.com/harsha2805/devstack/internal/appconf"
-	"github.com/harsha2805/devstack/internal/packages"
 	"github.com/harsha2805/devstack/internal/shim"
 )
 
@@ -39,7 +38,7 @@ func run() (int, error) {
 		return 1, err
 	}
 	settings, _ := appconf.Load()
-	root := shim.FindRoot(cwd, os.Getenv("DEVSTACK_ROOT"), settings.Root)
+	root := shim.FindRoot(cwd, os.Getenv("DEVSTACK_ROOT"), settings.Root, appconf.Trusted)
 	if root == "" {
 		return 1, errors.New("no stack is set up yet; open the devstack app first")
 	}
@@ -54,7 +53,7 @@ func run() (int, error) {
 
 	args := os.Args[1:]
 	if name == "composer" {
-		phar, err := composerPhar(filepath.Join(root, "bin"))
+		phar, err := composerPhar(root)
 		if err != nil {
 			return 1, err
 		}
@@ -80,27 +79,43 @@ func run() (int, error) {
 	return 0, nil
 }
 
-// composerPhar is devstack's composer.phar, downloaded and verified the
-// first time Composer is used.
-func composerPhar(bin string) (string, error) {
-	if p, ok := packages.FindComposer(bin); ok {
+// composerPhar is devstack's composer.phar. The first time Composer is used,
+// devstack.exe downloads and verifies it (`pkg composer`): the shim itself
+// doesn't link the downloader, since every php command starts it.
+func composerPhar(root string) (string, error) {
+	bin := filepath.Join(root, "bin")
+	if p, ok := shim.FindComposer(bin); ok {
 		return p, nil
 	}
-	cat, err := packages.Default()
+	devstack, err := devstackExe()
 	if err != nil {
 		return "", err
 	}
-	if cat.Composer == nil {
-		return "", errors.New("this devstack has no Composer to install")
+	cmd := exec.Command(devstack, "--root", root, "pkg", "composer")
+	cmd.Stdout, cmd.Stderr = io.Discard, os.Stderr // it prints its progress to stderr
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("installing Composer: %w", err)
 	}
-	packages.UserAgent = "devstack/" + version
-	fmt.Fprintf(os.Stderr, "devstack: downloading %s (once) ...\n", cat.Composer)
-	p, err := packages.InstallComposer(context.Background(), bin, *cat.Composer, nil)
-	if err != nil {
-		return "", err
+	if p, ok := shim.FindComposer(bin); ok {
+		return p, nil
 	}
-	fmt.Fprintf(os.Stderr, "devstack: %s verified and installed in %s\n\n", cat.Composer, filepath.Dir(p))
-	return p, nil
+	return "", errors.New("Composer didn't install; run `devstack pkg composer` to see why")
+}
+
+// devstackExe is the devstack.exe of this shim's installation (the shims
+// folder's parent), else the one on PATH: the administrators-only copy of the
+// shims in Program Files has no devstack.exe beside it.
+func devstackExe() (string, error) {
+	if exe, err := os.Executable(); err == nil {
+		p := filepath.Join(filepath.Dir(filepath.Dir(exe)), "devstack.exe")
+		if _, err := os.Stat(p); err == nil {
+			return p, nil
+		}
+	}
+	if p, err := exec.LookPath("devstack.exe"); err == nil {
+		return p, nil
+	}
+	return "", errors.New("can't find devstack.exe to install Composer; reinstall devstack")
 }
 
 // setEnv replaces or adds key in a Windows environment, where names ignore case.

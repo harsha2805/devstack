@@ -62,3 +62,10 @@ func LockFile(path string) (*os.File, error) {
 
 // Locked can't tell on other platforms; assume the owner is alive.
 func Locked(string) bool { return true }
+
+func CurrentUserSID() (string, error)                    { return "", errUnsupported }
+func WritableByOthers(string, ...string) (string, error) { return "", nil }
+func Protected(string) bool                              { return true }
+func ProtectFolder(string) error                         { return nil }
+func ProtectAdminFolder(string) error                    { return errUnsupported }
+func SystemShimDir() string                              { return "" }

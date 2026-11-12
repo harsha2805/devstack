@@ -5,6 +5,37 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions
 The release scripts need a section for the version they build and take the in-app update notes from the
 bold lead-ins under it, so write each feature up here when it lands.
 
+## [1.4.2] — unreleased
+
+### Security
+- **Your stack folder is yours alone.** A folder at a drive root, such as `C:\devstack`, let every account on the PC
+  read the MySQL password and replace devstack's servers. Setup and the first start of 1.4.2 limit it to you, SYSTEM
+  and administrators. `www` keeps its permissions in stacks made before 1.4.2, since it can hold a very large number of files.
+- **A cloned project can't bring its own servers.** `php`, `composer` and `devstack` only use a `stack.toml` or
+  shim map found above the current folder once that stack was set up or started on your account, or passed with
+  `--root`. Before, a repository could ship one that named its own programs to run.
+- **Fix PATH no longer puts a folder you can change on the system PATH.** When another PHP is on the system PATH,
+  devstack's php and composer now go there as an administrators-only copy in `Program Files\devstack\shims`. A
+  stack that used Fix PATH before shows the fix again, and uninstalling devstack removes the copy.
+- **MySQL's root account never has an empty password.** A new data folder gets the saved password while it is
+  created, rather than just after MySQL first starts.
+- **The password prompt only takes your own Windows password**, not another account's.
+
+### Fixed
+- **Downloads no longer redraw the whole page several times a second.** Progress bars and numbers update in place,
+  so buttons and text around them stay put.
+- **Double-clicking Start, Install or Add folder runs it once**, without an error about a job already running.
+- **The php.ini editor keeps its place.** Coming back to the window no longer scrolls it to the top, and closing it
+  during a save or while it loads no longer shows stale settings.
+- **The servers start faster.** PHP's workers start together instead of one by one.
+- **nginx and PHP logs are rotated.** Site access logs, `nginx-error.log` and `php-X.Y-error.log` move to `.1`
+  once they pass 10 MB, when the servers start.
+- **Sites with long names that start alike get their own database user**, rather than sharing one cut to 32 characters.
+- **php commands start faster**, and the app polls less: it reads `stack.toml` and scans the servers once per refresh,
+  and a stopped Mailpit no longer slows every refresh.
+- **High Contrast and screen readers**: switches and server marks stay visible in High Contrast, site states are
+  announced, setup's version choices work with the arrow keys, and focus returns to Add site when its menu closes.
+
 ## [1.4.1] — unreleased
 
 ### Security

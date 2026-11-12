@@ -460,6 +460,17 @@ func ExtensionFile(b discover.Build, name string) (string, bool) {
 // ThreadSafe reports whether b is PHP's thread-safe build (php8ts.dll beside
 // php.exe). Extension DLLs must match it.
 func ThreadSafe(b discover.Build) bool {
+	// Asked once per extension per poll; a build folder (named by its version)
+	// doesn't change flavor, so the glob runs once per folder.
+	if v, ok := threadSafe.Load(b.Dir); ok {
+		return v.(bool)
+	}
 	m, _ := filepath.Glob(filepath.Join(b.Dir, "php*ts.dll"))
-	return len(m) > 0
+	ts := len(m) > 0
+	if _, err := os.Stat(b.Dir); err == nil {
+		threadSafe.Store(b.Dir, ts)
+	}
+	return ts
 }
+
+var threadSafe sync.Map // build folder -> bool

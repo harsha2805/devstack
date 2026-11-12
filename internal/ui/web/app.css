@@ -377,7 +377,7 @@ dl.kv dd { margin: 0; font: 12px var(--mono); overflow-wrap: anywhere; }
 .log-files button { display: block; width: 100%; text-align: left; border: 0; background: none; border-radius: 4px; padding: 5px 8px;
   font: 12px var(--mono); color: var(--ink-2); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .log-files button:hover { background: var(--hover); color: var(--ink); }
-.log-files button[aria-selected="true"] { background: var(--ink); color: var(--card); }
+.log-files button[aria-current="true"] { background: var(--ink); color: var(--card); }
 pre#log-text {
   flex: 1; min-width: 0; margin: 0; overflow: auto; border: 1px solid var(--rule); border-radius: 0 5px 5px 0;
   background: var(--card); padding: 10px 12px; font: 12px/1.55 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink);
@@ -404,7 +404,7 @@ pre#log-text {
 .choice button { border: 0; border-right: 1px solid var(--rule-strong); background: var(--card); color: var(--ink-2); font: 600 12.5px var(--mono); padding: 6px 12px; cursor: pointer; }
 .choice button:last-child { border-right: 0; }
 .choice button:hover { background: var(--hover); }
-.choice button[aria-selected="true"] { background: var(--ink); color: var(--card); }
+.choice button[aria-checked="true"] { background: var(--ink); color: var(--card); }
 .plan { background: var(--subtle); border-radius: 4px; padding: 8px 10px; font-size: 12.5px; margin: 4px 0 14px; }
 .steps { display: flex; flex-direction: column; gap: 10px; margin: 6px 0 16px; }
 .step { display: grid; grid-template-columns: 18px 1fr auto; gap: 4px 8px; align-items: center; }
@@ -494,5 +494,18 @@ dialog.sheet::backdrop { background: rgb(20 22 26 / .45); }
   .mark.off, .mark.gone { background: Canvas; }
   .slot, .site, .server, .rows, .alert, .todo { border-color: CanvasText; }
   .slot.bad, .site.selected { outline: 2px solid Highlight; }
-  .nav button[aria-current="page"], .choice button[aria-selected="true"] { outline: 2px solid Highlight; }
+  .nav button[aria-current="page"], .choice button[aria-checked="true"], .log-files button[aria-current="true"] { outline: 2px solid Highlight; }
+  /* Rail slots keep their shapes: hollow off, filled on or busy, square when failing. */
+  .slot .mark { background: Canvas; border: 1.5px solid CanvasText; }
+  .slot.on .mark, .slot.busy .mark { background: CanvasText; }
+  .slot.bad .mark { background: Canvas; border-color: Highlight; }
+  /* Switches: the knob and the on state stay visible. */
+  .switch > span { forced-color-adjust: none; background: Canvas; border-color: CanvasText; }
+  .switch > span::after { background: CanvasText; }
+  .switch input:checked + span { background: Highlight; border-color: Highlight; }
+  .switch input:checked + span::after { background: HighlightText; }
+  .switch input:disabled + span { opacity: 1; border-color: GrayText; }
+  .switch input:disabled + span::after { background: GrayText; }
+  .switch input:focus-visible + span { outline-color: Highlight; }
+  .menu button:focus-visible { outline: 2px solid Highlight; outline-offset: -2px; }
 }

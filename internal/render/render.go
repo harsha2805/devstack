@@ -210,11 +210,6 @@ func writePhpMyAdmin(st *model.Stack) error {
 	return writeAtomic(path, loader)
 }
 
-// CustomINI is the user's own php.ini for p's version, "" when there is none.
-func CustomINI(p *model.PHPPool) string {
-	return strings.TrimSpace(string(normalizeNewlines([]byte(model.UserINI(p)))))
-}
-
 func userINI(p *model.PHPPool) string {
 	text, _ := UserINI(p)
 	return strings.TrimSpace(text)

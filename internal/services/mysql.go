@@ -95,8 +95,9 @@ func MySQLSpec(st *model.Stack, logs *Logs) (supervisor.Spec, error) {
 	}, nil
 }
 
-// mysqlInit creates the datadir on first run. Root starts with no password;
-// ensureRootPassword sets one as soon as the server is up.
+// mysqlInit creates the datadir on first run. Root gets the saved password
+// (made now if there is none) during initialization, through --init-file, so
+// it never answers with no password, not even until the server is up.
 func mysqlInit(ctx context.Context, st *model.Stack, log io.Writer) error {
 	m := st.MySQL
 	if entries, err := os.ReadDir(m.DataDir); err == nil && len(entries) > 0 {
@@ -105,12 +106,35 @@ func mysqlInit(ctx context.Context, st *model.Stack, log io.Writer) error {
 	if err := os.MkdirAll(filepath.Dir(m.DataDir), 0o755); err != nil {
 		return err
 	}
+	// Each MySQL version has its own datadir; a new one's root gets the same
+	// password as the others.
+	sec, err := LoadSecrets(st)
+	if err != nil {
+		return err
+	}
+	if sec.MySQLRootPassword == "" {
+		sec.MySQLRootPassword = randomPassword(24)
+	}
+	// Saved, and marked unapplied, before it is applied: if initializing fails
+	// halfway, RootDB still tries both.
+	sec.MySQLRootApplied = false
+	if err := saveSecrets(st, sec); err != nil {
+		return err
+	}
+	initFile := filepath.Join(filepath.Dir(SecretsPath(st)), "mysql-init.sql")
+	// The password is alphanumeric, so it needs no escaping.
+	if err := os.WriteFile(initFile, []byte("ALTER USER 'root'@'localhost' IDENTIFIED BY '"+sec.MySQLRootPassword+"';\n"), 0o600); err != nil {
+		return err
+	}
+	defer os.Remove(initFile)
+
 	// mysqld --initialize insists that the datadir is missing or empty.
 	os.Remove(m.DataDir)
 	fmt.Fprintf(log, "devstack: initializing %s\n", m.DataDir)
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, m.Build.Exe, "--defaults-file="+m.INIPath, "--initialize-insecure", "--console")
+	cmd := exec.CommandContext(ctx, m.Build.Exe, "--defaults-file="+m.INIPath, "--initialize-insecure",
+		"--init-file="+filepath.ToSlash(initFile), "--console")
 	cmd.Dir = m.Build.Dir
 	cmd.Stdout, cmd.Stderr = log, log
 	winproc.HideWindow(cmd)
@@ -118,22 +142,13 @@ func mysqlInit(ctx context.Context, st *model.Stack, log io.Writer) error {
 		os.RemoveAll(m.DataDir) // half-initialized datadirs refuse to start; let the next try start clean
 		return fmt.Errorf("initialize datadir: %w (see logs/mysql.log)", err)
 	}
-	// Each MySQL version has its own datadir, and a new one's root has no
-	// password, even when another version's root has the saved one. Mark it
-	// unapplied so ensureRootPassword gives this root the same password.
-	sec, err := LoadSecrets(st)
-	if err != nil {
-		return err
-	}
-	if sec.MySQLRootApplied {
-		sec.MySQLRootApplied = false
-		return saveSecrets(st, sec)
-	}
-	return nil
+	sec.MySQLRootApplied = true
+	fmt.Fprintln(log, "devstack: root password set; see `devstack db creds`")
+	return saveSecrets(st, sec)
 }
 
 // RootDB connects as root, trying the saved password and then an empty one
-// (the state right after --initialize-insecure).
+// (a datadir made by devstack 1.4.1 or earlier, before ensureRootPassword ran).
 func RootDB(ctx context.Context, st *model.Stack) (*sql.DB, error) {
 	sec, err := LoadSecrets(st)
 	if err != nil {

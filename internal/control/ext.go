@@ -136,16 +136,28 @@ type ODBCStatus struct {
 // CheckExtensions lists the catalog's extensions with their state in root's
 // stack, and whether the ODBC driver is missing for the ones turned on.
 func CheckExtensions(ctx context.Context, root string) ([]ExtensionStatus, ODBCStatus, error) {
-	odbc := ODBCStatus{URL: packages.ODBCDriverURL}
 	cfg, err := config.Load(root)
 	if err != nil {
-		return nil, odbc, err
+		return nil, ODBCStatus{URL: packages.ODBCDriverURL}, err
 	}
+	return ExtensionsOf(root, cfg, discover.Scan(ctx, []string{filepath.Join(root, "bin")}))
+}
+
+// ExtensionsOf is CheckExtensions for a config and a scan already made. Only
+// the PHP builds under root/bin count: devstack installs extensions there alone.
+func ExtensionsOf(root string, cfg config.Stack, found discover.Result) ([]ExtensionStatus, ODBCStatus, error) {
+	odbc := ODBCStatus{URL: packages.ODBCDriverURL}
 	cat, err := packages.Default()
 	if err != nil {
 		return nil, odbc, err
 	}
-	builds := discover.Scan(ctx, []string{filepath.Join(root, "bin")}).Builds[discover.PHP]
+	bin := strings.ToLower(filepath.Join(root, "bin")) + string(filepath.Separator)
+	var builds []discover.Build
+	for _, b := range found.Builds[discover.PHP] {
+		if strings.HasPrefix(strings.ToLower(b.Dir), bin) {
+			builds = append(builds, b)
+		}
+	}
 	var out []ExtensionStatus
 	// Each version's php.ini says what it loads; php.extensions speaks for a
 	// version that has none yet.

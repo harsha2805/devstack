@@ -54,8 +54,19 @@ function toast(msg, isError) {
   toastTimer = setTimeout(() => (t.className = ""), isError ? 7000 : 2800);
 }
 
-// act runs an action, shows its error, and refreshes state right away.
-async function act(path, body, okMsg) {
+// act runs an action, shows its error, and refreshes state right away. The
+// same action asked again while it runs (a double-click on Start or Install)
+// gets the first one's result rather than a second request and its 409 toast.
+const inflight = new Map();
+function act(path, body, okMsg) {
+  const key = path + " " + JSON.stringify(body ?? {});
+  if (inflight.has(key)) return inflight.get(key);
+  const p = runAct(path, body, okMsg).finally(() => inflight.delete(key));
+  inflight.set(key, p);
+  return p;
+}
+
+async function runAct(path, body, okMsg) {
   try {
     const res = await api(path, body ?? {});
     if (okMsg) toast(okMsg);
@@ -155,7 +166,7 @@ function render() {
   const setupMode = S.needs_setup || (S.job && S.job.title === "Setting up devstack");
   $("#setup").hidden = !setupMode;
   $("#dash").hidden = setupMode;
-  if (setupMode) return renderSetup();
+  if (setupMode) { renderSetup(); patchProgress(); return; }
   renderShell();
   renderAlerts();
   if (page === "sites") { renderSites(); renderPanel(); }
@@ -164,6 +175,7 @@ function render() {
   if (page === "mail") renderMail();
   if (page === "logs") renderLogs();
   if (page === "settings") renderSettings();
+  patchProgress();
   finishInstallJob();
 }
 
@@ -316,8 +328,12 @@ async function pickProject() {
 }
 
 // addProject serves dir under name ("" = the folder's own name), and asks for
-// a name only when the server says that one is taken.
+// a name only when the server says that one is taken. A second click while it
+// runs is ignored.
+let addingNow = false;
 async function addProject(dir, name) {
+  if (addingNow) return;
+  addingNow = true;
   try {
     const res = await api("/api/project/add", { dir, name });
     adding = null;
@@ -331,6 +347,7 @@ async function addProject(dir, name) {
     renderSites();
     $("#add-name")?.select();
   } finally {
+    addingNow = false;
     poll(true);
   }
 }
@@ -384,7 +401,7 @@ function renderSites() {
     const todo = [];
     // php and composer in terminals pick each site's PHP only while devstack's shims come first on PATH.
     if (sh && !sh.ok && S.sites.length) todo.push(`<div class="todo-item"><i class="mark off" style="margin-top:4px"></i><div class="grow"><b>Terminals don't use each site's PHP yet</b>
-      ${esc(sh.problem)} ${sh.blocker_system ? "Fixing it puts devstack's php first on the system PATH; Windows asks for administrator approval once." : "Fixing it puts devstack's php first on your PATH."}
+      ${esc(sh.problem)} ${sh.needs_admin ? "Fixing it puts an administrators-only copy of devstack's php first on the system PATH; Windows asks for administrator approval once." : "Fixing it puts devstack's php first on your PATH."}
       Terminals opened afterwards pick it up.</div><div class="acts"><button class="btn small primary" id="shims-fix">Fix</button></div></div>`);
     if (d && !d.on && !d.asked && S.sites.length) todo.push(`<div class="todo-item"><i class="mark off" style="margin-top:4px"></i><div class="grow"><b>Use ${esc(S.sites[0].slug)}.${esc(d.tld)} addresses?</b>
       Sites answer at <span class="mono">name.localhost</span> now, which only browsers and curl understand. With <span class="mono">.${esc(d.tld)}</span> addresses
@@ -396,7 +413,7 @@ function renderSites() {
         <label class="add-name"><input type="text" id="add-name" value="${esc(adding.name)}" spellcheck="false" aria-label="Name for the site"><span class="mono">.${esc(S.dns?.on ? S.dns.tld : "localhost")}</span></label></div>
         <div class="acts"><button class="btn small primary" id="add-yes">Add</button><button class="btn small ghost" id="add-no">Cancel</button></div></div></div>` : "";
 
-    const gone = (S.unserved || []).map((p) => `<div class="site gone"><i class="mark gone" title="Not served"></i>
+    const gone = (S.unserved || []).map((p) => `<div class="site gone"><i class="mark gone" role="img" aria-label="Not served" title="Not served"></i>
         <div class="site-id"><span class="site-name">${esc(p.name)}</span><span class="site-url">${p.missing
           ? `Folder missing: <span class="mono">${esc(p.dir)}</span>. It comes back by itself when the folder does (a drive plugged in, a folder moved back).`
           : `Not served: <span class="mono">${esc(p.dir)}</span> is already served under another name.`}</span></div>
@@ -413,7 +430,7 @@ function renderSites() {
       body = `<div class="site-head" aria-hidden="true"><span></span><span>Site</span><span>PHP <small class="star-key">★ default</small></span><span>AI guide</span><span></span></div>` + shown.map(([s, i]) => {
         const [m, why] = marks[i];
         return `<div class="site ${selected === s.slug ? "selected" : ""}" data-row="${i}">
-          <i class="mark ${m}" title="${esc(why)}"></i>
+          <i class="mark ${m}" role="img" aria-label="${esc(why)}" title="${esc(why)}"></i>
           <div class="site-id"><button class="site-name" data-select="${i}" aria-expanded="${selected === s.slug}" title="Show ${esc(s.slug)}'s details">${esc(s.slug)}</button>
             <span class="site-url">${esc(host(s.url))}${s.project ? ` · <span class="from" title="Added from outside www">${esc(s.dir)}</span>` : s.name !== s.slug ? ` · <span class="from">${esc(s.name)}</span>` : ""}</span></div>
           <select data-php="${i}" aria-label="PHP version for ${esc(s.slug)}; ★ marks the default">${phpOptions(s)}</select>
@@ -479,7 +496,7 @@ function renderPanel() {
   const [m, why] = siteMark(s);
   const dev = !(S.update && S.update.release);
   const mailKey = S.mail && [S.mail.enabled, S.mail.installed, S.mail.inbox, S.mail.smtp_port];
-  draw("panel", [s, S.phps, S.default_php, S.running, m, db, dev, jobBusy(), packages, installJob(), pwShown, mailKey], () => {
+  draw("panel", [s, S.phps, S.default_php, S.running, m, db, dev, jobBusy(), packages, progressKey(installJob()), pwShown, mailKey], () => {
     const dbHTML = panelDB(s);
     const errs = dev
       ? `<div class="errors">${SAMPLE_ERRORS.map(([e, at]) => `<span class="e">${esc(e)}</span><br>in ${esc(at)}`).join("<br>")}</div>`
@@ -617,8 +634,7 @@ function panelDB(s) {
     pma = `<button class="btn small" id="p-pma" ${S.running ? "" : `disabled title="Start the servers to open it"`}>${icon("open")}${label}</button>`;
   } else if (job && !job.finished && pkg && job.title === `Installing ${pkg.kind} ${pkg.version}`) {
     const step = job.steps[0];
-    const pct = step && step.total ? Math.round((step.done / step.total) * 100) : 0;
-    pma = `<span class="muted">Installing phpMyAdmin… ${pct}%</span>`;
+    pma = `<span class="muted">Installing phpMyAdmin… ${pctText(step, "pct", `${stepPct(step)}%`)}</span>`;
   } else if (pkg && !pkg.installed) {
     pma = `<button class="btn small" id="p-pma-install" data-pkg="${esc(pkg.kind)}|${esc(pkg.version)}" ${busy ? "disabled" : ""} title="Download phpMyAdmin ${esc(pkg.version)} (${size(pkg.size)}) to manage databases in the browser">${icon("open")}Install phpMyAdmin</button>`;
   }
@@ -644,6 +660,36 @@ function ensureServerData() {
 
 const installJob = () => S.job && S.job.title.startsWith("Installing") ? S.job : null;
 const jobBusy = () => !!(S.job && !S.job.finished);
+// progressKey is a job as far as a page's layout goes: its steps and their
+// states, not the byte counts. Downloads report every 400 ms; patchProgress
+// moves the bars and numbers in place instead of redrawing the whole section.
+const progressKey = (job) => job && [job.title, job.finished, job.error, job.steps.map((s) => [s.label, s.state, s.total > 0, s.done > 0])];
+const stepPct = (s) => s && s.total ? Math.min(100, Math.round((s.done / s.total) * 100)) : 0;
+const barFill = (s) => `<div class="bar-fill"${s ? ` data-bar="${esc(s.label)}"` : ""} style="transform:scaleX(${stepPct(s) / 100})"></div>`;
+// pctText marks text that patchProgress keeps current; fmt says how it reads.
+const pctText = (s, fmt, text, attrs = "") => s ? `<span data-pct="${esc(s.label)}" data-fmt="${fmt}" ${attrs}>${text}</span>` : text;
+
+function patchProgress() {
+  const job = S.job;
+  if (!job || job.finished) return;
+  const step = (label) => job.steps.find((s) => s.label === label);
+  for (const el of document.querySelectorAll("[data-bar]")) {
+    const s = step(el.dataset.bar);
+    if (s) el.style.transform = `scaleX(${stepPct(s) / 100})`;
+  }
+  for (const el of document.querySelectorAll("[data-pct]")) {
+    const s = step(el.dataset.pct);
+    if (!s) continue;
+    const pct = stepPct(s);
+    const text = {
+      "pct-of": () => `${pct}% of ${size(+el.dataset.size)}`,
+      pct: () => `${pct}%`,
+      slash: () => `${size(s.done || 0)} / ${size(s.total)}`,
+      update: () => s.total > 0 ? `${size(s.done || 0)} of ${size(s.total)} · ${pct}%` : s.done > 0 ? `${size(s.done)} downloaded` : el.textContent,
+    }[el.dataset.fmt];
+    if (text) el.textContent = text();
+  }
+}
 
 // versionRows lists the catalog's builds of one kind: in use, installed, or to install.
 function versionRows(kind) {
@@ -654,8 +700,7 @@ function versionRows(kind) {
     const step = installing && job.steps[0];
     let action;
     if (installing) {
-      const pct = step && step.total ? Math.round((step.done / step.total) * 100) : 0;
-      action = `<div class="progress"><div class="bar-track"><div class="bar-fill" style="transform:scaleX(${pct / 100})"></div></div><div class="muted num">${pct}% of ${size(p.size)}</div></div>`;
+      action = `<div class="progress"><div class="bar-track">${barFill(step)}</div><div class="muted num">${pctText(step, "pct-of", `${stepPct(step)}% of ${size(p.size)}`, `data-size="${p.size}"`)}</div></div>`;
     } else if (p.in_use) {
       action = '<span class="in-use"><i class="mark"></i>In use</span>';
     } else if (p.installed) {
@@ -722,7 +767,7 @@ function renderPHP() {
   const groups = services().filter((g) => g.name.startsWith("php-"));
   $("#php-default").textContent = S.default_php ? `New sites use PHP ${S.default_php}` : "";
   const job = installJob();
-  draw("php", [groups, S.running, S.sites.map((s) => [s.slug, s.php]), S.default_php, S.warnings, packages, job, S.extensions, S.odbc, jobBusy()], () => {
+  draw("php", [groups, S.running, S.sites.map((s) => [s.slug, s.php]), S.default_php, S.warnings, packages, progressKey(job), S.extensions, S.odbc, jobBusy()], () => {
     const el = $("#php");
     const cards = groups.map((g) => {
       const v = g.name.slice(4);
@@ -767,8 +812,7 @@ function extensionsSection() {
     let note = "", action;
     if (installing) {
       const step = job.steps.find((s) => s.state === "running") || job.steps[job.steps.length - 1];
-      const pct = step && step.total ? Math.round((step.done / step.total) * 100) : 0;
-      action = `<div class="progress"><div class="bar-track"><div class="bar-fill" style="transform:scaleX(${pct / 100})"></div></div><div class="muted">${esc(step ? step.label.replace("Download ", "") : "Starting…")}</div></div>`;
+      action = `<div class="progress"><div class="bar-track">${barFill(step)}</div><div class="muted">${esc(step ? step.label.replace("Download ", "") : "Starting…")}</div></div>`;
     } else if (x.enabled && x.missing && x.missing.length) {
       note = ` · not downloaded for PHP ${esc(x.missing.join(", "))}`;
       action = `<button class="btn small" data-ext="${esc(x.name)}|1" ${busy ? "disabled" : ""}>Download</button>`;
@@ -832,7 +876,7 @@ const pwCells = (pre) => `<dd class="mono">${pwShown && db.password ? esc(db.pas
 function renderDB() {
   ensureServerData();
   const g = services().find((x) => x.name === "mysql");
-  draw("db", [g, S.running, db, packages, installJob(), jobBusy(), pwShown], () => {
+  draw("db", [g, S.running, db, packages, progressKey(installJob()), jobBusy(), pwShown], () => {
     const el = $("#db");
     let card;
     if (db && !db.enabled) {
@@ -922,7 +966,7 @@ function renderMail() {
     mailListFor = marker;
     if (marker) loadMailList(); else mailList = null;
   }
-  draw("mail", [m, g, S.running, packages, installJob(), jobBusy(), mailList], () => {
+  draw("mail", [m, g, S.running, packages, progressKey(installJob()), jobBusy(), mailList], () => {
     const el = $("#mail");
     let card, recent = "";
     if (!m || !m.enabled) {
@@ -1090,9 +1134,14 @@ async function openINI(php) {
   await loadINI();
 }
 
-async function loadINI() {
+// loadINI (re)reads the file. quiet: only when it changed (the window
+// regaining focus), so coming back doesn't scroll the sheet to the top.
+async function loadINI(quiet) {
+  const mine = ed; // closed or reopened for another version meanwhile: drop the answer
   try {
-    const d = await api("/api/phpini?php=" + encodeURIComponent(ed.php));
+    const d = await api("/api/phpini?php=" + encodeURIComponent(mine.php));
+    if (ed !== mine) return;
+    if (quiet && mine.data && d.rev === mine.data.rev) return;
     const extras = d.order.filter((k) => !INI_KNOWN.has(k) && !d.owned.some((o) => o.toLowerCase() === k.toLowerCase()));
     const keys = [...INI_KNOWN, ...extras];
     const orig = Object.fromEntries(keys.map((k) => [k, d.settings[k] ?? null]));
@@ -1102,6 +1151,7 @@ async function loadINI() {
     $("#ini-path").title = d.path;
     drawINI();
   } catch (e) {
+    if (ed !== mine) return;
     ed = { php: ed.php, failed: e.message };
     $("#ini-body").innerHTML = `<div class="notice error">${esc(e.message)}</div>`;
   }
@@ -1376,6 +1426,7 @@ async function saveINI() {
   try {
     const res = await api("/api/phpini", { php, rev: ed.data.rev, set: ch.set, unset: ch.unset, extensions: ch.extensions });
     await loadINI();
+    if (!ed || ed.php !== php) return true; // closed meanwhile; the save itself went through
     ed.saved = res.error ? `<span class="error-text">Saved, but PHP ${esc(php)} didn't restart: ${esc(res.error.split("\n")[0])}</span> See the Logs page.`
       : res.running ? `Saved. ${(res.actions || []).some((a) => a.includes("php-" + php)) ? `PHP ${esc(php)} restarted with the new settings.` : "Applied."}`
       : "Saved. The servers use it when they start, and php in terminals uses it now.";
@@ -1383,6 +1434,7 @@ async function saveINI() {
     poll(true);
     return true;
   } catch (e) {
+    if (!ed || ed.php !== php) return false;
     ed.saving = false;
     if (e.status === 409) ed.conflict = true; else ed.error = e.message;
     drawFoot();
@@ -1392,6 +1444,7 @@ async function saveINI() {
 
 // closeINI closes the editor, asking first when there are unsaved changes.
 function closeINI(force) {
+  if (ed?.saving) return; // the save's answer is on its way; it would land on a closed editor
   if (!force && ed?.data && iniChanges().count) {
     ed.asking = { what: "close", then: () => closeINI(true) };
     drawFoot();
@@ -1420,7 +1473,7 @@ $("#ini-text").onclick = openINIText;
 $("#ini").addEventListener("cancel", (e) => { e.preventDefault(); if (ed?.asking) { ed.asking = null; drawFoot(); } else closeINI(); });
 $("#ini-search").oninput = filterINI;
 // Back from editing the file as text: show what it says now, unless there are edits here to keep.
-window.addEventListener("focus", () => { if (ed?.data && !ed.saving && !iniChanges().count && $("#ini").open) loadINI(); });
+window.addEventListener("focus", () => { if (ed?.data && !ed.saving && !iniChanges().count && $("#ini").open) loadINI(true); });
 
 // ---- logs --------------------------------------------------------------------------
 
@@ -1469,7 +1522,7 @@ async function refreshLog() {
 
 function drawLogFiles() {
   draw("logfiles", [logFiles, logName], () => {
-    const item = (f, text) => `<button role="option" data-file="${esc(f)}" aria-selected="${f === logName}" title="${esc(f)}">${esc(text)}</button>`;
+    const item = (f, text) => `<button data-file="${esc(f)}" aria-current="${f === logName}" title="${esc(f)}">${esc(text)}</button>`;
     const own = logFiles.filter((f) => !f.startsWith("sites/"));
     const sites = logFiles.filter((f) => f.startsWith("sites/"));
     $("#log-files").innerHTML = `<h3>devstack and servers</h3>${own.map((f) => item(f, f)).join("")}` +
@@ -1488,7 +1541,7 @@ function drawLogFiles() {
 function renderSettings() {
   ensureServerData();
   const ng = services().find((g) => g.name === "nginx");
-  draw("settings", [S.settings, S.root, S.version, S.dns, S.https, ng, S.running, packages, installJob(), jobBusy()], () => {
+  draw("settings", [S.settings, S.root, S.version, S.dns, S.https, ng, S.running, packages, progressKey(installJob()), jobBusy()], () => {
     const sw = (id, on, labelText) => `<label class="switch"><input type="checkbox" id="${id}" ${on ? "checked" : ""} aria-label="${esc(labelText)}"><span></span></label>`;
     const row = (title, desc, action) => `<div class="rowi"><div class="grow"><div class="set-title">${title}</div><div class="set-desc">${desc}</div></div>${action}</div>`;
     $("#settings").innerHTML = `
@@ -1585,7 +1638,7 @@ function httpsRow(h) {
 function renderUpdate() {
   const u = S.update;
   const job = S.job && S.job.title === "Updating devstack" ? S.job : null;
-  draw("update", [u, job], () => {
+  draw("update", [u, progressKey(job)], () => {
     const el = $("#update-card");
     if (!el) return;
     const checked = u.checked ? new Date(u.checked).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "";
@@ -1599,12 +1652,12 @@ function renderUpdate() {
       const known = st.total > 0;
       const pct = known ? Math.min(100, Math.round((st.done / st.total) * 100)) : 0;
       const bar = known
-        ? `<div class="bar-track update-bar"><div class="bar-fill" style="transform:scaleX(${pct / 100})"></div></div>`
+        ? `<div class="bar-track update-bar">${barFill(st)}</div>`
         : `<div class="bar-track update-bar indeterminate"><div class="bar-fill" style="animation-delay:-${(Date.now() % 1400) / 1000}s"></div></div>`;
       const desc = known ? `${size(st.done || 0)} of ${size(st.total)} · ${pct}%`
         : st.done > 0 ? `${size(st.done)} downloaded`
         : "devstack closes and reopens itself once the installer starts.";
-      text = `<div class="set-title">${esc(st.label)}…</div>${bar}<div class="set-desc num">${desc}</div>`;
+      text = `<div class="set-title">${esc(st.label)}…</div>${bar}<div class="set-desc num">${job.steps.length ? pctText(st, "update", desc) : desc}</div>`;
     } else if (u.version) {
       text = `<div class="set-title">devstack ${esc(u.version)} is available</div>
         ${u.notes ? `<div class="set-desc notes">${esc(u.notes)}</div>` : ""}
@@ -1643,7 +1696,7 @@ function renderSetup() {
   if (choice.root === null) choice.root = o.root;
   draw("setup", ["form", o], () => {
     const seg = (name, opts, labelText) => `<div class="choice" role="radiogroup" aria-label="${labelText}">${opts.map((x) =>
-      `<button type="button" role="radio" data-${name}="${esc(x.value)}" aria-selected="${choice[name] === x.value}" aria-checked="${choice[name] === x.value}">${esc(x.text)}</button>`).join("")}</div>`;
+      `<button type="button" role="radio" data-${name}="${esc(x.value)}" aria-checked="${choice[name] === x.value}" tabindex="${choice[name] === x.value ? 0 : -1}">${esc(x.text)}</button>`).join("")}</div>`;
     const phpOpts = o.php.map((x) => ({ value: x.value, text: x.value }));
     const mysqlOpts = o.mysql.map((x) => ({ value: x.value, text: x.value + (x.label ? " " + x.label : "") }))
       .concat([{ value: "off", text: "None" }]);
@@ -1672,11 +1725,21 @@ function renderSetup() {
       const total = items.reduce((n, x) => n + x.size, 0);
       setupRail(null);
       $("#plan").textContent = `Downloads ${names.join(", ").replace(/, ([^,]*)$/, " and $1")} (${size(total)}) from their official sites, checks each file, then starts them.`;
-      document.querySelectorAll("[data-php]").forEach((b) => { const on = b.dataset.php === choice.php; b.setAttribute("aria-selected", on); b.setAttribute("aria-checked", on); });
-      document.querySelectorAll("[data-mysql]").forEach((b) => { const on = b.dataset.mysql === choice.mysql; b.setAttribute("aria-selected", on); b.setAttribute("aria-checked", on); });
+      document.querySelectorAll("[data-php]").forEach((b) => { const on = b.dataset.php === choice.php; b.setAttribute("aria-checked", on); b.tabIndex = on ? 0 : -1; });
+      document.querySelectorAll("[data-mysql]").forEach((b) => { const on = b.dataset.mysql === choice.mysql; b.setAttribute("aria-checked", on); b.tabIndex = on ? 0 : -1; });
     };
     document.querySelectorAll("[data-php]").forEach((b) => (b.onclick = () => { choice.php = b.dataset.php; update(); }));
     document.querySelectorAll("[data-mysql]").forEach((b) => (b.onclick = () => { choice.mysql = b.dataset.mysql; update(); }));
+    // A radio group is one tab stop; the arrow keys choose within it.
+    document.querySelectorAll('#setup-card [role="radiogroup"]').forEach((g) => (g.onkeydown = (e) => {
+      const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+      if (!step) return;
+      e.preventDefault();
+      const items = [...g.querySelectorAll('[role="radio"]')];
+      const next = items[(items.indexOf(document.activeElement) + step + items.length) % items.length];
+      next.click();
+      next.focus();
+    }));
     $("#root").oninput = update;
     $("#vc") && ($("#vc").onclick = () => open("url", S.links.vc_redist));
     $("#go").onclick = () => act("/api/setup", { root: choice.root, php: choice.php, mysql: choice.mysql }).catch(() => {});
@@ -1703,7 +1766,7 @@ function setupRail(job) {
 
 function drawSetupProgress(job) {
   setupRail(job);
-  draw("setup", ["job", job], () => {
+  draw("setup", ["job", progressKey(job)], () => {
     const stepIcon = (s) => s.state === "done" ? icon("check", "icon") : s.state === "failed" ? icon("cross", "icon")
       : s.state === "running" ? icon("spin", "icon") : icon("ring", "icon");
     // Setup itself can succeed while starting the servers fails (a busy port, say).
@@ -1725,10 +1788,9 @@ function drawSetupProgress(job) {
       <h1>${title}</h1>
       <p class="lead">${lead}</p>
       <div class="steps">${job.steps.map((s) => {
-        const pct = s.total ? Math.min(100, Math.round((s.done / s.total) * 100)) : 0;
         return `<div class="step ${esc(s.state)}">${stepIcon(s)}<span>${esc(s.label)}</span>
-          <span class="amount num">${!s.total ? "" : s.state === "pending" ? size(s.total) : `${size(s.done || 0)} / ${size(s.total)}`}</span>
-          ${s.total ? `<div class="bar-track"><div class="bar-fill" style="transform:scaleX(${pct / 100})"></div></div>` : ""}</div>`;
+          <span class="amount num">${!s.total ? "" : s.state === "pending" ? size(s.total) : pctText(s, "slash", `${size(s.done || 0)} / ${size(s.total)}`)}</span>
+          ${s.total ? `<div class="bar-track">${barFill(s)}</div>` : ""}</div>`;
       }).join("")}</div>
       ${job.error ? `<div class="notice error" style="white-space:pre-wrap;margin-bottom:12px">${esc(job.error)}</div>` : ""}
       ${job.error && !startFailed ? `<button class="btn primary wide" id="retry">Back</button>` : ""}
@@ -1741,7 +1803,13 @@ function drawSetupProgress(job) {
 // ---- wiring -------------------------------------------------------------------
 
 const menu = $("#add-menu"), addBtn = $("#add-site");
-function closeMenu() { menu.hidden = true; addBtn.setAttribute("aria-expanded", "false"); }
+// closeMenu hides the Add site menu. Focus inside it goes back to its button,
+// rather than to the page when the focused item disappears.
+function closeMenu(refocus = true) {
+  if (refocus && !menu.hidden && menu.contains(document.activeElement)) addBtn.focus();
+  menu.hidden = true;
+  addBtn.setAttribute("aria-expanded", "false");
+}
 addBtn.innerHTML = icon("plus") + "Add site" + icon("chevron");
 $("#menu-www").innerHTML = `${icon("folder")}<span>Open the www folder<small>Every folder you put in it is a site</small></span>`;
 $("#menu-folder").innerHTML = `${icon("plus")}<span>Add a folder from elsewhere…<small>Serve a project without moving it</small></span>`;
@@ -1758,6 +1826,9 @@ menu.onkeydown = (e) => {
   const items = [...menu.querySelectorAll("button")], i = items.indexOf(document.activeElement);
   if (e.key === "ArrowDown") { e.preventDefault(); items[(i + 1) % items.length].focus(); }
   if (e.key === "ArrowUp") { e.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
+  if (e.key === "Home") { e.preventDefault(); items[0].focus(); }
+  if (e.key === "End") { e.preventDefault(); items[items.length - 1].focus(); }
+  if (e.key === "Tab") closeMenu(false); // Tab moves on, past the button
 };
 document.addEventListener("click", (e) => { if (!menu.hidden && !e.target.closest(".menu-wrap")) closeMenu(); });
 document.addEventListener("keydown", (e) => {

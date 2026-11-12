@@ -4,18 +4,28 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/harsha2805/devstack/internal/control"
 	"github.com/harsha2805/devstack/internal/shim"
-	"github.com/harsha2805/devstack/internal/winproc"
 )
 
 // cmdShims reports or fixes whether `php` and `composer` in terminals run
 // devstack's shims, which pick each site's PHP.
 func cmdShims(ctx context.Context, e *env, args []string) error {
 	if len(args) == 2 && args[0] == "fix-system" {
-		// Run as administrator by FixShimPath.
-		return winproc.SetSystemPath(func(p string) string { return shim.Prepend(p, args[1]) })
+		// Run as administrator by FixShimPath. The shims beside this
+		// devstack.exe are copied; the argument only has to agree.
+		dir := shim.Dir()
+		if dir == "" || !strings.EqualFold(filepath.Clean(args[1]), dir) {
+			return fmt.Errorf("fix-system: %s isn't this devstack's shims folder", args[1])
+		}
+		return control.InstallSystemShims(dir)
+	}
+	if len(args) == 1 && args[0] == "remove-system" {
+		// Run as administrator by the uninstaller.
+		return control.RemoveSystemShims()
 	}
 	if len(args) > 1 || (len(args) == 1 && args[0] != "status" && args[0] != "fix") {
 		return usageError{"expected status or fix"}
@@ -25,8 +35,8 @@ func cmdShims(ctx context.Context, e *env, args []string) error {
 		return fmt.Errorf("this devstack.exe has no shims folder next to it; install devstack with its installer")
 	}
 	if len(args) == 1 && args[0] == "fix" && !s.OK() {
-		if s.BlockerSystem {
-			fmt.Fprintf(e.stdout, "%s is on the system PATH, so Windows will ask for administrator approval once.\n", s.Blocker)
+		if s.NeedsAdmin() {
+			fmt.Fprintln(e.stdout, "This changes the system PATH, so Windows will ask for administrator approval once.")
 		}
 		if err := control.FixShimPath(); err != nil {
 			return err
