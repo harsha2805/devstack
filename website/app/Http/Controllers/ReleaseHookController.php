@@ -46,6 +46,10 @@ class ReleaseHookController extends Controller
         }
         $feed = json_decode((string) @file_get_contents(public_path('latest.json')), true);
 
-        return response()->json(['version' => is_array($feed) ? ($feed['version'] ?? null) : null]);
+        return response()->json([
+            'version' => is_array($feed) ? ($feed['version'] ?? null) : null,
+            // Without sodium, Releases can't check a new feed's signature and keeps the old one.
+            'verifies' => function_exists('sodium_crypto_sign_verify_detached'),
+        ]);
     }
 }

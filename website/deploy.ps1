@@ -89,7 +89,7 @@ try {
         Get-ChildItem (Join-Path $stage $d) -File -ErrorAction SilentlyContinue | Where-Object Name -ne .gitignore | Remove-Item
     }
     # Cache entries sit two folders down; this machine's would replace the server's.
-    Get-ChildItem (Join-Path $stage "storageramework\cache\data") -Directory -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
+    Get-ChildItem (Join-Path $stage "storage\framework\cache\data") -Directory -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
     # Composer reports progress on stderr, which Windows PowerShell turns into an
     # error under 'Stop'; merge it inside cmd and judge by the exit code.
     cmd /c "composer install --no-dev --optimize-autoloader --no-interaction --no-progress --working-dir `"$stage`" 2>&1" | Select-Object -Last 2

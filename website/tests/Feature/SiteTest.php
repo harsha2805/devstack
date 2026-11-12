@@ -222,7 +222,7 @@ class SiteTest extends TestCase
         $this->post('/hooks/release', [], ['Authorization' => 'Bearer wrong'])->assertNotFound();
         Http::assertNothingSent();
 
-        $this->post('/hooks/release', [], ['Authorization' => 'Bearer hook-secret'])->assertOk()->assertJson(['version' => '0.2.3']);
+        $this->post('/hooks/release', [], ['Authorization' => 'Bearer hook-secret'])->assertOk()->assertJson(['version' => '0.2.3', 'verifies' => true]);
         $feed = json_decode(file_get_contents(public_path('latest.json')), true);
         $this->assertSame('0.2.3', $feed['version'], 'public/latest.json serves the new signed feed');
         $this->assertTrue(Releases::signed($feed), 'served exactly as signed');
