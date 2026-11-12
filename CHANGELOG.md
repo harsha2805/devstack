@@ -5,7 +5,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions
 The release scripts need a section for the version they build and take the in-app update notes from the
 bold lead-ins under it, so write each feature up here when it lands.
 
-## [1.4.2] — unreleased
+## [1.4.2] — 2026-11-12
 
 ### Security
 - **Your stack folder is yours alone.** A folder at a drive root, such as `C:\devstack`, let every account on the PC
@@ -36,7 +36,7 @@ bold lead-ins under it, so write each feature up here when it lands.
 - **High Contrast and screen readers**: switches and server marks stay visible in High Contrast, site states are
   announced, setup's version choices work with the arrow keys, and focus returns to Add site when its menu closes.
 
-## [1.4.1] — unreleased
+## [1.4.1] — 2026-11-10
 
 ### Security
 - **A project's `.devstack.toml` can't add to nginx's config.** A `docroot` with quotes, `;`, `{`, `}`, `$` or `#`

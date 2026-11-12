@@ -49,6 +49,11 @@ if ($state -eq 'missing') {
     git fetch -q --tags origin
     $head = git rev-parse HEAD
     if ($head -ne (git rev-parse origin/main)) { throw "HEAD isn't pushed to origin/main. Push first." }
+    # changelog.json takes the date from the heading; without one the website lists the release as "Unreleased".
+    $heading = Select-String -Path CHANGELOG.md -Pattern "^## \[$([regex]::Escape($Version))\]" | Select-Object -First 1
+    if (-not $heading -or $heading.Line -notmatch '\d{4}-\d{2}-\d{2}') {
+        throw "CHANGELOG.md: date the heading first ('## [$Version] $([char]0x2014) $(Get-Date -Format yyyy-MM-dd)'), commit and push."
+    }
     if (-not (git ls-remote --tags origin "refs/tags/$tag")) {
         if (-not (git tag -l $tag)) { git tag $tag $head }
         elseif ((git rev-list -n 1 $tag) -ne $head) { throw "A local tag $tag points elsewhere. Delete it (git tag -d $tag) and run this again." }
